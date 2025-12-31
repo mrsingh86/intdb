@@ -16,9 +16,56 @@ export const GET = withAuth(async (request, { user, params }) => {
     const supabase = createClient();
     const milestoneService = new MilestoneTrackingService(supabase);
 
+    // Get progress summary
     const progress = await milestoneService.getMilestoneProgress(id);
 
-    return NextResponse.json(progress);
+    // Fetch milestones and definitions separately (no FK join needed)
+    const [milestonesResult, definitionsResult] = await Promise.all([
+      supabase
+        .from('shipment_milestones')
+        .select('id, milestone_code, milestone_status, expected_date, achieved_date, metadata, notes')
+        .eq('shipment_id', id),
+      supabase
+        .from('milestone_definitions')
+        .select('milestone_code, milestone_name, milestone_phase, is_critical, milestone_order')
+        .order('milestone_order', { ascending: true }),
+    ]);
+
+    const milestones = milestonesResult.data || [];
+    const definitions = definitionsResult.data || [];
+
+    // Create lookup map for definitions
+    const defMap = new Map(definitions.map(d => [d.milestone_code, d]));
+
+    // Transform to match component interface
+    const formattedMilestones = milestones.map(m => {
+      const def = defMap.get(m.milestone_code);
+      return {
+        id: m.id,
+        milestone_code: m.milestone_code,
+        milestone_status: m.milestone_status,
+        expected_date: m.expected_date,
+        actual_date: m.achieved_date,
+        metadata: m.metadata,
+        milestone_definition: def ? {
+          milestone_name: def.milestone_name,
+          milestone_phase: def.milestone_phase,
+          is_critical: def.is_critical,
+        } : undefined,
+        _order: def?.milestone_order ?? 999,
+      };
+    });
+
+    // Sort by milestone_order
+    formattedMilestones.sort((a, b) => a._order - b._order);
+
+    // Remove _order from response
+    const cleanedMilestones = formattedMilestones.map(({ _order, ...rest }) => rest);
+
+    return NextResponse.json({
+      ...progress,
+      milestones: cleanedMilestones,
+    });
   } catch (error: unknown) {
     console.error('[API:GET /shipments/[id]/milestones] Error:', error);
     return NextResponse.json(
