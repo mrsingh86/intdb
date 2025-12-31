@@ -21,7 +21,7 @@ import { google } from 'googleapis';
 
 // Configuration
 const MAX_EMAILS_PER_RUN = 50;
-const LOOKBACK_HOURS = 6; // Fetch emails from last 6 hours
+const LOOKBACK_MINUTES = 15; // Fetch emails from last 15 min (buffer for cron delays)
 
 export async function GET(request: Request) {
   const startTime = Date.now();
@@ -32,6 +32,13 @@ export async function GET(request: Request) {
     attachments_stored: 0,
     errors: 0,
   };
+
+  // Allow custom lookback via query param (for initial backlog)
+  const url = new URL(request.url);
+  const lookbackDays = parseInt(url.searchParams.get('days') || '0');
+  const lookbackMinutes = lookbackDays > 0
+    ? lookbackDays * 24 * 60  // Convert days to minutes
+    : LOOKBACK_MINUTES;       // Default 15 min
 
   try {
     // Validate environment
@@ -66,8 +73,8 @@ export async function GET(request: Request) {
 
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
-    // Calculate time filter (last N hours)
-    const afterDate = new Date(Date.now() - LOOKBACK_HOURS * 60 * 60 * 1000);
+    // Calculate time filter (last N minutes)
+    const afterDate = new Date(Date.now() - lookbackMinutes * 60 * 1000);
     const afterTimestamp = Math.floor(afterDate.getTime() / 1000);
 
     // Fetch email list
