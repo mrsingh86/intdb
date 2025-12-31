@@ -53,8 +53,9 @@ interface ExtractedBookingData {
   container_number?: string;
 }
 
-// Direct carrier domains - emails from these domains are source of truth
-const DIRECT_CARRIER_DOMAINS = [
+// Fallback carrier domains - used when database config is not available
+// These should be moved to carrier_configs.email_sender_patterns in production
+const FALLBACK_CARRIER_DOMAINS = [
   'service.hlag.com', 'hapag-lloyd.com',
   'maersk.com',
   'msc.com',
@@ -184,6 +185,7 @@ export class EmailProcessingOrchestrator {
   private supabase: SupabaseClient;
   private anthropic: Anthropic;
   private carrierIdMap: Map<string, string> = new Map();
+  private carrierDomains: string[] = []; // Loaded from carrier_configs.email_sender_patterns
   private stakeholderService: StakeholderExtractionService;
   private lifecycleService: DocumentLifecycleService;
   private backfillService: BackfillService;
@@ -204,27 +206,35 @@ export class EmailProcessingOrchestrator {
    * - Emails often arrive via ops group (sender_email = ops@intoglo.com)
    * - The actual carrier domain is in true_sender_email
    * - Example: sender_email=ops@intoglo.com, true_sender_email=digital-business@hlag.com
+   *
+   * Uses carrier domains loaded from carrier_configs.email_sender_patterns
+   * Falls back to hardcoded list if database config is empty
    */
   private isDirectCarrierEmail(trueSenderEmail: string | null, senderEmail: string): boolean {
+    // Use database-loaded domains, fallback to hardcoded list
+    const domains = this.carrierDomains.length > 0 ? this.carrierDomains : FALLBACK_CARRIER_DOMAINS;
+
     // First check true_sender_email (preferred - actual sender before forwarding)
     if (trueSenderEmail) {
       const domain = trueSenderEmail.toLowerCase().split('@')[1] || '';
-      if (DIRECT_CARRIER_DOMAINS.some(d => domain.includes(d))) {
+      if (domains.some(d => domain.includes(d))) {
         return true;
       }
     }
     // Fallback to sender_email for direct sends
     if (senderEmail) {
       const domain = senderEmail.toLowerCase().split('@')[1] || '';
-      return DIRECT_CARRIER_DOMAINS.some(d => domain.includes(d));
+      return domains.some(d => domain.includes(d));
     }
     return false;
   }
 
   /**
-   * Initialize carrier ID mapping
+   * Initialize carrier ID mapping and load carrier domains from database
+   * Configuration Over Code: Carrier patterns loaded from carrier_configs table
    */
   async initialize(): Promise<void> {
+    // Load carrier ID mapping
     const { data: carriers } = await this.supabase.from('carriers').select('id, carrier_name');
     carriers?.forEach(c => {
       const lower = c.carrier_name.toLowerCase();
@@ -236,6 +246,22 @@ export class EmailProcessingOrchestrator {
       if (lower.includes('cosco')) this.carrierIdMap.set('cosco', c.id);
       if (lower.includes('msc')) this.carrierIdMap.set('msc', c.id);
     });
+
+    // Load carrier email domains from carrier_configs (database-driven)
+    const { data: carrierConfigs } = await this.supabase
+      .from('carrier_configs')
+      .select('email_sender_patterns')
+      .eq('enabled', true);
+
+    if (carrierConfigs) {
+      // Flatten all email_sender_patterns arrays into a single list of domains
+      this.carrierDomains = carrierConfigs
+        .flatMap(c => c.email_sender_patterns || [])
+        .map(pattern => pattern.toLowerCase())
+        .filter((domain, index, self) => self.indexOf(domain) === index); // Dedupe
+
+      console.log(`[EmailProcessingOrchestrator] Loaded ${this.carrierDomains.length} carrier domains from database`);
+    }
   }
 
   /**
