@@ -150,4 +150,23 @@ export class EntityRepository {
 
     return [...new Set((data || []).map(e => e.email_id))];
   }
+
+  /**
+   * Get email metadata by ID from raw_emails
+   * Used for confidence calculation (sender, received_at)
+   */
+  async getEmailById(emailId: string): Promise<{
+    sender_email?: string;
+    true_sender_email?: string;
+    received_at?: string;
+  } | null> {
+    const { data, error } = await this.supabase
+      .from('raw_emails')
+      .select('sender_email, true_sender_email, received_at')
+      .eq('id', emailId)
+      .single();
+
+    if (error || !data) return null;
+    return data;
+  }
 }

@@ -21,6 +21,8 @@ import { CONFIDENCE_THRESHOLDS } from '../constants/confidence-levels';
 import { EntityExtraction, EntityType, DocumentType } from '@/types/email-intelligence';
 import { Shipment, LinkingKeys, LinkingResult, LinkType, ShipmentStatus } from '@/types/shipment';
 import { parseEntityDate } from '../utils/date-parser';
+import { linkConfidenceCalculator } from './shipment-linking/link-confidence-calculator';
+import { EmailAuthority, IdentifierType, DIRECT_CARRIER_DOMAINS } from './shipment-linking/types';
 
 // Document type to milestone mapping
 const DOC_TYPE_TO_MILESTONE: Record<string, string> = {
@@ -519,6 +521,7 @@ export class ShipmentLinkingService {
 
   /**
    * Link email to shipment with confidence scoring
+   * Uses sophisticated LinkConfidenceCalculator with authority/time factors
    */
   private async linkEmailToShipment(
     emailId: string,
@@ -526,8 +529,14 @@ export class ShipmentLinkingService {
     keys: LinkingKeys,
     classificationId?: string
   ): Promise<LinkingResult> {
-    // Determine link type and confidence
-    const { linkType, matchedValue, confidence } = this.calculateLinkConfidence(keys);
+    // Get email and shipment data for confidence calculation
+    const email = await this.entityRepo.getEmailById(emailId);
+    let shipment: Shipment | null = null;
+    try {
+      shipment = await this.shipmentRepo.findById(shipmentId);
+    } catch {
+      // Shipment may not exist yet
+    }
 
     // Get document type from classification
     let documentType: DocumentType = 'booking_confirmation';
@@ -537,6 +546,14 @@ export class ShipmentLinkingService {
         documentType = classification.document_type;
       }
     }
+
+    // Calculate confidence with sophisticated calculator
+    const { linkType, matchedValue, confidence } = this.calculateLinkConfidence(keys, {
+      senderEmail: email?.sender_email || email?.true_sender_email,
+      documentType,
+      emailReceivedAt: email?.received_at,
+      shipmentCreatedAt: shipment?.created_at,
+    });
 
     // High confidence: Auto-link
     if (confidence >= this.config.auto_link_threshold) {
@@ -596,46 +613,92 @@ export class ShipmentLinkingService {
   }
 
   /**
-   * Calculate link confidence based on matched keys
+   * Calculate link confidence using sophisticated LinkConfidenceCalculator
+   * Factors: identifier type, email authority, document type, time proximity
    */
-  private calculateLinkConfidence(keys: LinkingKeys): {
+  private calculateLinkConfidence(
+    keys: LinkingKeys,
+    options?: {
+      senderEmail?: string;
+      documentType?: string;
+      emailReceivedAt?: string;
+      shipmentCreatedAt?: string;
+    }
+  ): {
     linkType: LinkType;
     matchedValue: string;
     confidence: number;
   } {
-    // Booking number = 95% confidence (most reliable)
+    // Determine identifier type and value
+    let identifierType: IdentifierType;
+    let matchedValue: string;
+    let linkType: LinkType;
+
     if (keys.booking_numbers.length > 0) {
-      return {
-        linkType: 'booking_number',
-        matchedValue: keys.booking_numbers[0],
-        confidence: 95,
-      };
+      identifierType = 'booking_number';
+      matchedValue = keys.booking_numbers[0];
+      linkType = 'booking_number';
+    } else if (keys.bl_numbers.length > 0) {
+      identifierType = 'bl_number';
+      matchedValue = keys.bl_numbers[0];
+      linkType = 'bl_number';
+    } else if (keys.container_numbers.length > 0) {
+      identifierType = 'container_number';
+      matchedValue = keys.container_numbers[0];
+      linkType = 'container_number';
+    } else {
+      return { linkType: 'entity_match', matchedValue: '', confidence: 0 };
     }
 
-    // BL number = 90% confidence
-    if (keys.bl_numbers.length > 0) {
-      return {
-        linkType: 'bl_number',
-        matchedValue: keys.bl_numbers[0],
-        confidence: 90,
-      };
+    // Determine email authority
+    const emailAuthority = this.determineEmailAuthority(options?.senderEmail);
+
+    // Calculate time proximity in days
+    let timeProximityDays: number | undefined;
+    if (options?.emailReceivedAt && options?.shipmentCreatedAt) {
+      const emailDate = new Date(options.emailReceivedAt);
+      const shipmentDate = new Date(options.shipmentCreatedAt);
+      timeProximityDays = Math.abs(
+        Math.floor((emailDate.getTime() - shipmentDate.getTime()) / (1000 * 60 * 60 * 24))
+      );
     }
 
-    // Container number = 75% confidence (containers can be reused)
-    if (keys.container_numbers.length > 0) {
-      return {
-        linkType: 'container_number',
-        matchedValue: keys.container_numbers[0],
-        confidence: 75,
-      };
-    }
+    // Use sophisticated calculator
+    const result = linkConfidenceCalculator.calculate({
+      identifier_type: identifierType,
+      identifier_value: matchedValue,
+      email_authority: emailAuthority,
+      document_type: options?.documentType,
+      time_proximity_days: timeProximityDays,
+    });
 
-    // No reliable identifiers
     return {
-      linkType: 'entity_match',
-      matchedValue: '',
-      confidence: 0,
+      linkType,
+      matchedValue,
+      confidence: result.score,
     };
+  }
+
+  /**
+   * Determine email authority based on sender domain
+   */
+  private determineEmailAuthority(senderEmail?: string): EmailAuthority {
+    if (!senderEmail) return EmailAuthority.THIRD_PARTY;
+
+    const domain = senderEmail.split('@')[1]?.toLowerCase();
+    if (!domain) return EmailAuthority.THIRD_PARTY;
+
+    // Check if direct carrier
+    if (DIRECT_CARRIER_DOMAINS.some(d => domain.includes(d))) {
+      return EmailAuthority.DIRECT_CARRIER;
+    }
+
+    // Check if internal (intoglo)
+    if (domain.includes('intoglo')) {
+      return EmailAuthority.INTERNAL;
+    }
+
+    return EmailAuthority.THIRD_PARTY;
   }
 
   /**
