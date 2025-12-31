@@ -24,7 +24,7 @@ export const GET = withAuth(async (request, { user, params }) => {
       documentRepo.findByShipmentIdWithClassification(id),
     ]);
 
-    // Fetch stakeholders if available
+    // Fetch stakeholders - try linked parties first, fallback to flat columns
     const stakeholderIds = [
       shipment.shipper_id,
       shipment.consignee_id,
@@ -32,6 +32,8 @@ export const GET = withAuth(async (request, { user, params }) => {
     ].filter(Boolean);
 
     let stakeholders: Record<string, any> = {};
+
+    // First, try to fetch from linked parties table
     if (stakeholderIds.length > 0) {
       const { data: parties } = await supabase
         .from('parties')
@@ -45,6 +47,31 @@ export const GET = withAuth(async (request, { user, params }) => {
           if (party.id === shipment.carrier_id) stakeholders.carrier = party;
         }
       }
+    }
+
+    // Fallback: Use flat columns if IDs not linked
+    // Cast to access flat columns that may not be in strict Shipment type
+    const s = shipment as unknown as Record<string, unknown>;
+    if (!stakeholders.shipper && s.shipper_name) {
+      stakeholders.shipper = {
+        party_name: s.shipper_name as string,
+        address: s.shipper_address as string | undefined,
+        party_type: 'shipper',
+      };
+    }
+    if (!stakeholders.consignee && s.consignee_name) {
+      stakeholders.consignee = {
+        party_name: s.consignee_name as string,
+        address: s.consignee_address as string | undefined,
+        party_type: 'consignee',
+      };
+    }
+    if (!stakeholders.notify_party && s.notify_party_name) {
+      stakeholders.notify_party = {
+        party_name: s.notify_party_name as string,
+        address: s.notify_party_address as string | undefined,
+        party_type: 'notify_party',
+      };
     }
 
     // Fetch carrier info if available

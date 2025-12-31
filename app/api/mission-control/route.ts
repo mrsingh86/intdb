@@ -190,25 +190,30 @@ export async function GET(request: Request) {
     }
 
     for (const ship of shipments) {
-      const progress = calculateJourneyProgress(ship.workflow_phase, ship.workflow_state)
+      const progress = calculateJourneyProgress(ship.workflow_phase, ship.workflow_state, ship.status)
       if (progress < 25) journeyDistribution.early++
       else if (progress < 50) journeyDistribution.midway++
       else if (progress < 75) journeyDistribution.advanced++
       else journeyDistribution.nearComplete++
     }
 
-    // Get shipments requiring attention (those with lowest progress)
+    // Get shipments requiring attention (low progress + ETD within next 14 days)
     const shipmentsNeedingAttention = shipments
       .map(s => ({
         id: s.id,
         booking_number: s.booking_number,
-        workflow_state: s.workflow_state,
+        workflow_state: s.workflow_state || s.status, // Show status if workflow_state is null
         workflow_phase: s.workflow_phase,
         etd: s.etd,
-        journey_progress: calculateJourneyProgress(s.workflow_phase, s.workflow_state),
+        journey_progress: calculateJourneyProgress(s.workflow_phase, s.workflow_state, s.status),
         days_to_etd: s.etd ? Math.ceil((new Date(s.etd).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null,
       }))
-      .filter(s => s.journey_progress < 50 && s.days_to_etd !== null && s.days_to_etd <= 14)
+      .filter(s =>
+        s.journey_progress < 50 &&
+        s.days_to_etd !== null &&
+        s.days_to_etd >= 0 &&  // Only future ETD (exclude past/negative days)
+        s.days_to_etd <= 14
+      )
       .sort((a, b) => (a.days_to_etd || 999) - (b.days_to_etd || 999))
       .slice(0, 5)
 
@@ -259,49 +264,64 @@ export async function GET(request: Request) {
 }
 
 /**
- * Calculate journey progress percentage based on workflow phase and state
+ * Calculate journey progress percentage based on workflow phase, state, and status
+ * Falls back to status field when workflow fields are not populated
  */
-function calculateJourneyProgress(phase: string | null, state: string | null): number {
-  if (!phase && !state) return 0
-
+function calculateJourneyProgress(phase: string | null, state: string | null, status?: string | null): number {
   const phaseStr = (phase || '').toLowerCase()
   const stateStr = (state || '').toLowerCase()
+  const statusStr = (status || '').toLowerCase()
 
-  // Delivery phase = 90-100%
-  if (phaseStr === 'delivery') {
-    if (stateStr === 'pod_received') return 100
-    return 90
+  // If workflow data exists, use it
+  if (phaseStr || stateStr) {
+    // Delivery phase = 90-100%
+    if (phaseStr === 'delivery') {
+      if (stateStr === 'pod_received') return 100
+      return 90
+    }
+
+    // Arrival phase = 70-89%
+    if (phaseStr === 'arrival') {
+      return 75
+    }
+
+    // In-transit phase = 50-69%
+    if (phaseStr === 'in_transit' || stateStr === 'departed' || stateStr === 'sailing') {
+      return 55
+    }
+
+    // Pre-departure phase = 0-49%
+    const stateProgress: Record<string, number> = {
+      'new': 5,
+      'booking_confirmed': 10,
+      'booking_confirmation_received': 10,
+      'booking_confirmation_shared': 15,
+      'commercial_invoice_received': 20,
+      'packing_list_received': 25,
+      'si_pending': 25,
+      'si_draft_received': 30,
+      'si_submitted': 35,
+      'checklist_approved': 35,
+      'si_confirmed': 40,
+      'vgm_confirmed': 42,
+      'hbl_draft_sent': 45,
+      'documentation_complete': 48,
+    }
+
+    return stateProgress[stateStr] || 5
   }
 
-  // Arrival phase = 70-89%
-  if (phaseStr === 'arrival') {
-    return 75
+  // Fallback: Use status field when workflow data is not populated
+  const statusProgress: Record<string, number> = {
+    'draft': 10,
+    'booked': 25,
+    'in_transit': 60,
+    'arrived': 90,
+    'delivered': 100,
+    'cancelled': 0,
   }
 
-  // In-transit phase = 50-69%
-  if (phaseStr === 'in_transit' || stateStr === 'departed' || stateStr === 'sailing') {
-    return 55
-  }
-
-  // Pre-departure phase = 0-49%
-  const stateProgress: Record<string, number> = {
-    'new': 5,
-    'booking_confirmed': 10,
-    'booking_confirmation_received': 10,
-    'booking_confirmation_shared': 15,
-    'commercial_invoice_received': 20,
-    'packing_list_received': 25,
-    'si_pending': 25,
-    'si_draft_received': 30,
-    'si_submitted': 35,
-    'checklist_approved': 35,
-    'si_confirmed': 40,
-    'vgm_confirmed': 42,
-    'hbl_draft_sent': 45,
-    'documentation_complete': 48,
-  }
-
-  return stateProgress[stateStr] || 5
+  return statusProgress[statusStr] || 5
 }
 
 async function getAttentionItems(supabase: any, todayStr: string) {

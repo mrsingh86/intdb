@@ -45,7 +45,11 @@ interface ExtractedBookingData {
   gate_cutoff?: string;
   doc_cutoff?: string;
   shipper_name?: string;
+  shipper_address?: string;
   consignee_name?: string;
+  consignee_address?: string;
+  notify_party_name?: string;
+  notify_party_address?: string;
   container_number?: string;
 }
 
@@ -159,7 +163,11 @@ Extract ALL shipping information from the content below. Return ONLY valid JSON:
   "gate_cutoff": "gate cutoff in YYYY-MM-DD format",
   "doc_cutoff": "documentation cutoff in YYYY-MM-DD format",
   "shipper_name": "shipper/exporter company name",
+  "shipper_address": "shipper full address",
   "consignee_name": "consignee/importer company name",
+  "consignee_address": "consignee full address",
+  "notify_party_name": "notify party company name",
+  "notify_party_address": "notify party full address",
   "container_number": "container number if available"
 }
 
@@ -284,8 +292,8 @@ export class EmailProcessingOrchestrator {
         shipmentId = result.shipmentId;
         fieldsExtracted = result.fieldsUpdated;
       } else {
-        // LINK to existing shipment
-        const result = await this.linkToExistingShipment(emailId, extractedData);
+        // LINK to existing shipment and update stakeholders from HBL/SI
+        const result = await this.linkToExistingShipment(emailId, extractedData, documentType);
         shipmentId = result.shipmentId;
       }
 
@@ -451,8 +459,9 @@ export class EmailProcessingOrchestrator {
     if (data.cargo_cutoff) { shipmentData.cargo_cutoff = data.cargo_cutoff; fieldsUpdated++; }
     if (data.gate_cutoff) { shipmentData.gate_cutoff = data.gate_cutoff; fieldsUpdated++; }
     if (data.doc_cutoff) { shipmentData.doc_cutoff = data.doc_cutoff; fieldsUpdated++; }
-    if (data.shipper_name) { shipmentData.shipper_name = data.shipper_name; fieldsUpdated++; }
-    if (data.consignee_name) { shipmentData.consignee_name = data.consignee_name; fieldsUpdated++; }
+    // NOTE: Do NOT set shipper_name/consignee_name from booking_confirmation
+    // Booking confirmations (MBL level) have Intoglo as shipper
+    // Real customer stakeholders come from HBL/SI documents
     if (data.container_number) { shipmentData.container_number_primary = data.container_number; }
 
     shipmentData.updated_at = new Date().toISOString();
@@ -635,7 +644,8 @@ export class EmailProcessingOrchestrator {
    */
   private async linkToExistingShipment(
     emailId: string,
-    data: ExtractedBookingData
+    data: ExtractedBookingData,
+    documentType?: string
   ): Promise<{ shipmentId?: string }> {
     const bookingNumber = data.booking_number;
     if (!bookingNumber) {
@@ -649,7 +659,41 @@ export class EmailProcessingOrchestrator {
       .single();
 
     if (existing) {
-      // Link email to shipment (via shipment_documents if table exists)
+      // Update stakeholders from HBL/SI documents (these have real customer info)
+      const stakeholderDocTypes = ['bill_of_lading', 'bl_draft', 'hbl_draft', 'shipping_instruction', 'si_draft', 'si_submission'];
+      if (documentType && stakeholderDocTypes.includes(documentType)) {
+        const updateData: Record<string, string> = {};
+
+        if (data.shipper_name) {
+          updateData.shipper_name = data.shipper_name;
+        }
+        if (data.consignee_name) {
+          updateData.consignee_name = data.consignee_name;
+        }
+        if (data.shipper_address) {
+          updateData.shipper_address = data.shipper_address;
+        }
+        if (data.consignee_address) {
+          updateData.consignee_address = data.consignee_address;
+        }
+        if (data.notify_party_name) {
+          updateData.notify_party_name = data.notify_party_name;
+        }
+        if (data.notify_party_address) {
+          updateData.notify_party_address = data.notify_party_address;
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          updateData.updated_at = new Date().toISOString();
+          await this.supabase
+            .from('shipments')
+            .update(updateData)
+            .eq('id', existing.id);
+
+          console.log(`[Orchestrator] Updated stakeholders from ${documentType} for shipment ${existing.id}`);
+        }
+      }
+
       return { shipmentId: existing.id };
     }
 

@@ -144,6 +144,7 @@ interface ShipmentStakeholders {
   shipper?: StakeholderData;
   consignee?: StakeholderData;
   carrier?: StakeholderData;
+  notify_party?: StakeholderData;
 }
 
 // Terminal-style status colors
@@ -1967,7 +1968,7 @@ function JourneyProgressCard({
 }
 
 function StakeholdersSection({ stakeholders }: { stakeholders: ShipmentStakeholders }) {
-  const hasStakeholders = stakeholders.shipper || stakeholders.consignee || stakeholders.carrier;
+  const hasStakeholders = stakeholders.shipper || stakeholders.consignee || stakeholders.carrier || stakeholders.notify_party;
 
   if (!hasStakeholders) {
     return (
@@ -1987,6 +1988,9 @@ function StakeholdersSection({ stakeholders }: { stakeholders: ShipmentStakehold
       {stakeholders.consignee && (
         <StakeholderCard party={stakeholders.consignee} role="Consignee" />
       )}
+      {stakeholders.notify_party && (
+        <StakeholderCard party={stakeholders.notify_party} role="Notify Party" />
+      )}
       {stakeholders.carrier && (
         <StakeholderCard party={stakeholders.carrier} role="Carrier" />
       )}
@@ -1997,6 +2001,7 @@ function StakeholdersSection({ stakeholders }: { stakeholders: ShipmentStakehold
 function StakeholderCard({ party, role }: { party: StakeholderData; role: string }) {
   const roleColors: Record<string, { dot: string; text: string; border: string }> = {
     Shipper: { dot: 'bg-terminal-blue', text: 'text-terminal-blue', border: 'border-terminal-blue/30' },
+    'Notify Party': { dot: 'bg-terminal-amber', text: 'text-terminal-amber', border: 'border-terminal-amber/30' },
     Consignee: { dot: 'bg-terminal-green', text: 'text-terminal-green', border: 'border-terminal-green/30' },
     Carrier: { dot: 'bg-terminal-purple', text: 'text-terminal-purple', border: 'border-terminal-purple/30' },
   };
