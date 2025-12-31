@@ -9,7 +9,7 @@
 // Repository Types (Pagination, Filters)
 // ============================================================================
 
-export {
+export type {
   EmailFilters,
   PaginationOptions,
   PaginatedResult,

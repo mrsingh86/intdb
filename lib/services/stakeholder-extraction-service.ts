@@ -579,9 +579,11 @@ export class StakeholderExtractionService {
 
     for (const docType of priorityOrder) {
       const doc = docs?.find(d => d.document_type === docType);
-      if (!doc?.classification?.extracted_entities) continue;
+      // classification is an array from Supabase embedded select
+      const classification = doc?.classification?.[0];
+      if (!classification?.extracted_entities) continue;
 
-      const entities = doc.classification.extracted_entities as DocumentEntity;
+      const entities = classification.extracted_entities as DocumentEntity;
       const result = await this.extractFromDocument(
         entities,
         docType as DocumentType,

@@ -280,7 +280,7 @@ export class StakeholderAnalyticsService {
         onTimeCount++;
       }
     }
-    const onTimeRate = shipmentCount > 0 ? (onTimeCount / shipmentCount) * 100 : null;
+    const onTimeRate = shipmentCount > 0 ? (onTimeCount / shipmentCount) * 100 : undefined;
 
     // Get amendment count for period
     const { count: amendments } = await this.supabase
@@ -312,11 +312,11 @@ export class StakeholderAnalyticsService {
       container_count: 0, // TODO: Calculate from shipment_containers
       on_time_rate: onTimeRate,
       amendment_count: amendments || 0,
-      avg_response_time_hours: null, // TODO: Calculate from email response times
+      avg_response_time_hours: undefined, // TODO: Calculate from email response times
       revenue: 0, // TODO: Calculate from shipment_financials
       cost: 0,
       email_count: emailCount || 0,
-      avg_sentiment_score: avgSentiment,
+      avg_sentiment_score: avgSentiment ?? undefined,
       calculated_at: new Date().toISOString(),
     });
 

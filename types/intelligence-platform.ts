@@ -9,12 +9,16 @@ export type PartyType =
   | 'consignee'
   | 'notify_party'
   | 'freight_forwarder'
+  | 'forwarder'
   | 'customs_broker'
+  | 'custom_broker'
   | 'cha'
   | 'trucker'
   | 'shipping_line'
   | 'warehouse'
   | 'agent'
+  | 'intoglo'
+  | 'unknown'
 
 export type CustomerRelationship = 'paying_customer' | 'shipper_customer' | 'consignee_customer'
 
@@ -166,6 +170,7 @@ export interface StatusHistoryEntry {
   status: LifecycleStatus
   changed_at: string
   changed_by?: string
+  reason?: string
 }
 
 export interface DocumentComparisonField {
@@ -203,10 +208,17 @@ export interface DocumentComparison {
 }
 
 export interface FieldComparisonResult {
-  source: string
-  target: string
+  fieldName: string
+  displayName: string
+  sourceValue: unknown
+  targetValue: unknown
   matches: boolean
   severity: DiscrepancySeverity
+  comparisonType: string
+  message?: string
+  // Legacy aliases
+  source?: string
+  target?: string
 }
 
 export interface MissingDocumentAlert {

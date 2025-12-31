@@ -70,17 +70,10 @@ export interface ProcessingLog {
   created_at?: string
 }
 
-// Party types for document flow tracking
-export type PartyType =
-  | 'shipping_line'
-  | 'cha'
-  | 'custom_broker'
-  | 'consignee'
-  | 'shipper'
-  | 'forwarder'
-  | 'intoglo'
-  | 'agent'
-  | 'unknown'
+// Party types for document flow tracking - imported from intelligence-platform
+import type { PartyType } from './intelligence-platform'
+// Re-export for backwards compatibility
+export type { PartyType }
 
 // Document direction
 export type DocumentDirection = 'inbound' | 'outbound' | 'internal'

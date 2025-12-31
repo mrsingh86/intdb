@@ -167,7 +167,7 @@ export class InsightGenerationService {
         riskLevel = 'critical';
       } else if (hoursUntilDue < 24) {
         risks.push('⚠️ **Urgent**: Less than 24 hours until deadline.');
-        riskLevel = riskLevel === 'critical' ? 'critical' : 'high';
+        riskLevel = 'high';
       }
     }
 

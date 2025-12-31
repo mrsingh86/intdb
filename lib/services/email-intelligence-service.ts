@@ -56,7 +56,7 @@ export class EmailIntelligenceService {
     }
 
     // Step 2: Fetch related data in parallel
-    const emailIds = emailResult.data.map(e => e.id);
+    const emailIds = emailResult.data.map(e => e.id).filter((id): id is string => !!id);
     const [classifications, entities] = await Promise.all([
       this.classificationRepo.findByEmailIds(emailIds),
       this.entityRepo.findByEmailIds(emailIds),
@@ -69,9 +69,9 @@ export class EmailIntelligenceService {
     // Step 4: Transform to EmailWithIntelligence
     const enrichedEmails = emailResult.data.map(email => ({
       ...email,
-      classification: classificationsByEmail.get(email.id) || null,
-      entities: entitiesByEmail.get(email.id) || [],
-      thread_metadata: null, // Can be added later if needed
+      classification: email.id ? classificationsByEmail.get(email.id) : undefined,
+      entities: email.id ? (entitiesByEmail.get(email.id) || []) : [],
+      thread_metadata: undefined,
     }));
 
     return {

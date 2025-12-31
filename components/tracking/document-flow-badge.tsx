@@ -90,6 +90,36 @@ const partyTypeConfig: Record<PartyType, { icon: any; label: string; shortLabel:
     shortLabel: 'Forwarder',
     color: 'text-teal-600'
   },
+  freight_forwarder: {
+    icon: Truck,
+    label: 'Freight Forwarder',
+    shortLabel: 'Forwarder',
+    color: 'text-teal-600'
+  },
+  customs_broker: {
+    icon: Briefcase,
+    label: 'Customs Broker',
+    shortLabel: 'Broker',
+    color: 'text-amber-600'
+  },
+  notify_party: {
+    icon: User,
+    label: 'Notify Party',
+    shortLabel: 'Notify',
+    color: 'text-violet-600'
+  },
+  trucker: {
+    icon: Truck,
+    label: 'Trucker',
+    shortLabel: 'Trucker',
+    color: 'text-stone-600'
+  },
+  warehouse: {
+    icon: Building2,
+    label: 'Warehouse',
+    shortLabel: 'WH',
+    color: 'text-slate-600'
+  },
   intoglo: {
     icon: Globe,
     label: 'Intoglo',

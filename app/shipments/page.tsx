@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { Suspense, useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -68,7 +68,7 @@ const PHASE_COLORS: Record<Phase, { dot: string; text: string; active: string }>
   delivered: { dot: 'bg-terminal-green', text: 'text-terminal-green', active: 'border-terminal-green' },
 };
 
-export default function ShipmentsPage() {
+function ShipmentsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [shipments, setShipments] = useState<Shipment[]>([]);
@@ -417,5 +417,13 @@ export default function ShipmentsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ShipmentsPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><Loader2 className="h-8 w-8 animate-spin text-terminal-muted" /></div>}>
+      <ShipmentsPageContent />
+    </Suspense>
   );
 }

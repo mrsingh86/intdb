@@ -491,7 +491,7 @@ export class DocumentLifecycleService {
     const dueDates: DocumentDueDate[] = [];
 
     for (const req of requirements) {
-      if (req.due_days_offset !== null) {
+      if (req.due_days_offset != null) {
         const dueDate = new Date(etd);
         dueDate.setDate(dueDate.getDate() + req.due_days_offset);
 
@@ -583,7 +583,7 @@ export class DocumentLifecycleService {
     let documentsBelow50 = 0;
 
     for (const lc of lifecycles) {
-      if (lc.quality_score !== null) {
+      if (lc.quality_score != null) {
         totalScore += lc.quality_score;
         documentsWithScore++;
         if (lc.quality_score < 80) documentsBelow80++;

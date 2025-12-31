@@ -82,7 +82,7 @@ export { DocumentAuthorityService } from './document-authority-service';
 export { DocumentRevisionService } from './document-revision-service';
 export { DocumentLifecycleService } from './document-lifecycle-service';
 export { WorkflowStateService } from './workflow-state-service';
-export { SiReconciliationService } from './si-reconciliation-service';
+export { SIReconciliationService } from './si-reconciliation-service';
 export { MilestoneTrackingService } from './milestone-tracking-service';
 
 // ============================================================================

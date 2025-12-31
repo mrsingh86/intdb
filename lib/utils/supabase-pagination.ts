@@ -50,7 +50,7 @@ export async function getAllUniqueValues(
 
     if (!data || data.length === 0) break;
 
-    for (const row of data) {
+    for (const row of data as unknown as Record<string, unknown>[]) {
       const value = row[column];
       if (value !== null && value !== undefined) {
         uniqueValues.add(String(value));
@@ -122,7 +122,7 @@ export async function getGroupedCounts(
 
     if (!data || data.length === 0) break;
 
-    for (const row of data) {
+    for (const row of data as unknown as Record<string, unknown>[]) {
       const value = row[column] !== null && row[column] !== undefined
         ? String(row[column])
         : 'null';

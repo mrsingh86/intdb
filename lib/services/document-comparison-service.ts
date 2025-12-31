@@ -16,21 +16,12 @@ import {
   DocumentComparison,
   DocumentComparisonField,
   DocumentComparisonStatus,
+  FieldComparisonResult,
+  DiscrepancySeverity,
 } from '@/types/intelligence-platform';
 
 export type ComparisonType = 'exact' | 'fuzzy' | 'numeric' | 'date' | 'contains' | 'case_insensitive';
-export type ComparisonSeverity = 'critical' | 'warning' | 'info';
-
-export interface FieldComparisonResult {
-  fieldName: string;
-  displayName: string;
-  sourceValue: unknown;
-  targetValue: unknown;
-  matches: boolean;
-  severity: ComparisonSeverity;
-  comparisonType: ComparisonType;
-  message?: string;
-}
+export type ComparisonSeverity = DiscrepancySeverity;
 
 export interface ComparisonResult {
   status: DocumentComparisonStatus;

@@ -123,7 +123,13 @@ export interface Shipment {
 // RELATIONSHIPS
 // ============================================================================
 
-export type LinkMethod = 'ai' | 'manual' | 'regex';
+export type LinkMethod =
+  | 'ai'
+  | 'manual'
+  | 'regex'
+  | 'booking_number'
+  | 'bl_number'
+  | 'container_number';
 
 export interface ShipmentDocument {
   id: string;
@@ -134,6 +140,7 @@ export interface ShipmentDocument {
   document_type: string;
   document_date?: string;
   document_number?: string;
+  subject?: string;
 
   is_primary: boolean;
   link_confidence_score?: number;
