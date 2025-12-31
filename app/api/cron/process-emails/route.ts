@@ -40,6 +40,7 @@ export async function GET(request: Request) {
     shipments_created: 0,
     shipments_linked: 0,
     errors: 0,
+    first_error: null as string | null,
   };
 
   try {
@@ -91,6 +92,9 @@ export async function GET(request: Request) {
           }
         } else {
           stats.errors++;
+          if (!stats.first_error) {
+            stats.first_error = result.error || 'Unknown error';
+          }
           console.error(`[Cron:ProcessEmails] Error for ${result.emailId}:`, result.error);
         }
       }
