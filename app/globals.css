@@ -1,0 +1,273 @@
+@import "tailwindcss";
+
+/* Terminal/Homebrew colors - Direct CSS utilities */
+:root {
+  --terminal-bg: #0d1117;
+  --terminal-surface: #161b22;
+  --terminal-elevated: #21262d;
+  --terminal-border: #30363d;
+  --terminal-green: #3fb950;
+  --terminal-amber: #d29922;
+  --terminal-red: #f85149;
+  --terminal-blue: #58a6ff;
+  --terminal-purple: #a371f7;
+  --terminal-text: #e6edf3;
+  --terminal-muted: #8b949e;
+}
+
+/* Text colors */
+.text-terminal-green { color: #3fb950 !important; }
+.text-terminal-amber { color: #d29922 !important; }
+.text-terminal-red { color: #f85149 !important; }
+.text-terminal-blue { color: #58a6ff !important; }
+.text-terminal-purple { color: #a371f7 !important; }
+.text-terminal-text { color: #e6edf3 !important; }
+.text-terminal-muted { color: #8b949e !important; }
+
+/* Background colors */
+.bg-terminal-bg { background-color: #0d1117 !important; }
+.bg-terminal-surface { background-color: #161b22 !important; }
+.bg-terminal-elevated { background-color: #21262d !important; }
+.bg-terminal-green { background-color: #3fb950 !important; }
+.bg-terminal-amber { background-color: #d29922 !important; }
+.bg-terminal-red { background-color: #f85149 !important; }
+.bg-terminal-blue { background-color: #58a6ff !important; }
+.bg-terminal-purple { background-color: #a371f7 !important; }
+
+/* Background with opacity */
+.bg-terminal-green\/10 { background-color: rgba(63, 185, 80, 0.1) !important; }
+.bg-terminal-green\/20 { background-color: rgba(63, 185, 80, 0.2) !important; }
+.bg-terminal-green\/30 { background-color: rgba(63, 185, 80, 0.3) !important; }
+.bg-terminal-amber\/10 { background-color: rgba(210, 153, 34, 0.1) !important; }
+.bg-terminal-amber\/20 { background-color: rgba(210, 153, 34, 0.2) !important; }
+.bg-terminal-red\/10 { background-color: rgba(248, 81, 73, 0.1) !important; }
+.bg-terminal-red\/20 { background-color: rgba(248, 81, 73, 0.2) !important; }
+.bg-terminal-red\/30 { background-color: rgba(248, 81, 73, 0.3) !important; }
+.bg-terminal-blue\/10 { background-color: rgba(88, 166, 255, 0.1) !important; }
+.bg-terminal-blue\/20 { background-color: rgba(88, 166, 255, 0.2) !important; }
+
+/* Border colors */
+.border-terminal-border { border-color: #30363d !important; }
+.border-terminal-surface { border-color: #161b22 !important; }
+.border-terminal-green { border-color: #3fb950 !important; }
+.border-terminal-amber { border-color: #d29922 !important; }
+.border-terminal-red { border-color: #f85149 !important; }
+.border-terminal-blue { border-color: #58a6ff !important; }
+.border-terminal-green\/30 { border-color: rgba(63, 185, 80, 0.3) !important; }
+.border-terminal-amber\/30 { border-color: rgba(210, 153, 34, 0.3) !important; }
+.border-terminal-red\/30 { border-color: rgba(248, 81, 73, 0.3) !important; }
+.border-terminal-red\/50 { border-color: rgba(248, 81, 73, 0.5) !important; }
+.border-terminal-blue\/30 { border-color: rgba(88, 166, 255, 0.3) !important; }
+.border-terminal-blue\/50 { border-color: rgba(88, 166, 255, 0.5) !important; }
+
+/* Hover states */
+.hover\:bg-terminal-elevated:hover { background-color: #21262d !important; }
+.hover\:bg-terminal-surface:hover { background-color: #161b22 !important; }
+.hover\:bg-terminal-border:hover { background-color: #30363d !important; }
+.hover\:bg-terminal-green\/30:hover { background-color: rgba(63, 185, 80, 0.3) !important; }
+.hover\:bg-terminal-red\/30:hover { background-color: rgba(248, 81, 73, 0.3) !important; }
+.hover\:text-terminal-text:hover { color: #e6edf3 !important; }
+.hover\:text-terminal-green:hover { color: #3fb950 !important; }
+.hover\:text-terminal-red:hover { color: #f85149 !important; }
+.hover\:border-terminal-border:hover { border-color: #30363d !important; }
+.hover\:border-terminal-muted:hover { border-color: #8b949e !important; }
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+  }
+
+  .dark {
+    --background: 220 13% 5%;
+    --foreground: 210 17% 92%;
+    --primary: 140 50% 53%;
+    --primary-foreground: 220 13% 5%;
+    --secondary: 215 14% 17%;
+    --secondary-foreground: 210 17% 92%;
+    --muted: 215 14% 25%;
+    --muted-foreground: 215 14% 55%;
+    --accent: 140 50% 53%;
+    --accent-foreground: 220 13% 5%;
+    --destructive: 356 75% 63%;
+    --destructive-foreground: 210 17% 92%;
+    --border: 215 14% 20%;
+    --input: 215 14% 17%;
+    --ring: 140 50% 53%;
+    --card: 220 14% 10%;
+    --card-foreground: 210 17% 92%;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+}
+
+/* Custom scrollbar - Light mode */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: #f3f4f6;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
+
+/* Custom scrollbar - Dark mode */
+.dark ::-webkit-scrollbar-track {
+  background-color: #161b22;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: #30363d;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #484f58;
+}
+
+/* Smooth transitions */
+@layer utilities {
+  .transition-all-smooth {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+/* Animation keyframes */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Loading skeleton */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.skeleton {
+  background-color: #e5e7eb;
+  border-radius: 0.25rem;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.dark .skeleton {
+  background-color: #21262d;
+}
+
+/* Command Palette (cmdk) styles - Homebrew theme */
+[cmdk-root] {
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+[cmdk-input] {
+  font-size: 18px;
+  width: 100%;
+  padding: 16px;
+  outline: none;
+  background: transparent;
+  border: none;
+  color: #e6edf3;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+[cmdk-input]::placeholder {
+  color: #8b949e;
+}
+
+[cmdk-item] {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  margin: 2px 4px;
+  border-radius: 8px;
+  transition: background 0.1s ease;
+  color: #e6edf3;
+}
+
+[cmdk-item][data-selected="true"] {
+  background: rgba(88, 166, 255, 0.15) !important;
+  border: 1px solid rgba(88, 166, 255, 0.3);
+}
+
+[cmdk-item]:active {
+  background: #30363d !important;
+}
+
+[cmdk-group-heading] {
+  font-size: 12px;
+  font-weight: 500;
+  color: #8b949e;
+  padding: 8px 14px 4px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+[cmdk-empty] {
+  padding: 24px;
+  text-align: center;
+  color: #8b949e;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+[cmdk-list] {
+  background: #161b22;
+}
+
+/* Terminal-style status indicators */
+.status-indicator {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.75rem;
+}
+
+/* Monospace for data elements */
+.data-value {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}

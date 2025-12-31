@@ -250,3 +250,65 @@ export const documentsQuerySchema = paginationSchema.extend({
 export type TasksQueryParams = z.infer<typeof tasksQuerySchema>;
 export type NotificationsQueryParams = z.infer<typeof notificationsQuerySchema>;
 export type DocumentsQueryParams = z.infer<typeof documentsQuerySchema>;
+
+// ============================================================================
+// VALIDATION HELPERS
+// ============================================================================
+
+/**
+ * Custom error class for validation failures
+ */
+export class ValidationError extends Error {
+  constructor(
+    message: string,
+    public errors: Array<{ field: string; message: string }>
+  ) {
+    super(message);
+    this.name = 'ValidationError';
+  }
+
+  toJSON() {
+    return {
+      error: this.message,
+      details: this.errors,
+    };
+  }
+}
+
+/**
+ * Validates request body against a Zod schema
+ * Returns parsed data or throws ValidationError
+ */
+export function validateRequestBody<T extends z.ZodSchema>(
+  schema: T,
+  data: unknown
+): z.infer<T> {
+  const result = schema.safeParse(data);
+
+  if (!result.success) {
+    const errors = result.error.errors.map((err) => ({
+      field: err.path.join('.'),
+      message: err.message,
+    }));
+
+    throw new ValidationError('Invalid request body', errors);
+  }
+
+  return result.data;
+}
+
+/**
+ * Validates query parameters against a Zod schema
+ * Returns parsed data or throws ValidationError
+ */
+export function validateQueryParams<T extends z.ZodSchema>(
+  schema: T,
+  params: URLSearchParams
+): z.infer<T> {
+  const data: Record<string, string> = {};
+  params.forEach((value, key) => {
+    data[key] = value;
+  });
+
+  return validateRequestBody(schema, data);
+}
