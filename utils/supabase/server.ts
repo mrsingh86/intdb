@@ -11,12 +11,12 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
  * Only use this in secure server-side contexts (API routes, server components)
  */
 export function createClient() {
-  const supabaseUrl = process.env.SUPABASE_URL
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
   // Validate environment variables
   if (!supabaseUrl) {
-    throw new Error('[Supabase Server] Missing SUPABASE_URL environment variable')
+    throw new Error('[Supabase Server] Missing NEXT_PUBLIC_SUPABASE_URL environment variable')
   }
 
   if (!supabaseServiceKey) {
@@ -39,9 +39,4 @@ export function createClient() {
   })
 }
 
-/**
- * Default export for convenience
- * Note: This creates a new instance on each import
- * For better performance in high-traffic scenarios, consider using a singleton pattern
- */
-export const supabase = createClient()
+// Note: Do NOT create module-level instance - call createClient() in handlers
