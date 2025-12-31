@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-);
+function getSupabase(): SupabaseClient {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 // Direct carrier domains - only these create shipments
 const DIRECT_CARRIER_DOMAINS = [
@@ -45,6 +47,8 @@ function detectCarrier(email: string): string | null {
  * 3. TRACK journey events for document flow visibility
  */
 export async function POST(request: NextRequest) {
+  const supabase = getSupabase();
+
   try {
     const body = await request.json().catch(() => ({}));
     const limit = body.limit || 50;
@@ -132,7 +136,7 @@ export async function POST(request: NextRequest) {
 
         if (existingShipment) {
           // Just link the email
-          await linkEmailToShipment(email.email_id, existingShipment.id, 'booking_confirmation');
+          await linkEmailToShipment(supabase, email.email_id, existingShipment.id, 'booking_confirmation');
           results.emailsLinked++;
           continue;
         }
@@ -165,7 +169,7 @@ export async function POST(request: NextRequest) {
         results.shipmentsCreated++;
 
         // Link email to shipment
-        await linkEmailToShipment(email.email_id, newShipment.id, 'booking_confirmation');
+        await linkEmailToShipment(supabase, email.email_id, newShipment.id, 'booking_confirmation');
         results.emailsLinked++;
 
         // Create journey event: booking received from carrier
@@ -220,7 +224,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Link email to shipment
-        await linkEmailToShipment(email.email_id, existingShipment.id, 'booking_confirmation');
+        await linkEmailToShipment(supabase, email.email_id, existingShipment.id, 'booking_confirmation');
         results.emailsLinked++;
 
         // Determine if this is outbound (ops → customer) or inbound (customer → ops)
@@ -268,7 +272,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function linkEmailToShipment(emailId: string, shipmentId: string, documentType: string) {
+async function linkEmailToShipment(supabase: SupabaseClient, emailId: string, shipmentId: string, documentType: string) {
   // Check if already linked
   const { data: existing } = await supabase
     .from('shipment_documents')
@@ -324,6 +328,8 @@ function buildShipmentFromEntities(entities: any[]): Record<string, any> {
  * Get stats on backfill status
  */
 export async function GET() {
+  const supabase = getSupabase();
+
   try {
     // Get booking confirmation breakdown
     const { data: bookingEmails } = await supabase
