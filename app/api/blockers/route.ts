@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function GET(request: Request) {
+  const supabase = getSupabase();
+
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || 'active';
@@ -87,6 +91,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const supabase = getSupabase();
+
   try {
     const body = await request.json();
     const { blockerId, action, notes } = body;

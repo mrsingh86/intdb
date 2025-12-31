@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || ''
-)
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '',
+    process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  )
+}
 
 interface SearchResult {
   id: string
@@ -15,6 +17,8 @@ interface SearchResult {
 }
 
 export async function GET(request: NextRequest) {
+  const supabase = getSupabase()
+
   try {
     const { searchParams } = new URL(request.url)
     const query = searchParams.get('q')

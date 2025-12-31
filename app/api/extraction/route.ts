@@ -11,11 +11,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { EmailIngestionService } from '@/lib/services/email-ingestion-service';
 
-// Initialize Supabase
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-);
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 interface ExtractionRequest {
   emailIds?: string[];
@@ -39,6 +40,8 @@ interface ExtractionStats {
  * Process emails through comprehensive extraction pipeline
  */
 export async function POST(request: NextRequest) {
+  const supabase = getSupabase();
+
   try {
     const body: ExtractionRequest = await request.json();
     const { emailIds, limit = 50, reprocess = false, useAdvanced = false } = body;
@@ -141,6 +144,8 @@ export async function POST(request: NextRequest) {
  * Get extraction statistics and data coverage
  */
 export async function GET() {
+  const supabase = getSupabase();
+
   try {
     // Get processing stats
     const [
