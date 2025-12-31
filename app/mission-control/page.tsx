@@ -393,42 +393,58 @@ export default function UnifiedMissionControlPage() {
               value={insightsData?.statistics.total || 0}
               icon={Lightbulb}
               color="blue"
+              onClick={() => {
+                // Scroll to insights section
+                document.getElementById('insights-queue')?.scrollIntoView({ behavior: 'smooth' });
+              }}
             />
             <CompactMetric
               label="Critical"
               value={insightsData?.statistics.bySeverity.critical || 0}
               icon={AlertTriangle}
               color={(insightsData?.statistics.bySeverity.critical || 0) > 0 ? 'red' : 'green'}
+              onClick={() => {
+                setFilters(prev => ({ ...prev, severity: ['critical'] }));
+                document.getElementById('insights-queue')?.scrollIntoView({ behavior: 'smooth' });
+              }}
             />
             <CompactMetric
               label="High Priority"
               value={insightsData?.statistics.bySeverity.high || 0}
               icon={AlertCircle}
               color={(insightsData?.statistics.bySeverity.high || 0) > 0 ? 'orange' : 'green'}
+              onClick={() => {
+                setFilters(prev => ({ ...prev, severity: ['high'] }));
+                document.getElementById('insights-queue')?.scrollIntoView({ behavior: 'smooth' });
+              }}
             />
             <CompactMetric
               label="Awaiting Reply"
               value={missionData?.journey?.awaitingResponse || 0}
               icon={MessageCircle}
               color={(missionData?.journey?.awaitingResponse || 0) > 0 ? 'orange' : 'green'}
+              href="/shipments?awaiting_reply=true"
             />
             <CompactMetric
               label="Departures"
               value={missionData?.today.departures || 0}
               icon={Ship}
               color="blue"
+              href="/shipments?departing_today=true"
             />
             <CompactMetric
               label="Arrivals"
               value={missionData?.today.arrivals || 0}
               icon={Anchor}
               color="green"
+              href="/shipments?arriving_today=true"
             />
             <CompactMetric
               label="Shipments"
               value={totalShipments}
               icon={Package}
               color="purple"
+              href="/shipments"
             />
           </div>
 
@@ -630,7 +646,7 @@ export default function UnifiedMissionControlPage() {
           </div>
 
           {/* INSIGHTS QUEUE - Terminal Style */}
-          <div className="rounded-lg border border-terminal-border bg-terminal-surface overflow-hidden">
+          <div id="insights-queue" className="rounded-lg border border-terminal-border bg-terminal-surface overflow-hidden">
             <div className="px-4 py-3 border-b border-terminal-border bg-terminal-elevated flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-terminal-green animate-pulse" />
@@ -804,12 +820,16 @@ function CompactMetric({
   icon: Icon,
   color,
   badge,
+  href,
+  onClick,
 }: {
   label: string;
   value: number | string;
   icon: React.ElementType;
   color: 'blue' | 'green' | 'yellow' | 'red' | 'purple' | 'orange' | 'gray';
   badge?: string;
+  href?: string;
+  onClick?: () => void;
 }) {
   // Terminal-style color mapping - full classes for Tailwind JIT
   const dotColors: Record<string, string> = {
@@ -843,8 +863,8 @@ function CompactMetric({
     gray: 'text-terminal-muted',
   };
 
-  return (
-    <div className="rounded-lg border border-terminal-border bg-terminal-surface p-3 hover:bg-terminal-elevated transition-colors">
+  const content = (
+    <>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
           <span className={`h-2 w-2 rounded-full ${dotColors[color]}`} />
@@ -862,6 +882,30 @@ function CompactMetric({
       <div className="text-[10px] font-medium text-terminal-muted uppercase tracking-wide mt-0.5">
         {label}
       </div>
+    </>
+  );
+
+  const className = "rounded-lg border border-terminal-border bg-terminal-surface p-3 hover:bg-terminal-elevated transition-colors cursor-pointer";
+
+  if (href) {
+    return (
+      <Link href={href} className={className}>
+        {content}
+      </Link>
+    );
+  }
+
+  if (onClick) {
+    return (
+      <button onClick={onClick} className={`${className} w-full text-left`}>
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div className={className.replace('cursor-pointer', '')}>
+      {content}
     </div>
   );
 }
