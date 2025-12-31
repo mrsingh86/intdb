@@ -10,6 +10,13 @@ import { createClient } from '@supabase/supabase-js';
 import { InsightRepository } from '@/lib/repositories/insight-repository';
 import { createInsightEngine } from '@/lib/services/insight-engine';
 
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
 // ============================================================================
 // GET: Fetch Insights
 // ============================================================================
@@ -24,10 +31,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50');
     const activeOnly = searchParams.get('activeOnly') !== 'false';
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!
-    );
+    const supabase = getSupabase();
 
     // If shipmentId or taskId provided, use repository
     if (shipmentId || taskId) {
@@ -138,10 +142,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!
-    );
+    const supabase = getSupabase();
 
     const anthropicApiKey = includeAI ? process.env.ANTHROPIC_API_KEY : undefined;
     const engine = createInsightEngine(supabase, anthropicApiKey);

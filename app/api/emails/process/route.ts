@@ -19,8 +19,8 @@ export const POST = withAuth(async (request, { user }) => {
     const { action, emailIds, limit = 100 } = await request.json()
 
     // Validate environment
-    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
     const anthropicKey = process.env.ANTHROPIC_API_KEY
 
     if (!supabaseUrl || !supabaseKey) {

@@ -8,6 +8,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { InsightRepository } from '@/lib/repositories/insight-repository';
 
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
 interface RouteParams {
   params: Promise<{ insightId: string }>;
 }
@@ -33,10 +40,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!
-    );
+    const supabase = getSupabase();
 
     const repository = new InsightRepository(supabase);
 

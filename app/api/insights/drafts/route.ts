@@ -10,6 +10,13 @@ import { createClient } from '@supabase/supabase-js';
 import { InsightActionExecutor } from '@/lib/services/insight-action-executor';
 import { InsightAction } from '@/types/insight';
 
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
+
 // ============================================================================
 // POST: Generate Draft
 // ============================================================================
@@ -26,10 +33,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!
-    );
+    const supabase = getSupabase();
 
     const executor = new InsightActionExecutor(supabase);
 
@@ -71,10 +75,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_KEY!
-    );
+    const supabase = getSupabase();
 
     const executor = new InsightActionExecutor(supabase);
     const drafts = await executor.getPendingDrafts(shipmentId);
