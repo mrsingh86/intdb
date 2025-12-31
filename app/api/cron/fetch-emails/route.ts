@@ -31,6 +31,7 @@ export async function GET(request: Request) {
     duplicates_skipped: 0,
     attachments_stored: 0,
     errors: 0,
+    first_error: null as string | null,
   };
 
   // Allow custom lookback via query param (for initial backlog)
@@ -177,6 +178,9 @@ export async function GET(request: Request) {
         if (insertError) {
           console.error(`[Cron:FetchEmails] Error storing email ${messageId}:`, insertError);
           stats.errors++;
+          if (!stats.first_error) {
+            stats.first_error = insertError.message || JSON.stringify(insertError);
+          }
           continue;
         }
 
