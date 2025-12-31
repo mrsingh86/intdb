@@ -164,7 +164,6 @@ export async function GET(request: Request) {
             thread_id: emailData.threadId,
             subject: getHeader('Subject'),
             sender_email: getHeader('From'),
-            recipient_email: getHeader('To'),
             body_text: bodyText || emailData.snippet || '',
             body_html: bodyHtml,
             snippet: emailData.snippet || '',
