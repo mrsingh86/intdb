@@ -227,40 +227,39 @@ export async function GET(request: Request) {
         stats.emails_stored++;
 
         // Store attachments if any (using recursive results)
+        // Note: We store a reference (storage_path) to fetch content later, not the actual binary
         console.log(`[Cron:FetchEmails] Email ${messageId}: found ${allAttachments.length} attachments`);
         for (const part of allAttachments) {
           try {
-            let attachmentData: string | null = null;
+            // Get the Gmail attachment ID (required for later fetching)
+            const gmailAttachmentId = part.body?.attachmentId;
 
-            if (part.body?.attachmentId) {
-              // Fetch attachment via API
-              console.log(`[Attachment] Fetching via attachmentId: ${part.filename}`);
-              const attachmentResponse = await gmail.users.messages.attachments.get({
-                userId: 'me',
-                messageId: messageId,
-                id: part.body.attachmentId,
-              });
-              attachmentData = attachmentResponse.data.data || null;
-            } else if (part.body?.data) {
-              // Inline attachment - data already present
-              console.log(`[Attachment] Using inline data: ${part.filename}`);
-              attachmentData = part.body.data;
-            } else if (part.body?.size > 0) {
-              // Has size but no attachmentId/data - try fetching full message
-              console.log(`[Attachment] Has size but no data, skipping: ${part.filename}`);
+            if (!gmailAttachmentId) {
+              // Skip inline images without attachmentId (e.g., embedded images in HTML)
+              // These can't be fetched separately from Gmail
+              console.log(`[Attachment] Skipping (no attachmentId): ${part.filename}`);
+              continue;
             }
 
-            if (attachmentData) {
-              await supabase.from('raw_attachments').insert({
-                email_id: newEmail.id,
-                filename: part.filename,
-                mime_type: part.mimeType || 'application/octet-stream',
-                size_bytes: part.body.size || 0,
-                content_base64: attachmentData,
-              });
-              stats.attachments_stored++;
-              console.log(`[Attachment] Stored: ${part.filename}`);
-            }
+            // Store reference to attachment - actual content fetched on-demand during extraction
+            // Format: gmail://{attachmentId} (truncated to fit VARCHAR(200))
+            // Note: PDF extraction re-fetches by filename, so truncation is acceptable
+            const storagePath = `gmail://${gmailAttachmentId}`.substring(0, 200);
+
+            // Generate a short attachment ID for display (email_id prefix + index)
+            const shortAttachmentId = `${newEmail.id.substring(0, 8)}-${stats.attachments_stored + 1}`;
+
+            await supabase.from('raw_attachments').insert({
+              email_id: newEmail.id,
+              filename: part.filename,
+              mime_type: part.mimeType || 'application/octet-stream',
+              size_bytes: part.body?.size || 0,
+              storage_path: storagePath,
+              attachment_id: shortAttachmentId,
+              extraction_status: 'pending',
+            });
+            stats.attachments_stored++;
+            console.log(`[Attachment] Stored reference: ${part.filename}`);
           } catch (attachErr) {
             console.error(`[Cron:FetchEmails] Error storing attachment ${part.filename}:`, attachErr);
           }
