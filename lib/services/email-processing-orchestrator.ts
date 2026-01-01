@@ -289,8 +289,8 @@ export class EmailProcessingOrchestrator {
       // Map ShipmentData to ExtractedBookingData for downstream processing
       const extractedData = this.mapToExtractedBookingData(extractionResult.data);
 
-      // Store extracted entities
-      await this.storeExtractedEntities(emailId, extractedData);
+      // Store extracted entities with subject line fallback for missing identifiers
+      await this.storeExtractedEntities(emailId, extractedData, email.subject);
 
       // 6. Process based on document type
       let shipmentId: string | undefined;
@@ -443,46 +443,168 @@ export class EmailProcessingOrchestrator {
   }
 
   /**
-   * Store extracted entities to entity_extractions table
+   * Extract linking identifiers from email subject using regex patterns
+   * This is a FALLBACK when AI extraction misses identifiers
+   *
+   * Extracts: booking_number, container_number, bl_number
+   *
+   * Pattern sources:
+   * - Maersk: 9-digit booking (263xxxxxx), MSKU/MAEU container prefixes
+   * - Hapag: HL-XXXXXXXX or HLCU prefix
+   * - CMA CGM: CAD/CEI/AMC + 7 digits
+   * - COSCO: COSU + 10 digits
+   * - Container: 4 letters + 7 digits (ISO 6346)
+   * - BL: SE + 10+ digits, carrier prefix + digits
    */
-  private async storeExtractedEntities(emailId: string, data: ExtractedBookingData): Promise<void> {
-    const entities: { email_id: string; entity_type: string; entity_value: string; confidence_score: number }[] = [];
+  private extractIdentifiersFromSubject(subject: string): {
+    booking_number?: string;
+    container_number?: string;
+    bl_number?: string;
+    mbl_number?: string;
+    hbl_number?: string;
+  } {
+    const result: {
+      booking_number?: string;
+      container_number?: string;
+      bl_number?: string;
+      mbl_number?: string;
+      hbl_number?: string;
+    } = {};
 
-    if (data.booking_number) {
-      entities.push({ email_id: emailId, entity_type: 'booking_number', entity_value: data.booking_number, confidence_score: 90 });
+    // Booking number patterns by carrier
+    const bookingPatterns = [
+      /\b(26\d{7})\b/,                           // Maersk: 9-digit starting with 26
+      /\b(\d{9})\b/,                             // Generic 9-digit
+      /\b(HL-?\d{8})\b/i,                        // Hapag: HL-XXXXXXXX
+      /\b(HLCU\d{7,10})\b/i,                     // Hapag: HLCU prefix
+      /\b((?:CEI|AMC|CAD)\d{7})\b/i,             // CMA CGM: CAD/CEI/AMC + 7 digits
+      /\b(COSU\d{10})\b/i,                       // COSCO: COSU + 10 digits
+      /\b(MAEU\d{9})\b/i,                        // Maersk: MAEU prefix
+      /\b([A-Z]{3}\d{7,10})\b/,                  // Generic carrier prefix + digits
+    ];
+
+    // Try booking patterns in priority order
+    for (const pattern of bookingPatterns) {
+      const match = subject.match(pattern);
+      if (match && match[1]) {
+        result.booking_number = match[1].toUpperCase();
+        break;
+      }
+    }
+
+    // Container number: 4 letters + 7 digits (ISO 6346 format)
+    // Common prefixes: MSKU, MAEU, TEMU, TCLU, HLCU, CMAU, etc.
+    const containerMatch = subject.match(/\b([A-Z]{4}\d{7})\b/);
+    if (containerMatch && containerMatch[1]) {
+      result.container_number = containerMatch[1].toUpperCase();
+    }
+
+    // BL number patterns
+    const blPatterns = [
+      /\b(SE\d{10,})\b/i,                        // SE + 10+ digits
+      /\b(MAEU\d{9,}[A-Z0-9]*)\b/i,              // Maersk BL
+      /\b(HLCU[A-Z0-9]{10,})\b/i,                // Hapag BL
+      /\b(CMAU\d{9,})\b/i,                       // CMA CGM BL
+      /\b(COSU\d{10,})\b/i,                      // COSCO BL
+      /\b(MEDU\d{9,})\b/i,                       // MSC BL
+      /\b(OOLU\d{9,})\b/i,                       // OOCL BL
+    ];
+
+    for (const pattern of blPatterns) {
+      const match = subject.match(pattern);
+      if (match && match[1]) {
+        // Determine if MBL or HBL based on pattern/length
+        const blNumber = match[1].toUpperCase();
+        // Most carrier-prefixed BLs are MBLs
+        result.bl_number = blNumber;
+        result.mbl_number = blNumber;
+        break;
+      }
+    }
+
+    // HBL patterns (typically shorter, may have different format)
+    // HBLs often have alphanumeric format like INTOGLO-2024-001
+    const hblMatch = subject.match(/\b(INTOGLO[-/]?[A-Z0-9]{4,})\b/i);
+    if (hblMatch && hblMatch[1]) {
+      result.hbl_number = hblMatch[1].toUpperCase();
+    }
+
+    return result;
+  }
+
+  /**
+   * Store extracted entities to entity_extractions table
+   * Now includes regex fallback for subject line extraction
+   */
+  private async storeExtractedEntities(emailId: string, data: ExtractedBookingData, subject?: string): Promise<void> {
+    const entities: { email_id: string; entity_type: string; entity_value: string; confidence_score: number; extraction_method: string }[] = [];
+
+    // REGEX FALLBACK: If AI missed identifiers, extract from subject line
+    let subjectExtracted: ReturnType<typeof this.extractIdentifiersFromSubject> = {};
+    if (subject) {
+      subjectExtracted = this.extractIdentifiersFromSubject(subject);
+    }
+
+    // Use AI extraction first, fallback to regex for missing identifiers
+    const bookingNumber = data.booking_number || subjectExtracted.booking_number;
+    const containerNumber = data.container_number || subjectExtracted.container_number;
+    const blNumber = subjectExtracted.bl_number;  // AI uses different field name
+    const mblNumber = subjectExtracted.mbl_number;
+    const hblNumber = subjectExtracted.hbl_number;
+
+    // Determine extraction method for booking number
+    const bookingMethod = data.booking_number ? 'ai' : 'regex_subject';
+
+    if (bookingNumber) {
+      const confidence = data.booking_number ? 90 : 80; // Lower confidence for regex extraction
+      entities.push({ email_id: emailId, entity_type: 'booking_number', entity_value: bookingNumber, confidence_score: confidence, extraction_method: bookingMethod });
     }
     if (data.carrier) {
-      entities.push({ email_id: emailId, entity_type: 'carrier', entity_value: data.carrier, confidence_score: 85 });
+      entities.push({ email_id: emailId, entity_type: 'carrier', entity_value: data.carrier, confidence_score: 85, extraction_method: 'ai' });
     }
     if (data.vessel_name) {
-      entities.push({ email_id: emailId, entity_type: 'vessel_name', entity_value: data.vessel_name, confidence_score: 85 });
+      entities.push({ email_id: emailId, entity_type: 'vessel_name', entity_value: data.vessel_name, confidence_score: 85, extraction_method: 'ai' });
     }
     if (data.voyage_number) {
-      entities.push({ email_id: emailId, entity_type: 'voyage_number', entity_value: data.voyage_number, confidence_score: 85 });
+      entities.push({ email_id: emailId, entity_type: 'voyage_number', entity_value: data.voyage_number, confidence_score: 85, extraction_method: 'ai' });
     }
     if (data.etd) {
-      entities.push({ email_id: emailId, entity_type: 'etd', entity_value: data.etd, confidence_score: 85 });
+      entities.push({ email_id: emailId, entity_type: 'etd', entity_value: data.etd, confidence_score: 85, extraction_method: 'ai' });
     }
     if (data.eta) {
-      entities.push({ email_id: emailId, entity_type: 'eta', entity_value: data.eta, confidence_score: 85 });
+      entities.push({ email_id: emailId, entity_type: 'eta', entity_value: data.eta, confidence_score: 85, extraction_method: 'ai' });
     }
     if (data.port_of_loading) {
-      entities.push({ email_id: emailId, entity_type: 'port_of_loading', entity_value: data.port_of_loading, confidence_score: 85 });
+      entities.push({ email_id: emailId, entity_type: 'port_of_loading', entity_value: data.port_of_loading, confidence_score: 85, extraction_method: 'ai' });
     }
     if (data.port_of_discharge) {
-      entities.push({ email_id: emailId, entity_type: 'port_of_discharge', entity_value: data.port_of_discharge, confidence_score: 85 });
+      entities.push({ email_id: emailId, entity_type: 'port_of_discharge', entity_value: data.port_of_discharge, confidence_score: 85, extraction_method: 'ai' });
     }
     if (data.si_cutoff) {
-      entities.push({ email_id: emailId, entity_type: 'si_cutoff', entity_value: data.si_cutoff, confidence_score: 80 });
+      entities.push({ email_id: emailId, entity_type: 'si_cutoff', entity_value: data.si_cutoff, confidence_score: 80, extraction_method: 'ai' });
     }
     if (data.vgm_cutoff) {
-      entities.push({ email_id: emailId, entity_type: 'vgm_cutoff', entity_value: data.vgm_cutoff, confidence_score: 80 });
+      entities.push({ email_id: emailId, entity_type: 'vgm_cutoff', entity_value: data.vgm_cutoff, confidence_score: 80, extraction_method: 'ai' });
     }
     if (data.cargo_cutoff) {
-      entities.push({ email_id: emailId, entity_type: 'cargo_cutoff', entity_value: data.cargo_cutoff, confidence_score: 80 });
+      entities.push({ email_id: emailId, entity_type: 'cargo_cutoff', entity_value: data.cargo_cutoff, confidence_score: 80, extraction_method: 'ai' });
     }
-    if (data.container_number) {
-      entities.push({ email_id: emailId, entity_type: 'container_number', entity_value: data.container_number, confidence_score: 85 });
+    // Container number: AI first, fallback to regex
+    if (containerNumber) {
+      const confidence = data.container_number ? 85 : 75;
+      const method = data.container_number ? 'ai' : 'regex_subject';
+      entities.push({ email_id: emailId, entity_type: 'container_number', entity_value: containerNumber, confidence_score: confidence, extraction_method: method });
+    }
+
+    // BL/MBL/HBL numbers from subject (fallback identifiers for linking)
+    if (blNumber) {
+      entities.push({ email_id: emailId, entity_type: 'bl_number', entity_value: blNumber, confidence_score: 75, extraction_method: 'regex_subject' });
+    }
+    if (mblNumber) {
+      entities.push({ email_id: emailId, entity_type: 'mbl_number', entity_value: mblNumber, confidence_score: 75, extraction_method: 'regex_subject' });
+    }
+    if (hblNumber) {
+      entities.push({ email_id: emailId, entity_type: 'hbl_number', entity_value: hblNumber, confidence_score: 75, extraction_method: 'regex_subject' });
     }
 
     if (entities.length > 0) {
