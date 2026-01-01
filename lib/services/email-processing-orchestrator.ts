@@ -89,18 +89,33 @@ IMPORTANT: Look for these specific sections:
 - Look for "Vessel/Voyage" for vessel and voyage info
 
 `,
-  'maersk': `You are extracting data from a Maersk booking confirmation.
+  'maersk': `You are extracting data from a Maersk booking confirmation PDF.
 
-IMPORTANT: Look for these specific sections:
-- "Important Dates" or "Key Dates" section contains cutoffs:
-  - "SI Cut-off" or "Documentation Deadline" → si_cutoff
-  - "VGM Deadline" → vgm_cutoff
-  - "Cargo Receiving" or "CY Cut-off" → cargo_cutoff
-  - "Gate Cut-off" → gate_cutoff
+CRITICAL RULES:
+1. Extract data ONLY from the CONTENT section below - not from these instructions
+2. DO NOT use any example data from these instructions
+3. If you cannot find a value in the CONTENT, use null
 
-- Dates may be in format: YYYY-MM-DD or DD/MM/YYYY
-- Booking numbers often start with numbers or "MAEU"
-- Look for "M/V" or "Vessel:" for vessel name
+HEADER SECTION - Look for:
+- "Booking No.:" followed by a 9-digit number → booking_number
+- "From:" followed by city,state,country → port_of_loading (use just the city name)
+- "To:" followed by city,state,country → port_of_discharge (use just the city name)
+
+INTENDED TRANSPORT PLAN TABLE - Look for section containing:
+- Columns: From | To | Mode | Vessel | Voy No. | ETD | ETA
+- For multi-leg journeys: Use ETD from first row, ETA from last row
+- vessel_name: Use the main ocean vessel (usually goes to final destination)
+- Dates are in YYYY-MM-DD format
+
+CUTOFF DATES - Look for:
+- "SI Cut off" → si_cutoff (format as YYYY-MM-DD)
+- "VGM" deadline → vgm_cutoff
+- "Gate-In Cut off" → gate_cutoff
+
+IMPORTANT:
+- All dates should be in YYYY-MM-DD format
+- Current bookings have dates in 2025 or 2026
+- If a date is from 2023 or earlier, it is likely wrong - use null
 
 `,
   'cma-cgm': `You are extracting data from a CMA CGM booking confirmation.
@@ -173,11 +188,22 @@ Extract ALL shipping information from the content below. Return ONLY valid JSON:
   "container_number": "container number if available"
 }
 
-CRITICAL:
+CRITICAL - ANTI-HALLUCINATION RULES:
+1. ONLY extract values that EXPLICITLY appear in the content
+2. DO NOT guess, infer, or make up values
+3. Use null for ANY value not clearly stated in the document
+4. DO NOT use values from other documents you may have seen
+5. Each field must come from THIS document only
+
+DATE FORMATTING:
 - Convert ALL dates to YYYY-MM-DD format
 - If a date has time, ignore the time portion
-- Use null for missing values, not empty strings
 - Extract cutoff dates even if labeled differently (closing, deadline, cut-off)
+
+VALIDATION:
+- ETD must be a future date (or recent past) - dates like 2023-xx-xx for new bookings are WRONG
+- ETA must be after ETD
+- If dates seem unrealistic, use null instead
 
 CONTENT:
 {CONTENT}`;
@@ -554,7 +580,9 @@ export class EmailProcessingOrchestrator {
       .eq('email_id', emailId);
 
     for (const att of attachments || []) {
-      if (att.extracted_text && att.mime_type?.includes('pdf')) {
+      // Check for PDF by mime_type OR filename extension (some attachments have generic mime_type)
+      const isPdf = att.mime_type?.includes('pdf') || att.filename?.toLowerCase().endsWith('.pdf');
+      if (att.extracted_text && isPdf) {
         content += `\n\n--- PDF ATTACHMENT: ${att.filename} ---\n${att.extracted_text}`;
       }
     }
@@ -600,6 +628,7 @@ export class EmailProcessingOrchestrator {
       const response = await this.anthropic.messages.create({
         model: 'claude-3-haiku-20240307',
         max_tokens: 2048,
+        temperature: 0, // Reduce randomness to prevent hallucination
         messages: [{ role: 'user', content: prompt }],
       });
 
@@ -614,6 +643,50 @@ export class EmailProcessingOrchestrator {
             parsed[key] = null;
           }
         }
+
+        // Post-extraction validation: Check for hallucinated dates
+        const currentYear = new Date().getFullYear();
+        const minYear = currentYear - 1; // Allow last year for recent bookings
+
+        // Check ETD for hallucination
+        if (parsed.etd) {
+          const etdYear = parseInt(parsed.etd.substring(0, 4));
+          if (etdYear < minYear || etdYear > currentYear + 2) {
+            console.warn(`[Extraction] Detected hallucinated ETD: ${parsed.etd}, attempting regex fallback`);
+            // Try to extract date directly from content using regex
+            const dateMatches = content.match(/20(?:2[4-9]|3\d)-\d{2}-\d{2}/g);
+            if (dateMatches?.length) {
+              parsed.etd = dateMatches[0];
+              if (dateMatches.length > 1) {
+                parsed.eta = dateMatches[dateMatches.length - 1];
+              }
+            } else {
+              parsed.etd = null;
+              parsed.eta = null;
+            }
+          }
+        }
+
+        // For Maersk PDFs, try to extract POL/POD from header as fallback
+        // Header format: "From:\nMundra,GUJARAT,India" and "To:\nLos Angeles,California,United States"
+        const polMatch = content.match(/\bFrom:\s*\n?([A-Za-z\s]+)/);
+        const podMatch = content.match(/\bTo:\s*\n?([A-Za-z\s]+)/);
+
+        // Use regex extraction if AI returned generic/hallucinated values
+        if (polMatch?.[1] && (!parsed.port_of_loading || parsed.port_of_loading.length < 3)) {
+          const regexPol = polMatch[1].trim();
+          if (regexPol.length > 1 && regexPol.length < 50) {
+            parsed.port_of_loading = regexPol;
+          }
+        }
+
+        if (podMatch?.[1] && (!parsed.port_of_discharge || parsed.port_of_discharge.length < 3)) {
+          const regexPod = podMatch[1].trim();
+          if (regexPod.length > 1 && regexPod.length < 50) {
+            parsed.port_of_discharge = regexPod;
+          }
+        }
+
         return parsed;
       }
       return null;
