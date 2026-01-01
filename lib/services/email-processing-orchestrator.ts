@@ -704,6 +704,7 @@ export class EmailProcessingOrchestrator {
       shipmentData.created_from_email_id = emailId;
       shipmentData.workflow_state = 'booking_confirmed';
       shipmentData.workflow_phase = 'pre_carriage';
+      shipmentData.is_direct_carrier_confirmed = true; // Mark as confirmed for dashboard visibility
 
       const { data: newShipment, error } = await this.supabase
         .from('shipments')
