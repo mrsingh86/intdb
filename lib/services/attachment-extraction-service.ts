@@ -27,7 +27,7 @@ export interface ExtractionResult {
 }
 
 export interface AttachmentExtractor {
-  canHandle(mimeType: string): boolean;
+  canHandle(mimeType: string, filename?: string): boolean;
   extract(buffer: Buffer): Promise<ExtractionResult>;
   getType(): string;
 }
@@ -36,8 +36,12 @@ export interface AttachmentExtractor {
  * PDF Text Extractor
  */
 export class PdfExtractor implements AttachmentExtractor {
-  canHandle(mimeType: string): boolean {
-    return mimeType === 'application/pdf';
+  canHandle(mimeType: string, filename?: string): boolean {
+    // Check MIME type OR filename extension (CMA CGM sends application/octet-stream)
+    if (mimeType === 'application/pdf') return true;
+    if (mimeType === 'application/octet-stream' && filename?.toLowerCase().endsWith('.pdf')) return true;
+    if (filename?.toLowerCase().endsWith('.pdf')) return true;
+    return false;
   }
 
   async extract(buffer: Buffer): Promise<ExtractionResult> {
@@ -232,8 +236,8 @@ export class AttachmentExtractionService {
     mimeType: string,
     filename: string
   ): Promise<ExtractionResult> {
-    // Find appropriate extractor
-    const extractor = this.extractors.find(e => e.canHandle(mimeType));
+    // Find appropriate extractor (pass filename for .pdf extension check)
+    const extractor = this.extractors.find(e => e.canHandle(mimeType, filename));
 
     if (!extractor) {
       return {
@@ -252,8 +256,8 @@ export class AttachmentExtractionService {
   /**
    * Check if a MIME type is supported
    */
-  isSupported(mimeType: string): boolean {
-    return this.extractors.some(e => e.canHandle(mimeType));
+  isSupported(mimeType: string, filename?: string): boolean {
+    return this.extractors.some(e => e.canHandle(mimeType, filename));
   }
 
   /**
