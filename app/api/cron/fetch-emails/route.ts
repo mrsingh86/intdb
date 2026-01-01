@@ -170,17 +170,19 @@ export async function GET(request: Request) {
 
         // Recursively find all attachments (handles nested MIME structures)
         // Handles both: 1) attachmentId (fetch separately) 2) inline data
-        const findAttachments = (part: any): any[] => {
+        const findAttachments = (part: any, depth = 0): any[] => {
           const attachments: any[] = [];
           if (part.filename && part.filename.length > 0) {
-            // Has attachmentId OR inline data
-            if (part.body?.attachmentId || part.body?.data) {
+            // Log what we find for debugging
+            console.log(`[Attachment] Found: ${part.filename}, hasId: ${!!part.body?.attachmentId}, hasData: ${!!part.body?.data}, size: ${part.body?.size}`);
+            // Has attachmentId OR inline data OR just has size (try to fetch anyway)
+            if (part.body?.attachmentId || part.body?.data || part.body?.size > 0) {
               attachments.push(part);
             }
           }
           if (part.parts) {
             for (const subPart of part.parts) {
-              attachments.push(...findAttachments(subPart));
+              attachments.push(...findAttachments(subPart, depth + 1));
             }
           }
           return attachments;
@@ -219,12 +221,14 @@ export async function GET(request: Request) {
         stats.emails_stored++;
 
         // Store attachments if any (using recursive results)
+        console.log(`[Cron:FetchEmails] Email ${messageId}: found ${allAttachments.length} attachments`);
         for (const part of allAttachments) {
           try {
             let attachmentData: string | null = null;
 
             if (part.body?.attachmentId) {
               // Fetch attachment via API
+              console.log(`[Attachment] Fetching via attachmentId: ${part.filename}`);
               const attachmentResponse = await gmail.users.messages.attachments.get({
                 userId: 'me',
                 messageId: messageId,
@@ -233,7 +237,11 @@ export async function GET(request: Request) {
               attachmentData = attachmentResponse.data.data || null;
             } else if (part.body?.data) {
               // Inline attachment - data already present
+              console.log(`[Attachment] Using inline data: ${part.filename}`);
               attachmentData = part.body.data;
+            } else if (part.body?.size > 0) {
+              // Has size but no attachmentId/data - try fetching full message
+              console.log(`[Attachment] Has size but no data, skipping: ${part.filename}`);
             }
 
             if (attachmentData) {
@@ -245,9 +253,10 @@ export async function GET(request: Request) {
                 content_base64: attachmentData,
               });
               stats.attachments_stored++;
+              console.log(`[Attachment] Stored: ${part.filename}`);
             }
           } catch (attachErr) {
-            console.error(`[Cron:FetchEmails] Error storing attachment:`, attachErr);
+            console.error(`[Cron:FetchEmails] Error storing attachment ${part.filename}:`, attachErr);
           }
         }
       } catch (emailErr) {
