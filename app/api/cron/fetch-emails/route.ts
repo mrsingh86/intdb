@@ -169,10 +169,14 @@ export async function GET(request: Request) {
         }
 
         // Recursively find all attachments (handles nested MIME structures)
+        // Handles both: 1) attachmentId (fetch separately) 2) inline data
         const findAttachments = (part: any): any[] => {
           const attachments: any[] = [];
-          if (part.filename && part.filename.length > 0 && part.body?.attachmentId) {
-            attachments.push(part);
+          if (part.filename && part.filename.length > 0) {
+            // Has attachmentId OR inline data
+            if (part.body?.attachmentId || part.body?.data) {
+              attachments.push(part);
+            }
           }
           if (part.parts) {
             for (const subPart of part.parts) {
@@ -217,13 +221,21 @@ export async function GET(request: Request) {
         // Store attachments if any (using recursive results)
         for (const part of allAttachments) {
           try {
-            const attachmentResponse = await gmail.users.messages.attachments.get({
-              userId: 'me',
-              messageId: messageId,
-              id: part.body.attachmentId,
-            });
+            let attachmentData: string | null = null;
 
-            const attachmentData = attachmentResponse.data.data;
+            if (part.body?.attachmentId) {
+              // Fetch attachment via API
+              const attachmentResponse = await gmail.users.messages.attachments.get({
+                userId: 'me',
+                messageId: messageId,
+                id: part.body.attachmentId,
+              });
+              attachmentData = attachmentResponse.data.data || null;
+            } else if (part.body?.data) {
+              // Inline attachment - data already present
+              attachmentData = part.body.data;
+            }
+
             if (attachmentData) {
               await supabase.from('raw_attachments').insert({
                 email_id: newEmail.id,
