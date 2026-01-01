@@ -47,6 +47,9 @@ export async function GET(request: Request) {
     500
   );
 
+  // Optional 'before' date for targeting specific range (format: YYYY-MM-DD)
+  const beforeParam = url.searchParams.get('before');
+
   try {
     // Validate environment
     const clientId = process.env.GMAIL_CLIENT_ID;
@@ -84,13 +87,21 @@ export async function GET(request: Request) {
     const afterDate = new Date(Date.now() - lookbackMinutes * 60 * 1000);
     const afterTimestamp = Math.floor(afterDate.getTime() / 1000);
 
+    // Build Gmail query
+    let gmailQuery = `after:${afterTimestamp}`;
+    if (beforeParam) {
+      const beforeDate = new Date(beforeParam);
+      const beforeTimestamp = Math.floor(beforeDate.getTime() / 1000);
+      gmailQuery += ` before:${beforeTimestamp}`;
+    }
+
     // Fetch email list
-    console.log(`[Cron:FetchEmails] Fetching emails after ${afterDate.toISOString()}`);
+    console.log(`[Cron:FetchEmails] Query: ${gmailQuery}`);
 
     const listResponse = await gmail.users.messages.list({
       userId: 'me',
       maxResults: emailLimit,
-      q: `after:${afterTimestamp}`,
+      q: gmailQuery,
     });
 
     const messages = listResponse.data.messages || [];
