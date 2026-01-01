@@ -174,17 +174,31 @@ CARRIER & VOYAGE:
 - voyage_number: Voyage reference
 - service_name: Service loop name if mentioned
 
-ROUTING (BOTH SEA PORTS AND INLAND LOCATIONS):
-- port_of_loading: Sea port name (e.g., Nhava Sheva, Shanghai, Rotterdam)
-- port_of_loading_code: UN/LOCODE (5 chars, e.g., INNSA, CNSHA, NLRTM)
-- port_of_discharge: Sea port name
-- port_of_discharge_code: UN/LOCODE
-- place_of_receipt: INLAND origin (ICD, warehouse, factory, rail yard)
+ROUTING - CRITICAL DISTINCTION BETWEEN SEAPORTS AND INLAND LOCATIONS:
+
+⚠️ IMPORTANT: port_of_loading and port_of_discharge MUST be SEAPORTS, not inland locations!
+
+SEAPORTS (POL/POD) - Major ocean terminals where ships load/unload:
+- port_of_loading: SEAPORT name (e.g., Mundra, Pipavav, Nhava Sheva, Shanghai, Rotterdam)
+- port_of_loading_code: UN/LOCODE (5 chars, e.g., INMUN, INPAV, INNSA, CNSHA)
+- port_of_discharge: SEAPORT name (e.g., Houston, Newark, Los Angeles, Charleston)
+- port_of_discharge_code: UN/LOCODE (e.g., USHOU, USEWR, USLAX, USCHS)
+
+INLAND LOCATIONS (Place of Receipt/Delivery) - NOT seaports:
+- place_of_receipt: INLAND origin (ICD, depot, warehouse, factory, rail terminal)
+  Examples: "ICD Sanehwal", "Ludhiana Container Depot", "Gateway Rail Gurgaon", "New Delhi ICD"
 - place_of_receipt_code: Location code if available
-- place_of_delivery: INLAND destination (ICD, warehouse, consignee address)
+- place_of_delivery: INLAND destination (ICD, warehouse, consignee location)
+  Examples: "Maher Terminal", "Chicago ICD", "Fort Worth Rail"
 - place_of_delivery_code: Location code if available
-- final_destination: Ultimate destination city/location
-- transhipment_ports: Array of intermediate ports
+- final_destination: Ultimate destination city if different from POD
+- transhipment_ports: Array of intermediate SEAPORTS
+
+Common Indian SEAPORTS: Mundra (INMUN), Pipavav (INPAV), Nhava Sheva/JNPT (INNSA), Chennai (INMAA), Hazira (INHZA)
+Common Indian INLAND locations: Ludhiana, ICD Sanehwal, Gurgaon, New Delhi, Patli, Tughlakabad, Chawapayal
+
+Common US SEAPORTS: Houston (USHOU), Newark (USEWR), Charleston (USCHS), Savannah (USSAV), Los Angeles (USLAX), Long Beach (USLGB)
+Common US INLAND locations: Chicago, Dallas, Fort Worth, Columbus, Indianapolis
 
 DATES (convert ALL to YYYY-MM-DD format):
 - etd: Estimated Time of Departure
@@ -368,16 +382,36 @@ CRITICAL RULES:
 2. DO NOT use any example data from these instructions
 3. If you cannot find a value in the CONTENT, use null
 
+⚠️ CRITICAL - POL/POD vs INLAND LOCATIONS:
+The "From:" and "To:" in the header are INLAND LOCATIONS, not seaports!
+POL and POD must come from the INTENDED TRANSPORT PLAN table.
+
 HEADER SECTION - Look for:
 - "Booking No.:" followed by a 9-digit number → booking_number
-- "From:" followed by city,state,country → port_of_loading (use just the city name)
-- "To:" followed by city,state,country → port_of_discharge (use just the city name)
+- "From:" followed by city,state,country → place_of_receipt (INLAND origin like Ludhiana, Delhi, Gurgaon)
+- "To:" followed by city,state,country → place_of_delivery (INLAND destination like Chicago, Fort Worth)
 
-INTENDED TRANSPORT PLAN TABLE - Look for section containing:
-- Columns: From | To | Mode | Vessel | Voy No. | ETD | ETA
-- For multi-leg journeys: Use ETD from first row, ETA from last row
+INTENDED TRANSPORT PLAN TABLE - This is where POL/POD come from!
+Look for section with columns: From | To | Mode | Vessel | Voy No. | ETD | ETA
+Multi-leg routing example: LUDHIANA CONTAINER DEPOT → PIPAVAV TERMINAL → HOUSTON BARBOURS CUT
+- The SEAPORT in India is the port_of_loading (e.g., PIPAVAV, MUNDRA, NHAVA SHEVA, HAZIRA)
+- The SEAPORT in destination country is the port_of_discharge (e.g., HOUSTON, NEWARK, LOS ANGELES)
 - vessel_name: Use the main ocean vessel (usually goes to final destination)
-- Dates are in YYYY-MM-DD format
+- ETD: From the ocean leg departure
+- ETA: From the ocean leg arrival
+
+Common Maersk seaport terminals in India:
+- PIPAVAV TERMINAL → port_of_loading: "Pipavav", code: "INPAV"
+- MUNDRA / MUNDRA ADANI → port_of_loading: "Mundra", code: "INMUN"
+- NHAVA SHEVA / JNPT / NSICT / NSIGT → port_of_loading: "Nhava Sheva", code: "INNSA"
+- HAZIRA → port_of_loading: "Hazira", code: "INHZA"
+
+Common Maersk seaport terminals in USA:
+- HOUSTON BARBOURS CUT → port_of_discharge: "Houston", code: "USHOU"
+- NEWARK / PORT ELIZABETH → port_of_discharge: "Newark", code: "USEWR"
+- LOS ANGELES / LONG BEACH → port_of_discharge: "Los Angeles", code: "USLAX"
+- CHARLESTON → port_of_discharge: "Charleston", code: "USCHS"
+- SAVANNAH → port_of_discharge: "Savannah", code: "USSAV"
 
 CUTOFF DATES - Look for:
 - "SI Cut off" / "Documentation Cut off" → si_cutoff
