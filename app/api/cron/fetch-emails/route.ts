@@ -168,10 +168,22 @@ export async function GET(request: Request) {
           extractBody(emailData.payload);
         }
 
-        // Check for attachments
-        const hasAttachments = emailData.payload?.parts?.some(
-          (p: any) => p.filename && p.filename.length > 0
-        ) || false;
+        // Recursively find all attachments (handles nested MIME structures)
+        const findAttachments = (part: any): any[] => {
+          const attachments: any[] = [];
+          if (part.filename && part.filename.length > 0 && part.body?.attachmentId) {
+            attachments.push(part);
+          }
+          if (part.parts) {
+            for (const subPart of part.parts) {
+              attachments.push(...findAttachments(subPart));
+            }
+          }
+          return attachments;
+        };
+
+        const allAttachments = emailData.payload ? findAttachments(emailData.payload) : [];
+        const hasAttachments = allAttachments.length > 0;
 
         // Store email
         const { data: newEmail, error: insertError } = await supabase
@@ -202,33 +214,28 @@ export async function GET(request: Request) {
 
         stats.emails_stored++;
 
-        // Store attachments if any
-        if (hasAttachments && emailData.payload?.parts) {
-          for (const part of emailData.payload.parts) {
-            if (part.filename && part.body?.attachmentId) {
-              try {
-                const attachmentResponse = await gmail.users.messages.attachments.get({
-                  userId: 'me',
-                  messageId: messageId,
-                  id: part.body.attachmentId,
-                });
+        // Store attachments if any (using recursive results)
+        for (const part of allAttachments) {
+          try {
+            const attachmentResponse = await gmail.users.messages.attachments.get({
+              userId: 'me',
+              messageId: messageId,
+              id: part.body.attachmentId,
+            });
 
-                const attachmentData = attachmentResponse.data.data;
-                if (attachmentData) {
-                  await supabase.from('raw_attachments').insert({
-                    email_id: newEmail.id,
-                    filename: part.filename,
-                    mime_type: part.mimeType || 'application/octet-stream',
-                    size_bytes: part.body.size || 0,
-                    content_base64: attachmentData,
-                    processing_status: 'pending',
-                  });
-                  stats.attachments_stored++;
-                }
-              } catch (attachErr) {
-                console.error(`[Cron:FetchEmails] Error storing attachment:`, attachErr);
-              }
+            const attachmentData = attachmentResponse.data.data;
+            if (attachmentData) {
+              await supabase.from('raw_attachments').insert({
+                email_id: newEmail.id,
+                filename: part.filename,
+                mime_type: part.mimeType || 'application/octet-stream',
+                size_bytes: part.body.size || 0,
+                content_base64: attachmentData,
+              });
+              stats.attachments_stored++;
             }
+          } catch (attachErr) {
+            console.error(`[Cron:FetchEmails] Error storing attachment:`, attachErr);
           }
         }
       } catch (emailErr) {
