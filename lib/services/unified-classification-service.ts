@@ -427,22 +427,25 @@ Use the classify_shipping_email tool to provide your classification.`;
    * Save classification to database
    */
   async saveClassification(emailId: string, result: ClassificationResult): Promise<void> {
+    // Delete existing classification if any, then insert new one
+    await this.supabase
+      .from('document_classifications')
+      .delete()
+      .eq('email_id', emailId);
+
     const { error } = await this.supabase
       .from('document_classifications')
-      .upsert(
-        {
-          email_id: emailId,
-          document_type: result.documentType,
-          revision_type: result.subType,
-          confidence_score: result.confidence,
-          model_name: result.method === 'ai' ? this.aiModel : 'deterministic',
-          model_version: result.method === 'ai' ? 'v1|ai' : 'v2|deterministic',
-          classification_reason: result.classificationReason,
-          is_manual_review: result.needsManualReview,
-          classified_at: new Date().toISOString(),
-        },
-        { onConflict: 'email_id' }
-      );
+      .insert({
+        email_id: emailId,
+        document_type: result.documentType,
+        revision_type: result.subType,
+        confidence_score: result.confidence,
+        model_name: result.method === 'ai' ? this.aiModel : 'deterministic',
+        model_version: result.method === 'ai' ? 'v1|ai' : 'v2|deterministic',
+        classification_reason: result.classificationReason,
+        is_manual_review: result.needsManualReview,
+        classified_at: new Date().toISOString(),
+      });
 
     if (error) {
       throw new Error(`Failed to save classification: ${error.message}`);
