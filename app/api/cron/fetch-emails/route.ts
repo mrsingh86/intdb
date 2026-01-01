@@ -50,6 +50,9 @@ export async function GET(request: Request) {
   // Optional 'before' date for targeting specific range (format: YYYY-MM-DD)
   const beforeParam = url.searchParams.get('before');
 
+  // Optional custom Gmail query (e.g., subject:CAD0850107)
+  const customQuery = url.searchParams.get('q');
+
   try {
     // Validate environment
     const clientId = process.env.GMAIL_CLIENT_ID;
@@ -93,6 +96,9 @@ export async function GET(request: Request) {
       const beforeDate = new Date(beforeParam);
       const beforeTimestamp = Math.floor(beforeDate.getTime() / 1000);
       gmailQuery += ` before:${beforeTimestamp}`;
+    }
+    if (customQuery) {
+      gmailQuery += ` ${customQuery}`;
     }
 
     // Fetch email list
