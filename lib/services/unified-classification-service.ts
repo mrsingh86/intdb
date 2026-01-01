@@ -179,12 +179,71 @@ export class UnifiedClassificationService {
   }
 
   /**
+   * Pre-filter to catch emails that are DEFINITELY NOT booking confirmations
+   * This prevents AI from over-classifying thread replies and related docs
+   */
+  private preFilterNonBookingConfirmation(subject: string): string | null {
+    const s = subject.toLowerCase();
+
+    // "Price overview" is NOT a booking confirmation, even if it contains booking number
+    if (s.includes('price overview')) {
+      return 'rate_quote';
+    }
+
+    // SOB (Shipped on Board) confirmations are different document type
+    if (/\bsob\s+confirm/i.test(subject)) {
+      return 'sob_confirmation';
+    }
+
+    // FMC Filing is a shipment notice, not booking confirmation
+    if (s.includes('fmc filing')) {
+      return 'shipment_notice';
+    }
+
+    // "Go Green for" are internal Intoglo quote/carbon offset emails
+    if (s.startsWith('go green for')) {
+      return 'general_correspondence';
+    }
+
+    // Thread replies (RE:, FW:) that don't have actual booking confirmation content
+    // are usually general correspondence
+    if (/^(re|fw|fwd):\s/i.test(subject)) {
+      // Exception: If subject contains exact BC pattern after RE:, it might be valid
+      const afterPrefix = subject.replace(/^(re|fw|fwd):\s*/i, '');
+      // Only allow if it's an exact carrier BC pattern (not just contains booking number)
+      if (!/^Booking Confirmation\s*:/i.test(afterPrefix) &&
+          !/CMA CGM.*Booking confirmation/i.test(afterPrefix)) {
+        return 'general_correspondence';
+      }
+    }
+
+    return null; // No pre-filter match, continue with normal classification
+  }
+
+  /**
    * Classify an email using hybrid approach (deterministic first, AI fallback)
    *
    * This is the SINGLE entry point for classification in the codebase.
    */
   async classify(input: ClassificationInput): Promise<ClassificationResult> {
     const sender = input.trueSenderEmail || input.senderEmail;
+
+    // Step 0: Pre-filter known non-BC patterns (prevents AI over-classification)
+    const preFilterResult = this.preFilterNonBookingConfirmation(input.subject);
+    if (preFilterResult) {
+      return {
+        documentType: preFilterResult,
+        subType: null,
+        carrierId: null,
+        carrierName: null,
+        confidence: 80, // High confidence for pattern-based pre-filter
+        method: 'deterministic',
+        matchedPattern: 'pre_filter_non_bc',
+        labels: this.inferLabels(input),
+        needsManualReview: false,
+        classificationReason: `Pre-filter: Subject pattern indicates ${preFilterResult}`,
+      };
+    }
 
     // Step 1: Try deterministic classification (with attachment content validation)
     const deterministicResult = classifyDeterministic(

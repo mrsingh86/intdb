@@ -359,7 +359,8 @@ export class EmailProcessingOrchestrator {
         // For forwarded emails (like CMA CGM via pricing@intoglo.com), detect carrier from content
         const carrierFromContent = this.detectCarrier(email.true_sender_email || email.sender_email, content);
         const isCarrierEmail = this.isDirectCarrierEmail(email.true_sender_email, email.sender_email) ||
-                               this.isCarrierContentBasedEmail(content, carrierFromContent);
+                               this.isKnownCarrierDisplayName(email.sender_email) ||
+                               this.isCarrierContentBasedEmail(content, carrierFromContent, email.subject);
 
         const result = await this.processBookingConfirmation(
           emailId,
@@ -413,17 +414,71 @@ export class EmailProcessingOrchestrator {
   }
 
   /**
-   * Check if email content indicates it's from a carrier (for forwarded emails)
+   * Check if email content or subject indicates it's from a carrier (for forwarded emails)
    * Example: CMA CGM emails forwarded through pricing@intoglo.com
    * The PDF content contains "BOOKING CONFIRMATION" from CMA CGM
+   *
+   * ENHANCED: Also checks subject line patterns that are carrier-specific
    */
-  private isCarrierContentBasedEmail(content: string, detectedCarrier: string): boolean {
+  private isCarrierContentBasedEmail(content: string, detectedCarrier: string, subject?: string): boolean {
     // If we detected a carrier from content, and the content has booking confirmation markers
     if (detectedCarrier !== 'default') {
       const hasBookingConfirmation = /BOOKING CONFIRMATION/i.test(content);
       const hasCarrierBranding = /CMA CGM|MAERSK|HAPAG|MSC|COSCO|EVERGREEN|ONE|YANG MING/i.test(content);
-      return hasBookingConfirmation && hasCarrierBranding;
+      if (hasBookingConfirmation && hasCarrierBranding) {
+        return true;
+      }
     }
+
+    // Subject-based detection for known carrier patterns
+    if (subject) {
+      // Maersk: "Booking Confirmation : 263xxxxxx" (9-digit booking number starting with 26)
+      if (/^Booking Confirmation\s*:\s*26\d{7}$/i.test(subject.trim())) {
+        return true;
+      }
+      // Hapag-Lloyd: Subject contains HLCU or HL booking patterns
+      if (/HLCU\d{7}|HL-?\d{8}/i.test(subject)) {
+        return true;
+      }
+      // CMA CGM: "CMA CGM - Booking confirmation available"
+      if (/CMA CGM.*Booking confirmation/i.test(subject)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Check if sender display name matches known carrier patterns
+   * Example: "'in.export via Operations Intoglo'" contains "in.export" which is Maersk
+   */
+  private isKnownCarrierDisplayName(senderEmail: string): boolean {
+    const senderLower = senderEmail.toLowerCase();
+
+    // Known Maersk display name patterns
+    const maerskPatterns = [
+      'in.export',
+      'maersk line export',
+      'donotreply.*maersk',
+      'customer service.*maersk',
+    ];
+    for (const pattern of maerskPatterns) {
+      if (new RegExp(pattern, 'i').test(senderLower)) {
+        return true;
+      }
+    }
+
+    // Known Hapag-Lloyd patterns
+    if (/india@service\.hlag|hapag|hlcu/i.test(senderLower)) {
+      return true;
+    }
+
+    // Known CMA CGM patterns (display name only, no domain)
+    if (/cma cgm website|cma cgm.*noreply/i.test(senderLower)) {
+      return true;
+    }
+
     return false;
   }
 
