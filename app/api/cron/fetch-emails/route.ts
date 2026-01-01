@@ -41,6 +41,12 @@ export async function GET(request: Request) {
     ? lookbackDays * 24 * 60  // Convert days to minutes
     : LOOKBACK_MINUTES;       // Default 15 min
 
+  // Allow custom limit for backfill (default 50, max 500)
+  const emailLimit = Math.min(
+    parseInt(url.searchParams.get('limit') || String(MAX_EMAILS_PER_RUN)),
+    500
+  );
+
   try {
     // Validate environment
     const clientId = process.env.GMAIL_CLIENT_ID;
@@ -83,7 +89,7 @@ export async function GET(request: Request) {
 
     const listResponse = await gmail.users.messages.list({
       userId: 'me',
-      maxResults: MAX_EMAILS_PER_RUN,
+      maxResults: emailLimit,
       q: `after:${afterTimestamp}`,
     });
 
