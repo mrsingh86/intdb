@@ -16,6 +16,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { StakeholderExtractionService, DocumentEntity, ShipmentDirection } from './stakeholder-extraction-service';
 import { DocumentLifecycleService } from './document-lifecycle-service';
 import { BackfillService } from './shipment-linking/backfill-service';
+import { UnifiedClassificationService, ClassificationResult } from './unified-classification-service';
 
 // Types
 interface ProcessingResult {
@@ -189,6 +190,7 @@ export class EmailProcessingOrchestrator {
   private stakeholderService: StakeholderExtractionService;
   private lifecycleService: DocumentLifecycleService;
   private backfillService: BackfillService;
+  private classificationService: UnifiedClassificationService;
 
   constructor(supabaseUrl: string, supabaseKey: string, anthropicKey: string) {
     this.supabase = createClient(supabaseUrl, supabaseKey);
@@ -196,6 +198,10 @@ export class EmailProcessingOrchestrator {
     this.stakeholderService = new StakeholderExtractionService(this.supabase);
     this.lifecycleService = new DocumentLifecycleService(this.supabase);
     this.backfillService = new BackfillService(this.supabase);
+    this.classificationService = new UnifiedClassificationService(this.supabase, {
+      useAiFallback: true,
+      aiModel: 'claude-3-5-haiku-20241022',
+    });
   }
 
   /**
@@ -266,6 +272,17 @@ export class EmailProcessingOrchestrator {
 
   /**
    * Process a single email through the entire pipeline
+   *
+   * Pipeline order:
+   * 1. Fetch email (with optional existing classification)
+   * 2. Get PDF content from attachments
+   * 3. Classify if no classification exists (CRITICAL - was missing before)
+   * 4. Detect carrier from content
+   * 5. Extract entities with AI
+   * 6. Process based on document type (create/update/link shipment)
+   * 7. Extract stakeholders
+   * 8. Create document lifecycle
+   * 9. Update processing status
    */
   async processEmail(emailId: string): Promise<ProcessingResult> {
     try {
@@ -280,35 +297,77 @@ export class EmailProcessingOrchestrator {
         return { emailId, success: false, stage: 'classification', error: 'Email not found' };
       }
 
-      const classification = email.document_classifications?.[0];
-      const documentType = classification?.document_type;
-
-      // 2. Get email content including PDF attachments
+      // 2. Get email content including PDF attachments (needed for classification)
       const content = await this.getFullContent(emailId, email);
 
-      // 3. Detect carrier from sender/content (prefer true_sender_email for forwarded emails)
+      // 3. Get or CREATE classification
+      // CRITICAL FIX: If no classification exists, we must classify the email first
+      let classification = email.document_classifications?.[0];
+      let documentType = classification?.document_type;
+
+      if (!classification) {
+        console.log(`[Orchestrator] No classification for email ${emailId.substring(0, 8)}... - classifying now`);
+
+        // Get attachment filenames for classification
+        const { data: attachments } = await this.supabase
+          .from('raw_attachments')
+          .select('filename, extracted_text')
+          .eq('email_id', emailId);
+
+        const attachmentFilenames = attachments?.map(a => a.filename).filter(Boolean) || [];
+        const attachmentContent = attachments
+          ?.filter(a => a.extracted_text && a.extracted_text.length > 50)
+          .map(a => a.extracted_text)
+          .join('\n\n') || '';
+
+        // Classify using UnifiedClassificationService
+        const classificationResult = await this.classificationService.classifyAndSave({
+          emailId: email.id,
+          subject: email.subject || '',
+          senderEmail: email.sender_email || '',
+          trueSenderEmail: email.true_sender_email || undefined,
+          bodyText: email.body_text || '',
+          snippet: email.snippet || '',
+          hasAttachments: email.has_attachments || false,
+          attachmentFilenames,
+          attachmentContent,
+        });
+
+        documentType = classificationResult.documentType;
+        console.log(`[Orchestrator] Classified as: ${documentType} (confidence: ${classificationResult.confidence})`);
+      }
+
+      // 4. Detect carrier from sender/content (prefer true_sender_email for forwarded emails)
       const carrier = this.detectCarrier(email.true_sender_email || email.sender_email, content);
 
-      // 4. Extract data using carrier-specific prompt
+      // 5. Extract data using carrier-specific prompt
       const extractedData = await this.extractWithAI(content, carrier);
 
       if (!extractedData) {
         return { emailId, success: false, stage: 'extraction', error: 'AI extraction failed' };
       }
 
-      // 5. Process based on document type
+      // Store extracted entities
+      await this.storeExtractedEntities(emailId, extractedData);
+
+      // 6. Process based on document type
       let shipmentId: string | undefined;
       let fieldsExtracted = 0;
 
       if (documentType === 'booking_confirmation') {
         // CREATE shipment only from DIRECT carrier emails, otherwise LINK
-        // Use true_sender_email to detect carrier for emails via ops group
+        // For forwarded emails (like CMA CGM via pricing@intoglo.com), detect carrier from content
+        const carrierFromContent = this.detectCarrier(email.true_sender_email || email.sender_email, content);
+        const isCarrierEmail = this.isDirectCarrierEmail(email.true_sender_email, email.sender_email) ||
+                               this.isCarrierContentBasedEmail(content, carrierFromContent);
+
         const result = await this.processBookingConfirmation(
           emailId,
           extractedData,
           carrier,
           email.true_sender_email,  // Actual sender before forwarding
-          email.sender_email
+          email.sender_email,
+          isCarrierEmail  // Pass content-based detection result
         );
         shipmentId = result.shipmentId;
         fieldsExtracted = result.fieldsUpdated;
@@ -323,17 +382,17 @@ export class EmailProcessingOrchestrator {
         shipmentId = result.shipmentId;
       }
 
-      // 6. Extract and link stakeholders (shipper_id, consignee_id)
+      // 7. Extract and link stakeholders (shipper_id, consignee_id)
       if (shipmentId && extractedData) {
         await this.extractAndLinkStakeholders(shipmentId, extractedData, documentType);
       }
 
-      // 7. Create document lifecycle record
+      // 8. Create document lifecycle record
       if (shipmentId && documentType) {
         await this.createDocumentLifecycle(shipmentId, documentType, extractedData);
       }
 
-      // 8. Update processing status
+      // 9. Update processing status
       await this.supabase
         .from('raw_emails')
         .update({ processing_status: 'processed' })
@@ -348,7 +407,82 @@ export class EmailProcessingOrchestrator {
       };
 
     } catch (error: any) {
+      console.error(`[Orchestrator] Error processing email ${emailId}:`, error);
       return { emailId, success: false, stage: 'extraction', error: error.message };
+    }
+  }
+
+  /**
+   * Check if email content indicates it's from a carrier (for forwarded emails)
+   * Example: CMA CGM emails forwarded through pricing@intoglo.com
+   * The PDF content contains "BOOKING CONFIRMATION" from CMA CGM
+   */
+  private isCarrierContentBasedEmail(content: string, detectedCarrier: string): boolean {
+    // If we detected a carrier from content, and the content has booking confirmation markers
+    if (detectedCarrier !== 'default') {
+      const hasBookingConfirmation = /BOOKING CONFIRMATION/i.test(content);
+      const hasCarrierBranding = /CMA CGM|MAERSK|HAPAG|MSC|COSCO|EVERGREEN|ONE|YANG MING/i.test(content);
+      return hasBookingConfirmation && hasCarrierBranding;
+    }
+    return false;
+  }
+
+  /**
+   * Store extracted entities to entity_extractions table
+   */
+  private async storeExtractedEntities(emailId: string, data: ExtractedBookingData): Promise<void> {
+    const entities: { email_id: string; entity_type: string; entity_value: string; confidence_score: number }[] = [];
+
+    if (data.booking_number) {
+      entities.push({ email_id: emailId, entity_type: 'booking_number', entity_value: data.booking_number, confidence_score: 90 });
+    }
+    if (data.carrier) {
+      entities.push({ email_id: emailId, entity_type: 'carrier', entity_value: data.carrier, confidence_score: 85 });
+    }
+    if (data.vessel_name) {
+      entities.push({ email_id: emailId, entity_type: 'vessel_name', entity_value: data.vessel_name, confidence_score: 85 });
+    }
+    if (data.voyage_number) {
+      entities.push({ email_id: emailId, entity_type: 'voyage_number', entity_value: data.voyage_number, confidence_score: 85 });
+    }
+    if (data.etd) {
+      entities.push({ email_id: emailId, entity_type: 'etd', entity_value: data.etd, confidence_score: 85 });
+    }
+    if (data.eta) {
+      entities.push({ email_id: emailId, entity_type: 'eta', entity_value: data.eta, confidence_score: 85 });
+    }
+    if (data.port_of_loading) {
+      entities.push({ email_id: emailId, entity_type: 'port_of_loading', entity_value: data.port_of_loading, confidence_score: 85 });
+    }
+    if (data.port_of_discharge) {
+      entities.push({ email_id: emailId, entity_type: 'port_of_discharge', entity_value: data.port_of_discharge, confidence_score: 85 });
+    }
+    if (data.si_cutoff) {
+      entities.push({ email_id: emailId, entity_type: 'si_cutoff', entity_value: data.si_cutoff, confidence_score: 80 });
+    }
+    if (data.vgm_cutoff) {
+      entities.push({ email_id: emailId, entity_type: 'vgm_cutoff', entity_value: data.vgm_cutoff, confidence_score: 80 });
+    }
+    if (data.cargo_cutoff) {
+      entities.push({ email_id: emailId, entity_type: 'cargo_cutoff', entity_value: data.cargo_cutoff, confidence_score: 80 });
+    }
+    if (data.container_number) {
+      entities.push({ email_id: emailId, entity_type: 'container_number', entity_value: data.container_number, confidence_score: 85 });
+    }
+
+    if (entities.length > 0) {
+      // Delete existing entities for this email to avoid duplicates on reprocess
+      await this.supabase
+        .from('entity_extractions')
+        .delete()
+        .eq('email_id', emailId);
+
+      // Insert new entities
+      await this.supabase
+        .from('entity_extractions')
+        .insert(entities);
+
+      console.log(`[Orchestrator] Stored ${entities.length} entities for email ${emailId.substring(0, 8)}...`);
     }
   }
 
@@ -438,24 +572,29 @@ export class EmailProcessingOrchestrator {
    * Process booking confirmation - CREATE or UPDATE shipment
    *
    * IMPORTANT: Only DIRECT carrier emails can CREATE new shipments.
-   * Forwarded emails (from intoglo.com, etc.) should only LINK to existing shipments.
-   * This ensures shipments have source-of-truth data from carriers.
+   * However, forwarded emails with clear carrier branding (e.g., CMA CGM via pricing@intoglo.com)
+   * can also create shipments if the PDF content confirms carrier origin.
    *
    * NOTE: Uses true_sender_email to detect carrier for emails via ops group
+   * NOTE: Also accepts isCarrierEmail override for content-based detection
    */
   private async processBookingConfirmation(
     emailId: string,
     data: ExtractedBookingData,
     carrier: string,
     trueSenderEmail: string | null,
-    senderEmail: string
+    senderEmail: string,
+    isCarrierEmailOverride?: boolean
   ): Promise<{ shipmentId?: string; fieldsUpdated: number }> {
     const bookingNumber = data.booking_number;
     if (!bookingNumber) {
       return { fieldsUpdated: 0 };
     }
 
-    const isDirectCarrier = this.isDirectCarrierEmail(trueSenderEmail, senderEmail);
+    // Use override if provided, otherwise check sender domains
+    const isDirectCarrier = isCarrierEmailOverride !== undefined
+      ? isCarrierEmailOverride
+      : this.isDirectCarrierEmail(trueSenderEmail, senderEmail);
 
     // Check if shipment exists
     const { data: existing } = await this.supabase
@@ -504,19 +643,26 @@ export class EmailProcessingOrchestrator {
 
       return { shipmentId: existing.id, fieldsUpdated };
     } else if (isDirectCarrier) {
-      // CREATE new shipment - ONLY from direct carrier emails
+      // CREATE new shipment - from direct carrier emails OR forwarded emails with carrier content
+      console.log(`[Orchestrator] Creating new shipment for booking ${bookingNumber} from ${carrier}`);
       shipmentData.booking_number = bookingNumber;
       shipmentData.created_from_email_id = emailId;
       shipmentData.workflow_state = 'booking_confirmed';
       shipmentData.workflow_phase = 'pre_carriage';
 
-      const { data: newShipment } = await this.supabase
+      const { data: newShipment, error } = await this.supabase
         .from('shipments')
         .insert(shipmentData)
         .select('id')
         .single();
 
+      if (error) {
+        console.error(`[Orchestrator] Failed to create shipment for ${bookingNumber}:`, error);
+        return { fieldsUpdated: 0 };
+      }
+
       if (newShipment) {
+        console.log(`[Orchestrator] Created shipment ${newShipment.id} for booking ${bookingNumber}`);
         // Link email to newly created shipment
         await this.linkEmailToShipment(emailId, newShipment.id, 'booking_confirmation');
 
