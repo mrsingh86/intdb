@@ -227,7 +227,7 @@ CARGO DETAILS:
 HS CODES & CUSTOMS (from Arrival Notice, Duty Entry Summary, customs docs):
 - hs_codes: Array of ALL HS tariff codes (e.g., ["8471.30", "8473.21"])
 - an_number: Arrival Notice reference number
-- it_number: IT Number / Immediate Transportation number (starts with "IT", e.g., "IT1234567")
+- it_number: IT/In-Bond Number - can start with "IT" or "V" (e.g., "IT1234567", "V0413457958")
 - entry_number: Customs Entry Number / Import Entry Number
 - bond_number: Customs Bond Number
 - isf_number: Importer Security Filing number (10+2)
@@ -359,7 +359,7 @@ CUTOFFS - Look for "Deadline Information" section:
 - Dates are typically in format: DD-Mon-YYYY HH:MM (e.g., "25-Dec-2025 10:00")
 
 ARRIVAL NOTICE fields:
-- "IT Number" / "In-Bond Number" → it_number (starts with "IT")
+- "IT Number" / "In-Bond Number" / "T&E#" → it_number (starts with "IT" or "V", e.g., V0413457958)
 - "Entry Number" → entry_number
 `,
   'maersk': `MAERSK SPECIFIC PATTERNS:
@@ -499,7 +499,7 @@ Look for ANY of these terms and map to our fields:
 - "Late Gate" / "Extended Gate" → late_gate
 
 ARRIVAL NOTICE:
-- "IT Number" / "IT#" / "In-Bond" (starts with "IT") → it_number
+- "IT Number" / "IT#" / "In-Bond" / "T&E" (starts with "IT" or "V") → it_number
 - "Entry Number" / "Entry#" / "Import Entry" → entry_number
 - "AN Number" / "Arrival Notice#" → an_number
 `
