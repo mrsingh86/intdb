@@ -18,6 +18,26 @@ import { BackfillService } from './shipment-linking/backfill-service';
 import { UnifiedClassificationService, ClassificationResult } from './unified-classification-service';
 import { ShipmentExtractionService, ShipmentData } from './shipment-extraction-service';
 
+// ============================================================================
+// Configuration
+// ============================================================================
+
+/**
+ * Minimum confidence required to auto-create a shipment from booking confirmation.
+ * Classifications below this threshold require manual review.
+ *
+ * - 70%+ → Auto-create shipment
+ * - 50-69% → Flag for manual review, don't create shipment
+ * - <50% → Skip processing entirely
+ */
+const MINIMUM_CONFIDENCE_FOR_SHIPMENT_CREATION = 70;
+
+/**
+ * Minimum confidence to proceed with any processing (extraction, linking).
+ * Below this, the email is marked as needing manual review.
+ */
+const MINIMUM_CONFIDENCE_FOR_PROCESSING = 50;
+
 // Types
 interface ProcessingResult {
   emailId: string;
@@ -203,6 +223,7 @@ export class EmailProcessingOrchestrator {
       // CRITICAL FIX: If no classification exists, we must classify the email first
       let classification = email.document_classifications?.[0];
       let documentType = classification?.document_type;
+      let classificationConfidence = classification?.confidence_score || 0;
 
       if (!classification) {
         console.log(`[Orchestrator] No classification for email ${emailId.substring(0, 8)}... - classifying now`);
@@ -233,7 +254,18 @@ export class EmailProcessingOrchestrator {
         });
 
         documentType = classificationResult.documentType;
-        console.log(`[Orchestrator] Classified as: ${documentType} (confidence: ${classificationResult.confidence})`);
+        classificationConfidence = classificationResult.confidence;
+        console.log(`[Orchestrator] Classified as: ${documentType} (confidence: ${classificationConfidence})`);
+
+        // Check minimum confidence for processing
+        if (classificationConfidence < MINIMUM_CONFIDENCE_FOR_PROCESSING) {
+          console.log(`[Orchestrator] Confidence ${classificationConfidence}% below minimum ${MINIMUM_CONFIDENCE_FOR_PROCESSING}% - marking for manual review`);
+          await this.supabase
+            .from('raw_emails')
+            .update({ processing_status: 'manual_review' })
+            .eq('id', emailId);
+          return { emailId, success: false, stage: 'classification', error: `Low confidence (${classificationConfidence}%) - requires manual review` };
+        }
       }
 
       // 4. Detect carrier from sender/content (prefer true_sender_email for forwarded emails)
@@ -265,6 +297,24 @@ export class EmailProcessingOrchestrator {
       let fieldsExtracted = 0;
 
       if (documentType === 'booking_confirmation') {
+        // CHECK: Only create shipments if confidence is above threshold
+        if (classificationConfidence < MINIMUM_CONFIDENCE_FOR_SHIPMENT_CREATION) {
+          console.log(`[Orchestrator] Booking confirmation confidence ${classificationConfidence}% below ${MINIMUM_CONFIDENCE_FOR_SHIPMENT_CREATION}% threshold - skipping shipment creation`);
+          // Mark for manual review but don't create shipment
+          await this.supabase
+            .from('raw_emails')
+            .update({ processing_status: 'needs_review' })
+            .eq('id', emailId);
+          // Still store entities for reference
+          return {
+            emailId,
+            success: true,
+            stage: 'linking',
+            error: `Confidence ${classificationConfidence}% below threshold - shipment not created`,
+            fieldsExtracted: 0,
+          };
+        }
+
         // CREATE shipment only from DIRECT carrier emails, otherwise LINK
         // For forwarded emails (like CMA CGM via pricing@intoglo.com), detect carrier from content
         const carrierFromContent = this.detectCarrier(email.true_sender_email || email.sender_email, content);
