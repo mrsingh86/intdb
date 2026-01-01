@@ -12,11 +12,11 @@
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import Anthropic from '@anthropic-ai/sdk';
 import { StakeholderExtractionService, DocumentEntity, ShipmentDirection } from './stakeholder-extraction-service';
 import { DocumentLifecycleService } from './document-lifecycle-service';
 import { BackfillService } from './shipment-linking/backfill-service';
 import { UnifiedClassificationService, ClassificationResult } from './unified-classification-service';
+import { ShipmentExtractionService, ShipmentData } from './shipment-extraction-service';
 
 // Types
 interface ProcessingResult {
@@ -73,154 +73,21 @@ const FALLBACK_CARRIER_DOMAINS = [
   'sitc.com',
 ];
 
-// Carrier-specific extraction prompts
-const CARRIER_PROMPTS: Record<string, string> = {
-  'hapag-lloyd': `You are extracting data from a Hapag-Lloyd booking confirmation.
-
-IMPORTANT: Look for these specific sections:
-- "Deadline Information" section contains all cutoffs:
-  - "Shipping instruction closing" → si_cutoff
-  - "VGM cut-off" → vgm_cutoff
-  - "FCL delivery cut-off" or "Cargo cut-off" → cargo_cutoff
-  - "Documentation cut-off" → doc_cutoff
-
-- Dates are typically in format: DD-Mon-YYYY HH:MM (e.g., "25-Dec-2025 10:00")
-- Booking numbers start with "HLCU" or are 8-digit numbers
-- Look for "Vessel/Voyage" for vessel and voyage info
-
-`,
-  'maersk': `You are extracting data from a Maersk booking confirmation PDF.
-
-CRITICAL RULES:
-1. Extract data ONLY from the CONTENT section below - not from these instructions
-2. DO NOT use any example data from these instructions
-3. If you cannot find a value in the CONTENT, use null
-
-HEADER SECTION - Look for:
-- "Booking No.:" followed by a 9-digit number → booking_number
-- "From:" followed by city,state,country → port_of_loading (use just the city name)
-- "To:" followed by city,state,country → port_of_discharge (use just the city name)
-
-INTENDED TRANSPORT PLAN TABLE - Look for section containing:
-- Columns: From | To | Mode | Vessel | Voy No. | ETD | ETA
-- For multi-leg journeys: Use ETD from first row, ETA from last row
-- vessel_name: Use the main ocean vessel (usually goes to final destination)
-- Dates are in YYYY-MM-DD format
-
-CUTOFF DATES - Look for:
-- "SI Cut off" → si_cutoff (format as YYYY-MM-DD)
-- "VGM" deadline → vgm_cutoff
-- "Gate-In Cut off" → gate_cutoff
-
-IMPORTANT:
-- All dates should be in YYYY-MM-DD format
-- Current bookings have dates in 2025 or 2026
-- If a date is from 2023 or earlier, it is likely wrong - use null
-
-`,
-  'cma-cgm': `You are extracting data from a CMA CGM booking confirmation.
-
-IMPORTANT: Look for these specific sections:
-- "Cut-off Dates" section contains:
-  - "SI Closing" → si_cutoff
-  - "VGM Closing" → vgm_cutoff
-  - "Cargo Closing" → cargo_cutoff
-
-- Dates often in format: DD/MM/YYYY HH:MM
-- Booking numbers may start with "CMI" or be alphanumeric
-
-`,
-  'msc': `You are extracting data from an MSC booking confirmation.
-
-IMPORTANT: Look for cutoff information labeled as:
-- "Closing Date" sections for various cutoffs
-- "SI Deadline" → si_cutoff
-- "VGM Cut-off" → vgm_cutoff
-- "Port Cut-off" → cargo_cutoff
-
-`,
-  'cosco': `You are extracting data from a COSCO booking confirmation.
-
-IMPORTANT: Look for:
-- Booking numbers starting with "COSU"
-- "Cut-off" or "Closing" sections for deadlines
-- Dates in various formats
-
-`,
-  'default': `You are extracting data from a shipping booking confirmation email.
-
-Look for ALL of the following information:
-- Cutoff dates (SI, VGM, Cargo, Gate, Documentation cutoffs)
-- Vessel and voyage information
-- Port of loading and discharge
-- ETD and ETA dates
-- Shipper and consignee names
-
-`
-};
-
-const EXTRACTION_PROMPT_TEMPLATE = `{CARRIER_PROMPT}
-Extract ALL shipping information from the content below. Return ONLY valid JSON:
-
-{
-  "carrier": "shipping line name (Hapag-Lloyd, Maersk, CMA CGM, MSC, COSCO, ONE, Evergreen, etc.)",
-  "booking_number": "booking reference number",
-  "vessel_name": "vessel/ship name (without M/V prefix)",
-  "voyage_number": "voyage number",
-  "etd": "departure date in YYYY-MM-DD format",
-  "eta": "arrival date in YYYY-MM-DD format",
-  "port_of_loading": "loading port name",
-  "port_of_loading_code": "UN/LOCODE 5-char code if found",
-  "port_of_discharge": "discharge port name",
-  "port_of_discharge_code": "UN/LOCODE 5-char code if found",
-  "final_destination": "final destination if different from POD",
-  "si_cutoff": "SI/documentation cutoff in YYYY-MM-DD format",
-  "vgm_cutoff": "VGM cutoff in YYYY-MM-DD format",
-  "cargo_cutoff": "cargo/CY cutoff in YYYY-MM-DD format",
-  "gate_cutoff": "gate cutoff in YYYY-MM-DD format",
-  "doc_cutoff": "documentation cutoff in YYYY-MM-DD format",
-  "shipper_name": "shipper/exporter company name",
-  "shipper_address": "shipper full address",
-  "consignee_name": "consignee/importer company name",
-  "consignee_address": "consignee full address",
-  "notify_party_name": "notify party company name",
-  "notify_party_address": "notify party full address",
-  "container_number": "container number if available"
-}
-
-CRITICAL - ANTI-HALLUCINATION RULES:
-1. ONLY extract values that EXPLICITLY appear in the content
-2. DO NOT guess, infer, or make up values
-3. Use null for ANY value not clearly stated in the document
-4. DO NOT use values from other documents you may have seen
-5. Each field must come from THIS document only
-
-DATE FORMATTING:
-- Convert ALL dates to YYYY-MM-DD format
-- If a date has time, ignore the time portion
-- Extract cutoff dates even if labeled differently (closing, deadline, cut-off)
-
-VALIDATION:
-- ETD must be a future date (or recent past) - dates like 2023-xx-xx for new bookings are WRONG
-- ETA must be after ETD
-- If dates seem unrealistic, use null instead
-
-CONTENT:
-{CONTENT}`;
+// NOTE: CARRIER_PROMPTS and EXTRACTION_PROMPT_TEMPLATE moved to ShipmentExtractionService
+// This consolidation ensures single extraction path for both cron and API
 
 export class EmailProcessingOrchestrator {
   private supabase: SupabaseClient;
-  private anthropic: Anthropic;
   private carrierIdMap: Map<string, string> = new Map();
   private carrierDomains: string[] = []; // Loaded from carrier_configs.email_sender_patterns
   private stakeholderService: StakeholderExtractionService;
   private lifecycleService: DocumentLifecycleService;
   private backfillService: BackfillService;
   private classificationService: UnifiedClassificationService;
+  private extractionService: ShipmentExtractionService;
 
   constructor(supabaseUrl: string, supabaseKey: string, anthropicKey: string) {
     this.supabase = createClient(supabaseUrl, supabaseKey);
-    this.anthropic = new Anthropic({ apiKey: anthropicKey });
     this.stakeholderService = new StakeholderExtractionService(this.supabase);
     this.lifecycleService = new DocumentLifecycleService(this.supabase);
     this.backfillService = new BackfillService(this.supabase);
@@ -228,6 +95,12 @@ export class EmailProcessingOrchestrator {
       useAiFallback: true,
       aiModel: 'claude-3-5-haiku-20241022',
     });
+    // Use ShipmentExtractionService with Haiku model for cost-effective cron processing
+    this.extractionService = new ShipmentExtractionService(
+      this.supabase,
+      anthropicKey,
+      { useAdvancedModel: false } // Use Haiku for cron (Sonnet available via API path)
+    );
   }
 
   /**
@@ -366,12 +239,23 @@ export class EmailProcessingOrchestrator {
       // 4. Detect carrier from sender/content (prefer true_sender_email for forwarded emails)
       const carrier = this.detectCarrier(email.true_sender_email || email.sender_email, content);
 
-      // 5. Extract data using carrier-specific prompt
-      const extractedData = await this.extractWithAI(content, carrier);
+      // 5. Extract data using CONSOLIDATED ShipmentExtractionService
+      // This ensures single extraction path for both cron and API
+      const pdfContent = await this.getPdfContent(emailId);
+      const extractionResult = await this.extractionService.extractFromContent({
+        emailId,
+        subject: email.subject || '',
+        bodyText: email.body_text || '',
+        pdfContent,
+        carrier,
+      });
 
-      if (!extractedData) {
-        return { emailId, success: false, stage: 'extraction', error: 'AI extraction failed' };
+      if (!extractionResult.success || !extractionResult.data) {
+        return { emailId, success: false, stage: 'extraction', error: extractionResult.error || 'AI extraction failed' };
       }
+
+      // Map ShipmentData to ExtractedBookingData for downstream processing
+      const extractedData = this.mapToExtractedBookingData(extractionResult.data);
 
       // Store extracted entities
       await this.storeExtractedEntities(emailId, extractedData);
@@ -591,6 +475,58 @@ export class EmailProcessingOrchestrator {
   }
 
   /**
+   * Get PDF content only (for extraction service)
+   */
+  private async getPdfContent(emailId: string): Promise<string> {
+    const { data: attachments } = await this.supabase
+      .from('raw_attachments')
+      .select('filename, extracted_text, mime_type')
+      .eq('email_id', emailId);
+
+    let pdfContent = '';
+    for (const att of attachments || []) {
+      // Check for PDF by mime_type OR filename extension (some attachments have generic mime_type)
+      const isPdf = att.mime_type?.includes('pdf') || att.filename?.toLowerCase().endsWith('.pdf');
+      if (att.extracted_text && isPdf) {
+        pdfContent += `\n--- ${att.filename} ---\n${att.extracted_text}\n`;
+      }
+    }
+
+    return pdfContent;
+  }
+
+  /**
+   * Map ShipmentData (from extraction service) to ExtractedBookingData (for orchestrator)
+   * This mapping ensures backward compatibility with existing downstream code
+   */
+  private mapToExtractedBookingData(data: ShipmentData): ExtractedBookingData {
+    return {
+      carrier: data.carrier_name ?? undefined,
+      booking_number: data.booking_number ?? undefined,
+      vessel_name: data.vessel_name ?? undefined,
+      voyage_number: data.voyage_number ?? undefined,
+      etd: data.etd ?? undefined,
+      eta: data.eta ?? undefined,
+      port_of_loading: data.port_of_loading ?? undefined,
+      port_of_loading_code: data.port_of_loading_code ?? undefined,
+      port_of_discharge: data.port_of_discharge ?? undefined,
+      port_of_discharge_code: data.port_of_discharge_code ?? undefined,
+      final_destination: data.place_of_delivery ?? undefined,
+      si_cutoff: data.si_cutoff ?? undefined,
+      vgm_cutoff: data.vgm_cutoff ?? undefined,
+      cargo_cutoff: data.cargo_cutoff ?? undefined,
+      gate_cutoff: data.gate_cutoff ?? undefined,
+      doc_cutoff: data.doc_cutoff ?? undefined,
+      shipper_name: data.shipper_name ?? undefined,
+      shipper_address: data.shipper_address ?? undefined,
+      consignee_name: data.consignee_name ?? undefined,
+      consignee_address: data.consignee_address ?? undefined,
+      notify_party_name: data.notify_party ?? undefined,
+      container_number: data.container_numbers?.[0] ?? undefined,
+    };
+  }
+
+  /**
    * Detect carrier from sender email and content
    */
   private detectCarrier(senderEmail: string, content: string): string {
@@ -615,86 +551,8 @@ export class EmailProcessingOrchestrator {
     return 'default';
   }
 
-  /**
-   * Extract booking data using AI with carrier-specific prompt
-   */
-  private async extractWithAI(content: string, carrier: string): Promise<ExtractedBookingData | null> {
-    const carrierPrompt = CARRIER_PROMPTS[carrier] || CARRIER_PROMPTS['default'];
-    const prompt = EXTRACTION_PROMPT_TEMPLATE
-      .replace('{CARRIER_PROMPT}', carrierPrompt)
-      .replace('{CONTENT}', content.substring(0, 8000));
-
-    try {
-      const response = await this.anthropic.messages.create({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 2048,
-        temperature: 0, // Reduce randomness to prevent hallucination
-        messages: [{ role: 'user', content: prompt }],
-      });
-
-      const text = response.content[0].type === 'text' ? response.content[0].text : '';
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        // Clean null strings
-        for (const key of Object.keys(parsed)) {
-          if (parsed[key] === 'null' || parsed[key] === '') {
-            parsed[key] = null;
-          }
-        }
-
-        // Post-extraction validation: Check for hallucinated dates
-        const currentYear = new Date().getFullYear();
-        const minYear = currentYear - 1; // Allow last year for recent bookings
-
-        // Check ETD for hallucination
-        if (parsed.etd) {
-          const etdYear = parseInt(parsed.etd.substring(0, 4));
-          if (etdYear < minYear || etdYear > currentYear + 2) {
-            console.warn(`[Extraction] Detected hallucinated ETD: ${parsed.etd}, attempting regex fallback`);
-            // Try to extract date directly from content using regex
-            const dateMatches = content.match(/20(?:2[4-9]|3\d)-\d{2}-\d{2}/g);
-            if (dateMatches?.length) {
-              parsed.etd = dateMatches[0];
-              if (dateMatches.length > 1) {
-                parsed.eta = dateMatches[dateMatches.length - 1];
-              }
-            } else {
-              parsed.etd = null;
-              parsed.eta = null;
-            }
-          }
-        }
-
-        // For Maersk PDFs, try to extract POL/POD from header as fallback
-        // Header format: "From:\nMundra,GUJARAT,India" and "To:\nLos Angeles,California,United States"
-        const polMatch = content.match(/\bFrom:\s*\n?([A-Za-z\s]+)/);
-        const podMatch = content.match(/\bTo:\s*\n?([A-Za-z\s]+)/);
-
-        // Use regex extraction if AI returned generic/hallucinated values
-        if (polMatch?.[1] && (!parsed.port_of_loading || parsed.port_of_loading.length < 3)) {
-          const regexPol = polMatch[1].trim();
-          if (regexPol.length > 1 && regexPol.length < 50) {
-            parsed.port_of_loading = regexPol;
-          }
-        }
-
-        if (podMatch?.[1] && (!parsed.port_of_discharge || parsed.port_of_discharge.length < 3)) {
-          const regexPod = podMatch[1].trim();
-          if (regexPod.length > 1 && regexPod.length < 50) {
-            parsed.port_of_discharge = regexPod;
-          }
-        }
-
-        return parsed;
-      }
-      return null;
-    } catch (error) {
-      console.error('AI extraction error:', error);
-      return null;
-    }
-  }
+  // NOTE: extractWithAI method REMOVED - now using ShipmentExtractionService.extractFromContent()
+  // This consolidates extraction logic into a single service for both cron and API paths
 
   /**
    * Process booking confirmation - CREATE or UPDATE shipment

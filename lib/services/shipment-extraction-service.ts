@@ -33,14 +33,17 @@ export interface ShipmentData {
   voyage_number: string | null;
   service_name: string | null;
 
-  // Routing
+  // Routing (includes inland ports)
   port_of_loading: string | null;
   port_of_loading_code: string | null;
   port_of_discharge: string | null;
   port_of_discharge_code: string | null;
-  place_of_receipt: string | null;
-  place_of_delivery: string | null;
+  place_of_receipt: string | null;        // Inland origin (ICD, warehouse, factory)
+  place_of_receipt_code: string | null;
+  place_of_delivery: string | null;       // Inland destination (ICD, warehouse, consignee)
+  place_of_delivery_code: string | null;
   transhipment_ports: string[];
+  final_destination: string | null;       // Ultimate destination if different
 
   // Dates
   etd: string | null;
@@ -48,12 +51,19 @@ export interface ShipmentData {
   actual_departure: string | null;
   actual_arrival: string | null;
 
-  // Cutoffs (CRITICAL)
-  si_cutoff: string | null;
-  vgm_cutoff: string | null;
-  cargo_cutoff: string | null;
-  gate_cutoff: string | null;
-  doc_cutoff: string | null;
+  // Cutoffs - ALL TYPES (CRITICAL - extract from any section)
+  si_cutoff: string | null;               // Shipping Instruction / Documentation
+  vgm_cutoff: string | null;              // VGM submission deadline
+  cargo_cutoff: string | null;            // Cargo/CY/FCL delivery
+  gate_cutoff: string | null;             // Terminal gate closing
+  doc_cutoff: string | null;              // Document submission
+  port_cutoff: string | null;             // Port/Terminal cutoff
+  customs_cutoff: string | null;          // Customs clearance deadline
+  hazmat_cutoff: string | null;           // Hazardous cargo deadline
+  reefer_cutoff: string | null;           // Refrigerated cargo deadline
+  early_return_date: string | null;       // ERD - earliest container return
+  terminal_receiving_date: string | null; // TRD - terminal starts receiving
+  late_gate: string | null;               // Late gate deadline (if extended)
 
   // Parties
   shipper_name: string | null;
@@ -61,6 +71,7 @@ export interface ShipmentData {
   consignee_name: string | null;
   consignee_address: string | null;
   notify_party: string | null;
+  notify_party_address: string | null;
   freight_forwarder: string | null;
 
   // Cargo Details
@@ -70,14 +81,36 @@ export interface ShipmentData {
   volume_cbm: number | null;
   package_count: number | null;
   package_type: string | null;
+  seal_numbers: string[];                 // Container seal numbers
+
+  // HS Codes & Customs (from Arrival Notice / Duty Entry)
+  hs_codes: string[];                     // Array of HS tariff codes
+  an_number: string | null;               // Arrival Notice reference
+  it_number: string | null;               // IT Number (Immediate Transportation) - starts with "IT"
+  entry_number: string | null;            // Customs Entry Number
+  bond_number: string | null;             // Customs Bond Number
+  isf_number: string | null;              // Importer Security Filing
+  ior_number: string | null;              // Importer of Record
+
+  // Financial / Value Table (from commercial docs)
+  cargo_value: number | null;             // Declared cargo value
+  cargo_value_currency: string | null;    // Currency (USD, EUR, INR)
+  duty_amount: number | null;             // Customs duty amount
+  tax_amount: number | null;              // Tax amount
+  freight_amount: number | null;          // Freight charges
+  insurance_amount: number | null;        // Insurance value
 
   // Commercial Terms
   incoterms: string | null;
   freight_terms: string | null;
 
-  // References
+  // References (ALL document numbers)
   customer_reference: string | null;
   forwarder_reference: string | null;
+  mbl_number: string | null;              // Master BL (if HBL exists)
+  hbl_number: string | null;              // House BL
+  po_numbers: string[];                   // Purchase Order numbers
+  invoice_numbers: string[];              // Commercial invoice numbers
 
   // Metadata
   extraction_confidence: number;
@@ -123,14 +156,16 @@ const CARRIER_PATTERNS: Record<CarrierId, RegExp[]> = {
 // AI Extraction Prompts
 // ============================================================================
 
-const COMPREHENSIVE_EXTRACTION_PROMPT = `You are a shipping document data extraction expert. Extract ALL shipping-related information from the provided content with maximum accuracy.
+const COMPREHENSIVE_EXTRACTION_PROMPT = `You are a shipping document data extraction expert. Extract ALL shipping-related information from the provided content with maximum accuracy. Look in ALL sections including tables, headers, footers, and fine print.
 
 EXTRACT THESE FIELDS (use null for missing values):
 
 PRIMARY IDENTIFIERS:
 - booking_number: Carrier booking reference (e.g., HLCU1234567, 262789456, COSU1234567890)
-- bl_number: Bill of Lading number
-- container_numbers: Array of container numbers (e.g., ["HLXU1234567", "TCLU9876543"])
+- bl_number: Bill of Lading number (MBL or HBL)
+- mbl_number: Master Bill of Lading (if HBL exists separately)
+- hbl_number: House Bill of Lading
+- container_numbers: Array of ALL container numbers (e.g., ["HLXU1234567", "TCLU9876543"])
 
 CARRIER & VOYAGE:
 - carrier_name: Full name (Hapag-Lloyd, Maersk, CMA CGM, MSC, COSCO, ONE, Evergreen)
@@ -139,61 +174,94 @@ CARRIER & VOYAGE:
 - voyage_number: Voyage reference
 - service_name: Service loop name if mentioned
 
-ROUTING:
-- port_of_loading: Full port name
-- port_of_loading_code: UN/LOCODE (5 chars, e.g., INNSA, USLAX, DEHAM)
-- port_of_discharge: Full port name
+ROUTING (BOTH SEA PORTS AND INLAND LOCATIONS):
+- port_of_loading: Sea port name (e.g., Nhava Sheva, Shanghai, Rotterdam)
+- port_of_loading_code: UN/LOCODE (5 chars, e.g., INNSA, CNSHA, NLRTM)
+- port_of_discharge: Sea port name
 - port_of_discharge_code: UN/LOCODE
-- place_of_receipt: Origin location if different from POL
-- place_of_delivery: Final destination if different from POD
+- place_of_receipt: INLAND origin (ICD, warehouse, factory, rail yard)
+- place_of_receipt_code: Location code if available
+- place_of_delivery: INLAND destination (ICD, warehouse, consignee address)
+- place_of_delivery_code: Location code if available
+- final_destination: Ultimate destination city/location
 - transhipment_ports: Array of intermediate ports
 
 DATES (convert ALL to YYYY-MM-DD format):
 - etd: Estimated Time of Departure
 - eta: Estimated Time of Arrival
-- actual_departure: Actual departure date if mentioned
-- actual_arrival: Actual arrival date if mentioned
+- actual_departure: Actual departure date (ATD)
+- actual_arrival: Actual arrival date (ATA)
 
-CUTOFFS (CRITICAL - convert to YYYY-MM-DD HH:MM format):
-- si_cutoff: Shipping Instruction / Documentation closing deadline
+CUTOFFS - EXTRACT ALL (look in deadlines, cutoff sections, important dates):
+- si_cutoff: Shipping Instruction / SI closing / Documentation deadline
 - vgm_cutoff: VGM (Verified Gross Mass) submission deadline
-- cargo_cutoff: Cargo/CY/FCL delivery deadline
-- gate_cutoff: Terminal gate closing time
+- cargo_cutoff: Cargo/CY/FCL delivery / Container receiving deadline
+- gate_cutoff: Terminal gate closing / Gate-in cutoff
 - doc_cutoff: Document submission deadline
+- port_cutoff: Port cutoff / Terminal cutoff (if different from cargo)
+- customs_cutoff: Customs clearance deadline
+- hazmat_cutoff: Hazardous/DG cargo deadline (often earlier)
+- reefer_cutoff: Refrigerated cargo deadline (often earlier)
+- early_return_date: ERD - Earliest Return Date for empty pickup
+- terminal_receiving_date: TRD - When terminal starts receiving
+- late_gate: Extended gate / Late gate deadline if offered
 
 PARTIES:
 - shipper_name: Exporter/Shipper company name
-- shipper_address: Full address if available
+- shipper_address: Full address
 - consignee_name: Importer/Consignee company name
-- consignee_address: Full address if available
+- consignee_address: Full address
 - notify_party: Notify party name
-- freight_forwarder: Freight forwarder if mentioned
+- notify_party_address: Notify party address
+- freight_forwarder: Freight forwarder/NVOCC if mentioned
 
-CARGO:
-- commodity_description: Description of goods
-- container_type: Size/type (20GP, 40GP, 40HC, 20RF, etc.)
-- weight_kg: Total weight in kilograms (convert from MT, LB if needed)
+CARGO DETAILS:
+- commodity_description: Description of goods / cargo description
+- container_type: Size/type (20GP, 40GP, 40HC, 20RF, 45HC, etc.)
+- weight_kg: Total weight in kilograms (convert: 1 MT = 1000 KG)
 - volume_cbm: Total volume in cubic meters
-- package_count: Number of packages
-- package_type: Type of packaging (CTNS, PALLETS, DRUMS, etc.)
+- package_count: Number of packages/pieces
+- package_type: Packaging type (CTNS, PALLETS, DRUMS, BAGS, etc.)
+- seal_numbers: Array of seal numbers from containers
 
-COMMERCIAL:
-- incoterms: Trade terms (FOB, CIF, EXW, etc.)
+HS CODES & CUSTOMS (from Arrival Notice, Duty Entry Summary, customs docs):
+- hs_codes: Array of ALL HS tariff codes (e.g., ["8471.30", "8473.21"])
+- an_number: Arrival Notice reference number
+- it_number: IT Number / Immediate Transportation number (starts with "IT", e.g., "IT1234567")
+- entry_number: Customs Entry Number / Import Entry Number
+- bond_number: Customs Bond Number
+- isf_number: Importer Security Filing number (10+2)
+- ior_number: Importer of Record number
+
+FINANCIAL / VALUE TABLE (from commercial invoice, duty summary):
+- cargo_value: Declared cargo/goods value (number only)
+- cargo_value_currency: Currency code (USD, EUR, INR, CNY)
+- duty_amount: Customs duty amount payable
+- tax_amount: Tax amount (GST, VAT, etc.)
+- freight_amount: Freight/shipping charges
+- insurance_amount: Insurance value
+
+COMMERCIAL TERMS:
+- incoterms: Trade terms (FOB, CIF, EXW, DDP, DAP, etc.)
 - freight_terms: Prepaid/Collect
 
-REFERENCES:
-- customer_reference: Shipper/customer reference number
-- forwarder_reference: Forwarder's reference
+REFERENCES - EXTRACT ALL NUMBERS:
+- customer_reference: Shipper/buyer reference
+- forwarder_reference: Forwarder's internal reference
+- po_numbers: Array of Purchase Order numbers
+- invoice_numbers: Array of Commercial Invoice numbers
 
 IMPORTANT RULES:
 1. Convert ALL dates to ISO format (YYYY-MM-DD or YYYY-MM-DD HH:MM)
 2. Date formats to handle: DD-MMM-YYYY, DD/MM/YYYY, MM/DD/YYYY, MMM DD YYYY
 3. Use null (not empty string) for missing values
-4. Extract container numbers as array even if only one
+4. Extract ALL container numbers, HS codes, PO numbers as arrays
 5. Remove prefixes like "M/V", "MV", "Vessel:" from vessel names
 6. For UN/LOCODEs, use standard 5-character format (XXYYY)
 7. Convert weights: 1 MT = 1000 KG, 1 LB = 0.453592 KG
-8. For cutoff times, preserve the time component
+8. For cutoff times, preserve the time component when available
+9. Look in TABLES, VALUE SECTIONS, FINE PRINT for amounts and codes
+10. HS codes format: Include dots (e.g., "8471.30.00" not "84713000")
 
 CONTENT TO EXTRACT FROM:
 {CONTENT}
@@ -202,6 +270,8 @@ Return ONLY valid JSON matching this exact structure:
 {
   "booking_number": string | null,
   "bl_number": string | null,
+  "mbl_number": string | null,
+  "hbl_number": string | null,
   "container_numbers": string[],
   "carrier_name": string | null,
   "carrier_code": string | null,
@@ -213,7 +283,10 @@ Return ONLY valid JSON matching this exact structure:
   "port_of_discharge": string | null,
   "port_of_discharge_code": string | null,
   "place_of_receipt": string | null,
+  "place_of_receipt_code": string | null,
   "place_of_delivery": string | null,
+  "place_of_delivery_code": string | null,
+  "final_destination": string | null,
   "transhipment_ports": string[],
   "etd": string | null,
   "eta": string | null,
@@ -224,11 +297,19 @@ Return ONLY valid JSON matching this exact structure:
   "cargo_cutoff": string | null,
   "gate_cutoff": string | null,
   "doc_cutoff": string | null,
+  "port_cutoff": string | null,
+  "customs_cutoff": string | null,
+  "hazmat_cutoff": string | null,
+  "reefer_cutoff": string | null,
+  "early_return_date": string | null,
+  "terminal_receiving_date": string | null,
+  "late_gate": string | null,
   "shipper_name": string | null,
   "shipper_address": string | null,
   "consignee_name": string | null,
   "consignee_address": string | null,
   "notify_party": string | null,
+  "notify_party_address": string | null,
   "freight_forwarder": string | null,
   "commodity_description": string | null,
   "container_type": string | null,
@@ -236,61 +317,192 @@ Return ONLY valid JSON matching this exact structure:
   "volume_cbm": number | null,
   "package_count": number | null,
   "package_type": string | null,
+  "seal_numbers": string[],
+  "hs_codes": string[],
+  "an_number": string | null,
+  "it_number": string | null,
+  "entry_number": string | null,
+  "bond_number": string | null,
+  "isf_number": string | null,
+  "ior_number": string | null,
+  "cargo_value": number | null,
+  "cargo_value_currency": string | null,
+  "duty_amount": number | null,
+  "tax_amount": number | null,
+  "freight_amount": number | null,
+  "insurance_amount": number | null,
   "incoterms": string | null,
   "freight_terms": string | null,
   "customer_reference": string | null,
-  "forwarder_reference": string | null
+  "forwarder_reference": string | null,
+  "po_numbers": string[],
+  "invoice_numbers": string[]
 }`;
 
 // Carrier-specific hints to prepend to the main prompt
+// MERGED: Contains detailed extraction instructions from email-processing-orchestrator.ts
 const CARRIER_HINTS: Record<CarrierId, string> = {
   'hapag-lloyd': `HAPAG-LLOYD SPECIFIC PATTERNS:
-- Booking numbers: 8-10 digits, may have "HL-" prefix
-- Look for "Deadline Information" section for all cutoffs
-- SI cutoff: "Shipping instruction closing"
-- VGM cutoff: "VGM cut-off"
-- Cargo cutoff: "FCL delivery cut-off" or "CY cut-off"
-- Dates often in format: DD-Mon-YYYY HH:MM
+- Booking numbers: 8-10 digits, may have "HL-" or "HLCU" prefix
+
+CUTOFFS - Look for "Deadline Information" section:
+- "Shipping instruction closing" / "SI closing" → si_cutoff
+- "VGM cut-off" / "VGM deadline" → vgm_cutoff
+- "FCL delivery cut-off" / "Cargo cut-off" / "CY closing" → cargo_cutoff
+- "Documentation cut-off" / "Doc closing" → doc_cutoff
+- "Gate closing" / "Terminal cut-off" → gate_cutoff
+- "Customs cut-off" → customs_cutoff
+- "Hazardous cargo cut-off" / "DG cut-off" → hazmat_cutoff
+- "Reefer cut-off" → reefer_cutoff
+
+- Look for "Vessel/Voyage" for vessel and voyage info
+- Dates are typically in format: DD-Mon-YYYY HH:MM (e.g., "25-Dec-2025 10:00")
+
+ARRIVAL NOTICE fields:
+- "IT Number" / "In-Bond Number" → it_number (starts with "IT")
+- "Entry Number" → entry_number
 `,
   'maersk': `MAERSK SPECIFIC PATTERNS:
-- Booking numbers: 9-10 digits, may start with "26" or have "MAEU" prefix
-- Look for "Important Dates" or "Key Dates" section
-- SI cutoff: "Documentation Deadline" or "SI Cut-off"
-- Cargo cutoff: "Cargo Receiving" or "CY Cut-off"
+CRITICAL RULES:
+1. Extract data ONLY from the CONTENT section below - not from these instructions
+2. DO NOT use any example data from these instructions
+3. If you cannot find a value in the CONTENT, use null
+
+HEADER SECTION - Look for:
+- "Booking No.:" followed by a 9-digit number → booking_number
+- "From:" followed by city,state,country → port_of_loading (use just the city name)
+- "To:" followed by city,state,country → port_of_discharge (use just the city name)
+
+INTENDED TRANSPORT PLAN TABLE - Look for section containing:
+- Columns: From | To | Mode | Vessel | Voy No. | ETD | ETA
+- For multi-leg journeys: Use ETD from first row, ETA from last row
+- vessel_name: Use the main ocean vessel (usually goes to final destination)
+- Dates are in YYYY-MM-DD format
+
+CUTOFF DATES - Look for:
+- "SI Cut off" / "Documentation Cut off" → si_cutoff
+- "VGM" deadline / "VGM Cut off" → vgm_cutoff
+- "Gate-In Cut off" / "Gate Cut off" → gate_cutoff
+- "Cargo Cut off" / "CY Cut off" → cargo_cutoff
+- "Port Cut off" → port_cutoff
+- "Early Return Date" / "ERD" → early_return_date
+- "Terminal Receiving" / "TRD" → terminal_receiving_date
+
+ARRIVAL NOTICE fields:
+- "IT Number" → it_number
+- "Entry No." → entry_number
+
+IMPORTANT:
+- All dates should be in YYYY-MM-DD format
+- Current bookings have dates in 2025 or 2026
+- If a date is from 2023 or earlier, it is likely wrong - use null
 - Container codes: MAEU, MSKU
 `,
   'cma-cgm': `CMA CGM SPECIFIC PATTERNS:
 - Booking numbers may have "CMI" or alphanumeric format
-- Look for "Cut-off Dates" section
-- SI cutoff: "SI Closing"
-- Cargo cutoff: "Cargo Closing"
+
+CUTOFFS - Look for "Cut-off Dates" section:
+- "SI Closing" / "Documentation Closing" → si_cutoff
+- "VGM Closing" / "VGM Cut-off" → vgm_cutoff
+- "Cargo Closing" / "CY Closing" → cargo_cutoff
+- "Gate Closing" → gate_cutoff
+- "Customs Closing" → customs_cutoff
+- "DG Closing" / "Hazmat Closing" → hazmat_cutoff
+- "Reefer Closing" → reefer_cutoff
+- "Port Closing" → port_cutoff
+
+- Dates often in format: DD/MM/YYYY HH:MM
 - Container codes: CMAU, APLU
+
+ARRIVAL NOTICE:
+- "IT#" / "IT Number" → it_number
 `,
   'msc': `MSC SPECIFIC PATTERNS:
-- Look for "Closing Date" sections
-- SI cutoff: "SI Deadline"
-- Cargo cutoff: "Port Cut-off"
+CUTOFFS - Look for "Closing Date" sections:
+- "SI Deadline" / "SI Closing" → si_cutoff
+- "VGM Cut-off" / "VGM Deadline" → vgm_cutoff
+- "Port Cut-off" / "Terminal Cut-off" → cargo_cutoff
+- "Gate Cut-off" → gate_cutoff
+- "Customs Cut-off" → customs_cutoff
+- "DG Cut-off" → hazmat_cutoff
+- "Reefer Cut-off" → reefer_cutoff
+- "ERD" / "Earliest Return" → early_return_date
+
 - Container codes: MSCU, MEDU
+
+ARRIVAL NOTICE:
+- "IT Number" → it_number
+- "Entry Number" → entry_number
 `,
   'cosco': `COSCO SPECIFIC PATTERNS:
 - Booking numbers start with "COSU" followed by 10 digits
-- Look for standard cutoff labels
+
+CUTOFFS - Look for "Cut-off" or "Closing" sections:
+- "SI Cut-off" / "Documentation Deadline" → si_cutoff
+- "VGM Cut-off" → vgm_cutoff
+- "CY Cut-off" / "Cargo Cut-off" → cargo_cutoff
+- "Gate Cut-off" → gate_cutoff
+- "Port Cut-off" → port_cutoff
+
+- Dates in various formats
 - Container codes: COSU, OOLU
+
+ARRIVAL NOTICE:
+- "IT#" → it_number
 `,
   'one': `ONE (OCEAN NETWORK EXPRESS) SPECIFIC PATTERNS:
 - Booking numbers may have "ONEY" prefix
-- Look for "Deadline" or "Cut-off" sections
+
+CUTOFFS - Look for "Deadline" or "Cut-off" sections:
+- "SI Deadline" / "Documentation Deadline" → si_cutoff
+- "VGM Deadline" → vgm_cutoff
+- "CY/CFS Cut-off" → cargo_cutoff
+- "Gate Cut-off" → gate_cutoff
+- "Port Cut-off" → port_cutoff
+
 - Container codes: ONEY
 `,
   'evergreen': `EVERGREEN SPECIFIC PATTERNS:
 - Booking numbers with "EGLV" prefix
+
+CUTOFFS:
+- "SI Cut-off" → si_cutoff
+- "VGM Cut-off" → vgm_cutoff
+- "CY Cut-off" → cargo_cutoff
+- "Gate Cut-off" → gate_cutoff
+
 - Container codes: EGLV, EGHU
 `,
   'yang-ming': `YANG MING SPECIFIC PATTERNS:
 - Booking numbers with "YMLU" prefix
+
+CUTOFFS:
+- "SI Deadline" → si_cutoff
+- "VGM Deadline" → vgm_cutoff
+- "CY Closing" → cargo_cutoff
+- "Gate Closing" → gate_cutoff
+
 - Container codes: YMLU
 `,
-  'unknown': ''
+  'unknown': `GENERIC CUTOFF TERMINOLOGY MAPPING:
+Look for ANY of these terms and map to our fields:
+- "SI" / "Shipping Instruction" / "Documentation" closing/deadline → si_cutoff
+- "VGM" / "Verified Gross Mass" closing/deadline → vgm_cutoff
+- "Cargo" / "CY" / "FCL" / "Container" closing/deadline → cargo_cutoff
+- "Gate" / "Terminal Gate" closing/deadline → gate_cutoff
+- "Port" / "Terminal" closing/deadline → port_cutoff
+- "Customs" closing/deadline → customs_cutoff
+- "Hazmat" / "DG" / "Dangerous Goods" / "Hazardous" closing/deadline → hazmat_cutoff
+- "Reefer" / "Refrigerated" closing/deadline → reefer_cutoff
+- "ERD" / "Early Return" / "Earliest Return Date" → early_return_date
+- "TRD" / "Terminal Receiving" / "Receiving Date" → terminal_receiving_date
+- "Late Gate" / "Extended Gate" → late_gate
+
+ARRIVAL NOTICE:
+- "IT Number" / "IT#" / "In-Bond" (starts with "IT") → it_number
+- "Entry Number" / "Entry#" / "Import Entry" → entry_number
+- "AN Number" / "Arrival Notice#" → an_number
+`
 };
 
 // ============================================================================
@@ -427,6 +639,159 @@ export class ShipmentExtractionService {
         processingTime: Date.now() - startTime
       };
     }
+  }
+
+  /**
+   * Extract shipment data from pre-combined content
+   * Used by EmailProcessingOrchestrator to avoid re-fetching email/attachments
+   *
+   * This is the CONSOLIDATED extraction entry point for the cron job
+   */
+  async extractFromContent(input: {
+    emailId: string;
+    subject: string;
+    bodyText: string;
+    pdfContent: string;
+    carrier: string;
+  }): Promise<ExtractionResult> {
+    const startTime = Date.now();
+
+    try {
+      // Combine content in expected format
+      const content = `Subject: ${input.subject}\n\nBody:\n${input.bodyText}\n\n--- PDF ---\n${input.pdfContent}`;
+
+      // Map carrier string to CarrierId
+      const carrierId = this.mapToCarrierId(input.carrier);
+
+      // Extract using AI with anti-hallucination validation
+      const extracted = await this.extractWithAI(content, carrierId);
+
+      if (!extracted) {
+        return {
+          success: false,
+          data: null,
+          error: 'AI extraction failed',
+          processingTime: Date.now() - startTime
+        };
+      }
+
+      // Apply anti-hallucination validation
+      const validated = this.validateAndCorrectExtraction(extracted, content);
+
+      // Normalize data
+      const normalized = this.normalizeExtractedData(validated);
+      normalized.extraction_source = input.pdfContent ? 'combined' : 'email_body';
+      normalized.raw_content_length = content.length;
+
+      return {
+        success: true,
+        data: normalized,
+        processingTime: Date.now() - startTime
+      };
+
+    } catch (error: any) {
+      console.error(`[ShipmentExtractionService] extractFromContent error:`, error.message);
+      return {
+        success: false,
+        data: null,
+        error: error.message,
+        processingTime: Date.now() - startTime
+      };
+    }
+  }
+
+  /**
+   * Map carrier string to CarrierId enum
+   */
+  private mapToCarrierId(carrier: string): CarrierId {
+    const mapping: Record<string, CarrierId> = {
+      'hapag-lloyd': 'hapag-lloyd',
+      'maersk': 'maersk',
+      'cma-cgm': 'cma-cgm',
+      'msc': 'msc',
+      'cosco': 'cosco',
+      'one': 'one',
+      'evergreen': 'evergreen',
+      'yang-ming': 'yang-ming',
+      'default': 'unknown',
+    };
+    return mapping[carrier.toLowerCase()] || 'unknown';
+  }
+
+  /**
+   * Anti-hallucination validation and correction
+   * Detects when AI has hallucinated values and attempts regex fallback
+   */
+  private validateAndCorrectExtraction(data: any, content: string): any {
+    const currentYear = new Date().getFullYear();
+    const minYear = currentYear - 1; // Allow last year for recent bookings
+
+    // Check ETD for hallucination (dates from training data)
+    if (data.etd) {
+      const etdYear = parseInt(data.etd.substring(0, 4));
+      if (etdYear < minYear || etdYear > currentYear + 2) {
+        console.warn(`[ShipmentExtractionService] Detected hallucinated ETD: ${data.etd}, attempting regex fallback`);
+
+        // Try to extract date directly from content using regex
+        const dateMatches = content.match(/20(?:2[4-9]|3\d)-\d{2}-\d{2}/g);
+        if (dateMatches?.length) {
+          data.etd = dateMatches[0];
+          if (dateMatches.length > 1) {
+            data.eta = dateMatches[dateMatches.length - 1];
+          }
+        } else {
+          data.etd = null;
+          data.eta = null;
+        }
+      }
+    }
+
+    // Check ETA for hallucination
+    if (data.eta) {
+      const etaYear = parseInt(data.eta.substring(0, 4));
+      if (etaYear < minYear || etaYear > currentYear + 2) {
+        console.warn(`[ShipmentExtractionService] Detected hallucinated ETA: ${data.eta}`);
+        data.eta = null;
+      }
+    }
+
+    // For Maersk PDFs, try to extract POL/POD from header as fallback
+    // Header format: "From:\nMundra,GUJARAT,India" and "To:\nLos Angeles,California,United States"
+    const polMatch = content.match(/\bFrom:\s*\n?([A-Za-z\s]+)/);
+    const podMatch = content.match(/\bTo:\s*\n?([A-Za-z\s]+)/);
+
+    // Use regex extraction if AI returned generic/hallucinated values
+    if (polMatch?.[1] && (!data.port_of_loading || data.port_of_loading.length < 3)) {
+      const regexPol = polMatch[1].trim();
+      if (regexPol.length > 1 && regexPol.length < 50) {
+        data.port_of_loading = regexPol;
+      }
+    }
+
+    if (podMatch?.[1] && (!data.port_of_discharge || data.port_of_discharge.length < 3)) {
+      const regexPod = podMatch[1].trim();
+      if (regexPod.length > 1 && regexPod.length < 50) {
+        data.port_of_discharge = regexPod;
+      }
+    }
+
+    // Validate ALL cutoff dates and other date fields
+    const dateFields = [
+      'si_cutoff', 'vgm_cutoff', 'cargo_cutoff', 'gate_cutoff', 'doc_cutoff',
+      'port_cutoff', 'customs_cutoff', 'hazmat_cutoff', 'reefer_cutoff',
+      'early_return_date', 'terminal_receiving_date', 'late_gate'
+    ];
+    for (const field of dateFields) {
+      if (data[field]) {
+        const year = parseInt(data[field].substring(0, 4));
+        if (year < minYear || year > currentYear + 2) {
+          console.warn(`[ShipmentExtractionService] Detected hallucinated ${field}: ${data[field]}`);
+          data[field] = null;
+        }
+      }
+    }
+
+    return data;
   }
 
   /**
@@ -593,14 +958,17 @@ export class ShipmentExtractionService {
       voyage_number: track(cleanString(raw.voyage_number), 'voyage_number'),
       service_name: track(cleanString(raw.service_name), 'service_name'),
 
-      // Routing
+      // Routing (including inland ports)
       port_of_loading: track(cleanString(raw.port_of_loading), 'port_of_loading'),
       port_of_loading_code: track(cleanString(raw.port_of_loading_code), 'port_of_loading_code'),
       port_of_discharge: track(cleanString(raw.port_of_discharge), 'port_of_discharge'),
       port_of_discharge_code: track(cleanString(raw.port_of_discharge_code), 'port_of_discharge_code'),
       place_of_receipt: track(cleanString(raw.place_of_receipt), 'place_of_receipt'),
+      place_of_receipt_code: track(cleanString(raw.place_of_receipt_code), 'place_of_receipt_code'),
       place_of_delivery: track(cleanString(raw.place_of_delivery), 'place_of_delivery'),
+      place_of_delivery_code: track(cleanString(raw.place_of_delivery_code), 'place_of_delivery_code'),
       transhipment_ports: track(cleanArray(raw.transhipment_ports), 'transhipment_ports'),
+      final_destination: track(cleanString(raw.final_destination), 'final_destination'),
 
       // Dates
       etd: track(normalizeDate(raw.etd), 'etd'),
@@ -608,12 +976,19 @@ export class ShipmentExtractionService {
       actual_departure: track(normalizeDate(raw.actual_departure), 'actual_departure'),
       actual_arrival: track(normalizeDate(raw.actual_arrival), 'actual_arrival'),
 
-      // Cutoffs
+      // Cutoffs - ALL types
       si_cutoff: track(normalizeDatetime(raw.si_cutoff), 'si_cutoff'),
       vgm_cutoff: track(normalizeDatetime(raw.vgm_cutoff), 'vgm_cutoff'),
       cargo_cutoff: track(normalizeDatetime(raw.cargo_cutoff), 'cargo_cutoff'),
       gate_cutoff: track(normalizeDatetime(raw.gate_cutoff), 'gate_cutoff'),
       doc_cutoff: track(normalizeDatetime(raw.doc_cutoff), 'doc_cutoff'),
+      port_cutoff: track(normalizeDatetime(raw.port_cutoff), 'port_cutoff'),
+      customs_cutoff: track(normalizeDatetime(raw.customs_cutoff), 'customs_cutoff'),
+      hazmat_cutoff: track(normalizeDatetime(raw.hazmat_cutoff), 'hazmat_cutoff'),
+      reefer_cutoff: track(normalizeDatetime(raw.reefer_cutoff), 'reefer_cutoff'),
+      early_return_date: track(normalizeDatetime(raw.early_return_date), 'early_return_date'),
+      terminal_receiving_date: track(normalizeDatetime(raw.terminal_receiving_date), 'terminal_receiving_date'),
+      late_gate: track(normalizeDatetime(raw.late_gate), 'late_gate'),
 
       // Parties
       shipper_name: track(cleanString(raw.shipper_name), 'shipper_name'),
@@ -621,6 +996,7 @@ export class ShipmentExtractionService {
       consignee_name: track(cleanString(raw.consignee_name), 'consignee_name'),
       consignee_address: track(cleanString(raw.consignee_address), 'consignee_address'),
       notify_party: track(cleanString(raw.notify_party), 'notify_party'),
+      notify_party_address: track(cleanString(raw.notify_party_address), 'notify_party_address'),
       freight_forwarder: track(cleanString(raw.freight_forwarder), 'freight_forwarder'),
 
       // Cargo
@@ -630,14 +1006,36 @@ export class ShipmentExtractionService {
       volume_cbm: track(parseNumber(raw.volume_cbm), 'volume_cbm'),
       package_count: track(parseNumber(raw.package_count), 'package_count'),
       package_type: track(cleanString(raw.package_type), 'package_type'),
+      seal_numbers: track(cleanArray(raw.seal_numbers), 'seal_numbers'),
+
+      // HS Codes & Customs (from Arrival Notice / Duty Entry)
+      hs_codes: track(cleanArray(raw.hs_codes), 'hs_codes'),
+      an_number: track(cleanString(raw.an_number), 'an_number'),
+      it_number: track(cleanString(raw.it_number), 'it_number'),
+      entry_number: track(cleanString(raw.entry_number), 'entry_number'),
+      bond_number: track(cleanString(raw.bond_number), 'bond_number'),
+      isf_number: track(cleanString(raw.isf_number), 'isf_number'),
+      ior_number: track(cleanString(raw.ior_number), 'ior_number'),
+
+      // Financial / Value Table
+      cargo_value: track(parseNumber(raw.cargo_value), 'cargo_value'),
+      cargo_value_currency: track(cleanString(raw.cargo_value_currency), 'cargo_value_currency'),
+      duty_amount: track(parseNumber(raw.duty_amount), 'duty_amount'),
+      tax_amount: track(parseNumber(raw.tax_amount), 'tax_amount'),
+      freight_amount: track(parseNumber(raw.freight_amount), 'freight_amount'),
+      insurance_amount: track(parseNumber(raw.insurance_amount), 'insurance_amount'),
 
       // Commercial
       incoterms: track(cleanString(raw.incoterms), 'incoterms'),
       freight_terms: track(cleanString(raw.freight_terms), 'freight_terms'),
 
-      // References
+      // References - ALL document numbers
       customer_reference: track(cleanString(raw.customer_reference), 'customer_reference'),
       forwarder_reference: track(cleanString(raw.forwarder_reference), 'forwarder_reference'),
+      mbl_number: track(cleanString(raw.mbl_number), 'mbl_number'),
+      hbl_number: track(cleanString(raw.hbl_number), 'hbl_number'),
+      po_numbers: track(cleanArray(raw.po_numbers), 'po_numbers'),
+      invoice_numbers: track(cleanArray(raw.invoice_numbers), 'invoice_numbers'),
 
       // Metadata
       extraction_confidence: 0, // Set below
