@@ -56,22 +56,30 @@ const PHASES = [
 ];
 
 // Map workflow states to required document types
-// Simplified workflow focused on document receipt milestones
+// States with empty required_doc_types are action-based (manual or workflow-triggered)
 const WORKFLOW_STATES: WorkflowStateInfo[] = [
-  // Pre-Departure (documents received before vessel sails)
-  { state_code: 'booking_confirmed', state_name: 'Booking Confirmed', state_order: 10, phase: 'pre_departure', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['booking_confirmation', 'booking_amendment'] },
-  { state_code: 'invoice_received', state_name: 'Invoice Received', state_order: 20, phase: 'pre_departure', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['invoice', 'commercial_invoice', 'freight_invoice'] },
-  { state_code: 'si_submitted', state_name: 'SI Submitted', state_order: 30, phase: 'pre_departure', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['shipping_instruction', 'si_draft', 'si_submission'] },
-  { state_code: 'bl_draft_received', state_name: 'BL Draft Received', state_order: 40, phase: 'pre_departure', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['bill_of_lading', 'house_bl', 'bl_draft'] },
-  // In Transit (vessel departed)
-  { state_code: 'vessel_departed', state_name: 'Vessel Departed', state_order: 50, phase: 'in_transit', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['vessel_schedule', 'cargo_manifest'] },
-  { state_code: 'bl_released', state_name: 'BL Released', state_order: 60, phase: 'in_transit', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['bl_released', 'telex_release'] },
-  // Arrival (vessel arrived at destination)
-  { state_code: 'arrival_notice_received', state_name: 'Arrival Notice', state_order: 70, phase: 'arrival', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['arrival_notice'] },
-  { state_code: 'customs_cleared', state_name: 'Customs Cleared', state_order: 80, phase: 'arrival', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['customs_document', 'customs_clearance'] },
-  { state_code: 'cargo_released', state_name: 'Cargo Released', state_order: 90, phase: 'arrival', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['delivery_order', 'container_release'] },
+  // Pre-Departure
+  { state_code: 'booking_confirmation_received', state_name: 'Booking Received', state_order: 10, phase: 'pre_departure', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['booking_confirmation', 'booking_amendment'] },
+  { state_code: 'booking_confirmation_shared', state_name: 'Booking Shared', state_order: 20, phase: 'pre_departure', is_completed: false, is_current: false, is_skipped: false, required_doc_types: [] }, // Action: shared with customer
+  { state_code: 'commercial_invoice_received', state_name: 'Invoice Received', state_order: 30, phase: 'pre_departure', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['commercial_invoice', 'invoice', 'freight_invoice'] },
+  { state_code: 'packing_list_received', state_name: 'Packing List', state_order: 40, phase: 'pre_departure', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['packing_list'] },
+  { state_code: 'si_draft_received', state_name: 'SI Draft Received', state_order: 50, phase: 'pre_departure', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['si_draft', 'shipping_instruction', 'si_submission'] },
+  { state_code: 'checklist_approved', state_name: 'Checklist Approved', state_order: 60, phase: 'pre_departure', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['checklist'] },
+  { state_code: 'si_confirmed', state_name: 'SI Confirmed', state_order: 65, phase: 'pre_departure', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['si_confirmation', 'sob_confirmation'] },
+  { state_code: 'hbl_draft_sent', state_name: 'HBL Draft Sent', state_order: 70, phase: 'pre_departure', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['house_bl', 'bill_of_lading', 'bl_draft'] },
+  // In Transit
+  { state_code: 'vessel_departed', state_name: 'Vessel Departed', state_order: 75, phase: 'in_transit', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['vessel_schedule', 'cargo_manifest'] },
+  { state_code: 'invoice_sent', state_name: 'Invoice Sent', state_order: 80, phase: 'in_transit', is_completed: false, is_current: false, is_skipped: false, required_doc_types: [] }, // Action: sent to customer
+  { state_code: 'hbl_released', state_name: 'HBL Released', state_order: 90, phase: 'in_transit', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['bl_released', 'telex_release', 'hbl_released'] },
+  // Arrival
+  { state_code: 'arrival_notice_received', state_name: 'Arrival Notice', state_order: 100, phase: 'arrival', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['arrival_notice'] },
+  { state_code: 'arrival_notice_shared', state_name: 'AN Shared', state_order: 110, phase: 'arrival', is_completed: false, is_current: false, is_skipped: false, required_doc_types: [] }, // Action: shared with customer
+  { state_code: 'entry_summary_approved', state_name: 'Entry Approved', state_order: 120, phase: 'arrival', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['entry_summary', 'isf_filing'] },
+  { state_code: 'customs_invoice_received', state_name: 'Customs Invoice', state_order: 130, phase: 'arrival', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['customs_invoice', 'customs_document', 'duty_entry'] },
+  { state_code: 'duty_summary_shared', state_name: 'Duty Summary', state_order: 140, phase: 'arrival', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['duty_summary'] },
+  { state_code: 'cargo_released', state_name: 'Cargo Released', state_order: 145, phase: 'arrival', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['delivery_order', 'container_release'] },
   // Delivery
-  { state_code: 'pod_received', state_name: 'POD Received', state_order: 100, phase: 'delivery', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['proof_of_delivery', 'pod_confirmation'] },
+  { state_code: 'pod_received', state_name: 'POD Received', state_order: 150, phase: 'delivery', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['proof_of_delivery', 'pod_confirmation'] },
 ];
 
 export function ShipmentWorkflowProgress({ shipmentId, currentState, workflowPhase, compact = false }: WorkflowProgressProps) {
