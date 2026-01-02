@@ -30,6 +30,7 @@ const PATTERNS: Array<{ pattern: RegExp; correctType: string }> = [
   // EXPLICIT DOCUMENT NAMES
   { pattern: /\barrival\s+notice\b/i, correctType: 'arrival_notice' },
   { pattern: /\bnotice\s+of\s+arrival\b/i, correctType: 'arrival_notice' },
+  { pattern: /\bPRE-?ALERT\b/i, correctType: 'arrival_notice' },
   { pattern: /\bSOB\s+CONFIRM/i, correctType: 'sob_confirmation' },
   { pattern: /\bSOB\s+for\b/i, correctType: 'sob_confirmation' },
   { pattern: /\bshipped\s+on\s+board/i, correctType: 'sob_confirmation' },
@@ -44,6 +45,9 @@ const PATTERNS: Array<{ pattern: RegExp; correctType: string }> = [
   // Delivery Order
   { pattern: /\bdelivery\s+order\b/i, correctType: 'delivery_order' },
   { pattern: /\bD\.?O\.?\s+(Release|Issued)/i, correctType: 'delivery_order' },
+  { pattern: /\bNEED\s+D\.?O\.?\s+URGENT/i, correctType: 'delivery_order' },
+  // Shipment Notice (operational)
+  { pattern: /\bWork\s+Order\s*:/i, correctType: 'shipment_notice' },
   // VGM
   { pattern: /\bVGM\s+(confirm|accept|submission)/i, correctType: 'vgm_confirmation' },
   // Booking Amendment

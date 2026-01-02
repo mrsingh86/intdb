@@ -46,6 +46,9 @@ function getWorkflowState(docType: string, outbound: boolean): string | null {
     'delivery_order:outbound': 'cargo_released',
     'container_release:inbound': 'cargo_released',
     'container_release:outbound': 'cargo_released',
+    // VGM
+    'vgm_submission:inbound': 'vgm_submitted',
+    'vgm_submission:outbound': 'vgm_submitted',
   };
   return mappings[`${docType}:${outbound ? 'outbound' : 'inbound'}`] || null;
 }
@@ -146,6 +149,7 @@ async function main() {
       'booking_confirmation_received', 'booking_confirmation_shared',
       'commercial_invoice_received',
       'si_draft_received', 'si_draft_shared', 'si_submitted', 'si_confirmed',
+      'vgm_submitted',
       'carrier_bl_received', 'hbl_draft_shared', 'hbl_released',
     ],
     'IN-TRANSIT': ['vessel_departed', 'invoice_sent'],
