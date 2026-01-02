@@ -13,7 +13,98 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 
-export type WorkflowPhase = 'pre_departure' | 'in_transit' | 'arrival' | 'delivery';
+/**
+ * Direction-aware document type to workflow state mapping.
+ * INBOUND = email received from external party (not @intoglo.com)
+ * OUTBOUND = email sent by Intoglo team (sender @intoglo.com or @intoglo.in)
+ *
+ * Key format: {document_type}:{direction}
+ */
+const DIRECTION_WORKFLOW_MAPPING: Record<string, string> = {
+  // ===== PRE_DEPARTURE =====
+  // Booking stage
+  'booking_confirmation:inbound': 'booking_confirmation_received',
+  'booking_amendment:inbound': 'booking_confirmation_received',
+  'booking_confirmation:outbound': 'booking_confirmation_shared',
+  'booking_amendment:outbound': 'booking_confirmation_shared',
+
+  // Cancellation (terminal state - order 999)
+  'booking_cancellation:inbound': 'booking_cancelled',
+
+  // Documentation from shipper
+  'invoice:inbound': 'commercial_invoice_received',
+  'commercial_invoice:inbound': 'commercial_invoice_received',
+  'packing_list:inbound': 'packing_list_received',
+
+  // SI flow
+  'shipping_instruction:inbound': 'si_draft_received',
+  'si_submission:inbound': 'si_confirmed', // Carrier confirms SI
+  'si_submission:outbound': 'si_submitted', // Intoglo submits SI
+  'si_confirmation:inbound': 'si_confirmed',
+
+  // Checklist flow (export)
+  'checklist:inbound': 'checklist_received',
+  'checklist:outbound': 'checklist_shared',
+  'shipping_bill:inbound': 'shipping_bill_received',
+  'leo_copy:inbound': 'shipping_bill_received',
+
+  // VGM
+  'vgm_submission:inbound': 'vgm_confirmed',
+  'vgm_submission:outbound': 'vgm_submitted',
+  'vgm_confirmation:inbound': 'vgm_confirmed',
+
+  // Gate-in & SOB
+  'gate_in_confirmation:inbound': 'container_gated_in',
+  'sob_confirmation:inbound': 'sob_received',
+
+  // Departure
+  'departure_notice:inbound': 'vessel_departed',
+  'sailing_confirmation:inbound': 'vessel_departed',
+
+  // ===== IN_TRANSIT =====
+  // ISF (US import)
+  'isf_submission:outbound': 'isf_filed',
+  'isf_confirmation:inbound': 'isf_confirmed',
+
+  // MBL (from carrier)
+  'bill_of_lading:inbound': 'mbl_draft_received',
+
+  // HBL (to/from shipper)
+  'bill_of_lading:outbound': 'hbl_released',
+  'house_bl:outbound': 'hbl_released',
+
+  // Invoice
+  'freight_invoice:outbound': 'invoice_sent',
+  'invoice:outbound': 'invoice_sent',
+  'payment_confirmation:inbound': 'invoice_paid',
+
+  // ===== PRE_ARRIVAL =====
+  'entry_summary:inbound': 'entry_draft_received',
+  'entry_summary:outbound': 'entry_draft_shared',
+
+  // ===== ARRIVAL =====
+  'arrival_notice:inbound': 'arrival_notice_received',
+  'arrival_notice:outbound': 'arrival_notice_shared',
+
+  'customs_clearance:inbound': 'customs_cleared',
+  'customs_document:inbound': 'duty_invoice_received',
+  'duty_invoice:inbound': 'duty_invoice_received',
+  'customs_document:outbound': 'duty_summary_shared',
+  'duty_summary:outbound': 'duty_summary_shared',
+
+  'delivery_order:inbound': 'delivery_order_received',
+  'delivery_order:outbound': 'delivery_order_shared',
+
+  // ===== DELIVERY =====
+  'container_release:inbound': 'container_released',
+  'dispatch_notice:inbound': 'out_for_delivery',
+  'delivery_confirmation:inbound': 'delivered',
+  'pod:inbound': 'pod_received',
+  'proof_of_delivery:inbound': 'pod_received',
+  'empty_return_confirmation:inbound': 'empty_returned',
+};
+
+export type WorkflowPhase = 'pre_departure' | 'in_transit' | 'pre_arrival' | 'arrival' | 'delivery';
 
 export interface WorkflowState {
   id: string;
@@ -22,6 +113,7 @@ export interface WorkflowState {
   state_name: string;
   state_order: number;
   requires_document_types: string[] | null;
+  expected_direction: 'inbound' | 'outbound' | 'internal' | null;
   next_states: string[] | null;
   is_optional: boolean;
   is_milestone: boolean;
@@ -100,7 +192,9 @@ export class WorkflowStateService {
       state_name: currentState?.state_name || null,
       progress_percentage: progress,
       next_states: nextStates,
-      is_complete: shipment.workflow_state === 'pod_received',
+      is_complete: shipment.workflow_state === 'pod_received' ||
+                   shipment.workflow_state === 'shipment_closed' ||
+                   shipment.workflow_state === 'booking_cancelled',
     };
   }
 
@@ -186,13 +280,20 @@ export class WorkflowStateService {
     }
 
     // Update shipment state
+    const updateData: Record<string, unknown> = {
+      workflow_state: newStateCode,
+      workflow_phase: newState.phase,
+      workflow_state_updated_at: new Date().toISOString(),
+    };
+
+    // Special handling: If transitioning to booking_cancelled, also update status
+    if (newStateCode === 'booking_cancelled') {
+      updateData.status = 'cancelled';
+    }
+
     const { error: updateError } = await this.supabase
       .from('shipments')
-      .update({
-        workflow_state: newStateCode,
-        workflow_phase: newState.phase,
-        workflow_state_updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', shipmentId);
 
     if (updateError) {
@@ -213,7 +314,77 @@ export class WorkflowStateService {
   }
 
   /**
-   * Auto-transition based on received document type
+   * Force set workflow state (for backfill operations)
+   * Bypasses all validation and forward-only checks.
+   * Use with caution - only for data migration/backfill.
+   */
+  async forceSetState(
+    shipmentId: string,
+    newStateCode: string,
+    options: {
+      triggered_by_email_id?: string;
+      triggered_by_document_type?: string;
+      notes?: string;
+    } = {}
+  ): Promise<TransitionResult> {
+    await this.ensureCacheValid();
+
+    const newState = this.statesCache.get(newStateCode);
+    if (!newState) {
+      return {
+        success: false,
+        from_state: null,
+        to_state: newStateCode,
+        error: `Invalid state: ${newStateCode}`,
+      };
+    }
+
+    // Get current state for logging
+    const { data: shipment } = await this.supabase
+      .from('shipments')
+      .select('workflow_state')
+      .eq('id', shipmentId)
+      .single();
+
+    const currentStateCode = shipment?.workflow_state;
+
+    // Skip history for backfill to avoid clutter
+    // Just update the shipment directly
+    const updateData: Record<string, unknown> = {
+      workflow_state: newStateCode,
+      workflow_phase: newState.phase,
+      workflow_state_updated_at: new Date().toISOString(),
+    };
+
+    // Special handling: If transitioning to booking_cancelled, also update status
+    if (newStateCode === 'booking_cancelled') {
+      updateData.status = 'cancelled';
+    }
+
+    const { error: updateError } = await this.supabase
+      .from('shipments')
+      .update(updateData)
+      .eq('id', shipmentId);
+
+    if (updateError) {
+      return {
+        success: false,
+        from_state: currentStateCode,
+        to_state: newStateCode,
+        error: `Failed to update shipment: ${updateError.message}`,
+      };
+    }
+
+    return {
+      success: true,
+      from_state: currentStateCode,
+      to_state: newStateCode,
+    };
+  }
+
+  /**
+   * Auto-transition based on document type and email direction
+   * Direction-aware: INBOUND (from external) vs OUTBOUND (from Intoglo)
    */
   async autoTransitionFromDocument(
     shipmentId: string,
@@ -222,11 +393,47 @@ export class WorkflowStateService {
   ): Promise<TransitionResult | null> {
     await this.ensureCacheValid();
 
-    // Find states that can be triggered by this document type
+    // Determine email direction
+    const direction = await this.getEmailDirection(emailId);
+
+    // Try direction-aware mapping first
+    const mappingKey = `${documentType}:${direction}`;
+    const mappedState = DIRECTION_WORKFLOW_MAPPING[mappingKey];
+
+    if (mappedState) {
+      // Check if this state exists and is forward progression
+      const targetState = this.statesCache.get(mappedState);
+      if (targetState) {
+        const { data: shipment } = await this.supabase
+          .from('shipments')
+          .select('workflow_state')
+          .eq('id', shipmentId)
+          .single();
+
+        const currentStateCode = shipment?.workflow_state;
+        const currentState = currentStateCode ? this.statesCache.get(currentStateCode) : null;
+        const currentOrder = currentState?.state_order || 0;
+
+        // Only transition if it's forward progression
+        if (targetState.state_order > currentOrder) {
+          return await this.transitionTo(shipmentId, mappedState, {
+            triggered_by_email_id: emailId,
+            triggered_by_document_type: documentType,
+            notes: `Auto-transitioned from ${documentType} (${direction})`,
+            skip_validation: true,
+          });
+        }
+      }
+    }
+
+    // Fallback: Find states that can be triggered by this document type with matching direction
     const matchingStates: WorkflowState[] = [];
     for (const state of this.statesCache.values()) {
       if (state.requires_document_types?.includes(documentType)) {
-        matchingStates.push(state);
+        // Match direction if specified
+        if (!state.expected_direction || state.expected_direction === direction) {
+          matchingStates.push(state);
+        }
       }
     }
 
@@ -258,9 +465,67 @@ export class WorkflowStateService {
     return await this.transitionTo(shipmentId, validNextStates[0].state_code, {
       triggered_by_email_id: emailId,
       triggered_by_document_type: documentType,
-      notes: `Auto-transitioned from ${documentType}`,
-      skip_validation: true, // Document-triggered transitions bypass normal validation
+      notes: `Auto-transitioned from ${documentType} (${direction})`,
+      skip_validation: true,
     });
+  }
+
+  /**
+   * Determine email direction based on sender
+   * OUTBOUND = sender is @intoglo.com or @intoglo.in (and not a forwarded carrier email)
+   * INBOUND = sender is external or forwarded carrier email
+   */
+  private async getEmailDirection(emailId: string): Promise<'inbound' | 'outbound'> {
+    const { data: email } = await this.supabase
+      .from('raw_emails')
+      .select('sender_email, true_sender_email, subject')
+      .eq('id', emailId)
+      .single();
+
+    if (!email?.sender_email) {
+      return 'inbound'; // Default to inbound if unknown
+    }
+
+    // Use true_sender_email if available (for properly extracted forwarded emails)
+    const sender = (email.true_sender_email || email.sender_email).toLowerCase();
+    const subject = (email.subject || '').toLowerCase();
+
+    // Detect forwarded carrier emails by sender patterns
+    const isForwardedFromCarrier = sender.includes('via operations intoglo') ||
+      sender.includes('via ops intoglo') ||
+      sender.includes('via pricing') ||
+      sender.includes('via nam');
+
+    // Check for carrier domain patterns in the display name
+    const carrierPatterns = [
+      'maersk', 'hapag', 'hlag', 'cma-cgm', 'cmacgm', 'msc.com',
+      'evergreen', 'oocl', 'cosco', 'yangming', 'one-line', 'zim',
+      'in.export', 'in.import', 'booking.confirmation', 'cma cgm'
+    ];
+    const hasCarrierInName = carrierPatterns.some(p => sender.includes(p));
+
+    // Check for carrier subject patterns (for emails where display name was stripped)
+    const carrierSubjectPatterns = [
+      /^booking confirmation\s*:\s*\d+/,           // Maersk: "Booking Confirmation : 263815227"
+      /^bkg\s*#?\s*\d+/,                           // "Bkg #263441600"
+      /amendment.*booking/,                         // "Amendment to Booking"
+      /booking.*amendment/,                         // "Booking Amendment"
+      /^\[hapag/,                                   // Hapag-Lloyd emails
+      /^\[msc\]/,                                   // MSC emails
+      /^one booking/,                               // ONE Line
+    ];
+    const isCarrierSubject = carrierSubjectPatterns.some(p => p.test(subject));
+
+    // Special case: ops@intoglo.com with carrier subject pattern = INBOUND
+    const isOpsWithCarrierSubject = sender === 'ops@intoglo.com' && isCarrierSubject;
+
+    // If it's a forwarded carrier email, treat as INBOUND
+    if (isForwardedFromCarrier || hasCarrierInName || isOpsWithCarrierSubject) {
+      return 'inbound';
+    }
+
+    const isIntoglo = sender.includes('@intoglo.com') || sender.includes('@intoglo.in');
+    return isIntoglo ? 'outbound' : 'inbound';
   }
 
   /**
@@ -400,12 +665,14 @@ export class WorkflowStateService {
   private calculateProgress(currentState: WorkflowState | null): number {
     if (!currentState) return 0;
 
-    // Final state = 100%
-    if (currentState.state_code === 'pod_received') return 100;
+    // Final/terminal states = 100%
+    if (currentState.state_code === 'shipment_closed' ||
+        currentState.state_code === 'pod_received' ||
+        currentState.state_code === 'booking_cancelled') return 100;
 
-    // Based on state order (10-150 range)
+    // Based on state order (10-245 range)
     const minOrder = 10;
-    const maxOrder = 150;
+    const maxOrder = 245;
     const progress = ((currentState.state_order - minOrder) / (maxOrder - minOrder)) * 100;
 
     return Math.round(Math.min(Math.max(progress, 0), 100));
