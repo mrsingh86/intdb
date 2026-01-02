@@ -2,49 +2,31 @@
  * Investigate bill_of_lading inbound - what are these?
  * MBL from carrier vs HBL from Intoglo
  */
-import { createClient } from '@supabase/supabase-js';
-import * as dotenv from 'dotenv';
-
-dotenv.config({ path: '.env' });
-
-const supabase = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-);
-
-function isIntoglo(email: string): boolean {
-  const e = (email || '').toLowerCase();
-  return e.includes('@intoglo.com') || e.includes('@intoglo.in');
-}
-
-function isCarrier(email: string): boolean {
-  const e = (email || '').toLowerCase();
-  return e.includes('maersk') || e.includes('hlag') || e.includes('cma-cgm') ||
-    e.includes('hapag') || e.includes('cosco') || e.includes('evergreen') ||
-    e.includes('one-line') || e.includes('yangming') || e.includes('msc.com') ||
-    e.includes('oocl') || e.includes('zim') || e.includes('odex') ||
-    e.includes('inttra') || e.includes('cargowise');
-}
+import { supabase, fetchAll, fetchByIds, isIntoglo, isCarrier } from './lib/supabase';
 
 async function main() {
-  // Get bill_of_lading classified emails
-  const { data: blDocs } = await supabase
-    .from('document_classifications')
-    .select('email_id')
-    .eq('document_type', 'bill_of_lading');
+  // Get bill_of_lading classified emails (with pagination)
+  const blDocs = await fetchAll<{ email_id: string }>(
+    'document_classifications',
+    'email_id',
+    { column: 'document_type', op: 'eq', value: 'bill_of_lading' }
+  );
 
   console.log('═'.repeat(80));
   console.log('BILL OF LADING INVESTIGATION');
   console.log('═'.repeat(80));
-  console.log('\nTotal bill_of_lading classified:', blDocs?.length || 0);
+  console.log('\nTotal bill_of_lading classified:', blDocs.length);
 
-  if (!blDocs || blDocs.length === 0) return;
+  if (blDocs.length === 0) return;
 
-  // Get email details
-  const { data: emails } = await supabase
-    .from('raw_emails')
-    .select('id, subject, sender_email, true_sender_email')
-    .in('id', blDocs.map(d => d.email_id));
+  // Get email details using shared helper
+  const emailIds = blDocs.map(d => d.email_id);
+  const emails = await fetchByIds<{ id: string; subject: string; sender_email: string; true_sender_email: string }>(
+    'raw_emails',
+    'id, subject, sender_email, true_sender_email',
+    'id',
+    emailIds
+  );
 
   let fromIntoglo = 0;
   let fromCarrier = 0;
@@ -53,7 +35,7 @@ async function main() {
   const carrierEmails: typeof emails = [];
   const otherEmails: typeof emails = [];
 
-  emails?.forEach(e => {
+  emails.forEach(e => {
     const sender = e.sender_email || e.true_sender_email || '';
     if (isIntoglo(sender)) {
       fromIntoglo++;

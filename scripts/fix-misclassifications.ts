@@ -21,10 +21,11 @@ const PATTERNS: Array<{ pattern: RegExp; correctType: string }> = [
   { pattern: /\bdraft\s+SI\b/i, correctType: 'si_draft' },
   { pattern: /\bSI\s+for\s+(approval|review)/i, correctType: 'si_draft' },
   // HBL DRAFT (to shipper for approval)
-  { pattern: /\bBL\s+draft\s+for/i, correctType: 'hbl_draft' },
+  { pattern: /\bBL\s+DRAFT\s+FOR\b/i, correctType: 'hbl_draft' },
+  { pattern: /\bARRANGE\s+BL\s+DRAFT/i, correctType: 'hbl_draft' },
   { pattern: /\bHBL\s+draft/i, correctType: 'hbl_draft' },
   { pattern: /\bdraft\s+(HBL|B\/L|BL)\b/i, correctType: 'hbl_draft' },
-  { pattern: /\bBL\s+for\s+approval/i, correctType: 'hbl_draft' },
+  { pattern: /\bBL\s+for\s+(your\s+)?(approval|review)/i, correctType: 'hbl_draft' },
   { pattern: /\bmodification.*draft\s+BL/i, correctType: 'hbl_draft' },
   // EXPLICIT DOCUMENT NAMES
   { pattern: /\barrival\s+notice\b/i, correctType: 'arrival_notice' },

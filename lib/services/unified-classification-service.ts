@@ -200,14 +200,31 @@ export class UnifiedClassificationService {
     { pattern: /\bcargo\s+arrival\b/i, type: 'arrival_notice', confidence: 90 },
     { pattern: /\barriving\s+at\s+port/i, type: 'arrival_notice', confidence: 85 },
 
-    // ===== BILL OF LADING =====
-    { pattern: /\b(draft|final)?\s*B\/?L\b/i, type: 'bill_of_lading', confidence: 90 },
+    // ===== HBL DRAFT (Intoglo shares with shipper for approval - BEFORE general BL) =====
+    { pattern: /\bBL\s+DRAFT\s+FOR\b/i, type: 'hbl_draft', confidence: 95 },
+    { pattern: /\bHBL\s+DRAFT/i, type: 'hbl_draft', confidence: 95 },
+    { pattern: /\bdraft\s+(HBL|B\/?L)\b/i, type: 'hbl_draft', confidence: 95 },
+    { pattern: /\bARRANGE\s+BL\s+DRAFT/i, type: 'hbl_draft', confidence: 95 },
+    { pattern: /\bBL\s+for\s+(your\s+)?(approval|review)/i, type: 'hbl_draft', confidence: 90 },
+    { pattern: /\bmodification.*draft\s+BL/i, type: 'hbl_draft', confidence: 90 },
+
+    // ===== SI DRAFT (Shipper sends to Intoglo for review - BEFORE general SI) =====
+    { pattern: /\bSI\s+draft/i, type: 'si_draft', confidence: 95 },
+    { pattern: /\bdraft\s+SI\b/i, type: 'si_draft', confidence: 95 },
+    { pattern: /\bchecklist\s+(for\s+)?(approval|review)/i, type: 'si_draft', confidence: 95 },
+    { pattern: /\bSIL\s*&\s*VGM/i, type: 'si_draft', confidence: 95 },
+    { pattern: /\bSI\s+for\s+(your\s+)?(approval|review)/i, type: 'si_draft', confidence: 90 },
+
+    // ===== BILL OF LADING (general - after HBL draft) =====
+    { pattern: /\bfinal\s*B\/?L\b/i, type: 'bill_of_lading', confidence: 90 },
     { pattern: /\bbill\s+of\s+lading\b/i, type: 'bill_of_lading', confidence: 95 },
     { pattern: /\bsea\s*waybill\b/i, type: 'bill_of_lading', confidence: 90 },
     { pattern: /\bhouse\s*b\/?l\b/i, type: 'bill_of_lading', confidence: 90 },
     { pattern: /\bmaster\s*b\/?l\b/i, type: 'bill_of_lading', confidence: 90 },
-    { pattern: /\bHBL\b/, type: 'bill_of_lading', confidence: 85 },
-    { pattern: /\bMBL\b/, type: 'bill_of_lading', confidence: 85 },
+    { pattern: /\bHBL\s*#/i, type: 'bill_of_lading', confidence: 85 },
+    { pattern: /\bMBL\s*#/i, type: 'bill_of_lading', confidence: 85 },
+    { pattern: /\bHBL\s*:/i, type: 'bill_of_lading', confidence: 85 },
+    { pattern: /\bMBL\s*:/i, type: 'bill_of_lading', confidence: 85 },
 
     // ===== BOOKING CANCELLATION =====
     { pattern: /\bbooking.*cancel/i, type: 'booking_cancellation', confidence: 95 },
@@ -338,6 +355,7 @@ export class UnifiedClassificationService {
     const content = `${input.bodyText || ''} ${input.attachmentContent || ''}`.toLowerCase();
 
     // Content patterns - what's actually IN this message/attachment?
+    // ORDER MATTERS: More specific patterns first (si_draft, hbl_draft before general types)
     const contentPatterns: Array<{ patterns: RegExp[]; type: string; confidence: number }> = [
       // SOB - look for shipped on board indicators in content
       { patterns: [/shipped\s+on\s+board/i, /on\s*board\s+date/i, /vessel.*sailed/i], type: 'sob_confirmation', confidence: 85 },
@@ -345,7 +363,33 @@ export class UnifiedClassificationService {
       { patterns: [/arrival\s+notice/i, /estimated\s+arrival/i, /vessel.*arriving/i], type: 'arrival_notice', confidence: 85 },
       // Invoice - has amounts, invoice number
       { patterns: [/invoice\s+(no|number|#)/i, /amount\s+due/i, /total.*usd/i], type: 'invoice', confidence: 80 },
-      // Bill of Lading - BL content
+      // SI Draft - Shipper sends to Intoglo for review (BEFORE general SI)
+      {
+        patterns: [
+          /si\s+draft\s+attached/i,
+          /shipping\s+instruction.*for\s+(your\s+)?(review|approval)/i,
+          /please\s+(review|confirm).*\bsi\b/i,
+          /attached.*si\s+(details|draft|checklist)/i,
+          /sil\s*&\s*vgm/i,
+          /checklist\s+for\s+(approval|review)/i,
+        ],
+        type: 'si_draft',
+        confidence: 88,
+      },
+      // HBL Draft - Intoglo shares with shipper for approval (BEFORE general BL)
+      {
+        patterns: [
+          /hbl\s+draft\s+attached/i,
+          /draft\s+bl\s+for\s+your\s+approval/i,
+          /please\s+review.*\b(hbl|b\/l|bl)\b/i,
+          /kindly\s+approve\s+the\s+bl/i,
+          /attached.*draft\s+(hbl|bl|b\/l)/i,
+          /\b(hbl|bl)\s+draft\s+for\s+(your\s+)?(approval|review)/i,
+        ],
+        type: 'hbl_draft',
+        confidence: 88,
+      },
+      // Bill of Lading - general BL content (after HBL draft)
       { patterns: [/bill\s+of\s+lading/i, /b\/l\s+(no|number)/i, /sea\s*waybill/i], type: 'bill_of_lading', confidence: 85 },
       // Delivery Order
       { patterns: [/delivery\s+order/i, /release\s+auth/i, /container\s+release/i], type: 'delivery_order', confidence: 85 },
