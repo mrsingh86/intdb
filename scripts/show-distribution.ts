@@ -2,22 +2,10 @@
  * Show document type and workflow state distribution
  * For active shipments only (not cancelled/completed/delivered)
  */
-import { createClient } from '@supabase/supabase-js';
-import * as dotenv from 'dotenv';
+import { supabase, fetchAll, fetchByIds, isIntoglo } from './lib/supabase';
 
-dotenv.config({ path: '.env' });
-
-const supabase = createClient(
-  process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-);
-
-// Check if sender is Intoglo (outbound)
-function isOutbound(sender: string): boolean {
-  if (sender === null || sender === undefined || sender === '') return false;
-  const s = sender.toLowerCase();
-  return s.includes('@intoglo.com') || s.includes('@intoglo.in');
-}
+// Use isIntoglo from shared lib as isOutbound
+const isOutbound = isIntoglo;
 
 // Workflow state mapping
 // Key insight: Intoglo issues HBL to shipper, receives MBL from carrier
@@ -81,27 +69,44 @@ async function main() {
   console.log('  booked:', shipments?.filter(s => s.status === 'booked').length);
   console.log('  draft:', shipments?.filter(s => s.status === 'draft').length);
 
-  // Get documents linked to these shipments
-  const { data: shipmentDocs } = await supabase
-    .from('shipment_documents')
-    .select('email_id, document_type, shipment_id')
-    .in('shipment_id', shipmentIds);
+  // Get documents linked to these shipments (with pagination)
+  const shipmentDocs: Array<{ email_id: string; document_type: string; shipment_id: string }> = [];
+  const PAGE_SIZE = 1000;
 
-  console.log('\nDocuments linked:', shipmentDocs?.length || 0);
+  // Batch shipment IDs to avoid URL length limits, then paginate results
+  for (let i = 0; i < shipmentIds.length; i += 50) {
+    const shipmentBatch = shipmentIds.slice(i, i + 50);
+    let page = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data } = await supabase
+        .from('shipment_documents')
+        .select('email_id, document_type, shipment_id')
+        .in('shipment_id', shipmentBatch)
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+
+      if (data && data.length > 0) {
+        shipmentDocs.push(...data);
+        hasMore = data.length === PAGE_SIZE;
+        page++;
+      } else {
+        hasMore = false;
+      }
+    }
+  }
+
+  console.log('\nDocuments linked:', shipmentDocs.length);
 
   // Get email sender info for direction (batch to avoid .in() limits)
-  const emailIds = [...new Set(shipmentDocs?.map(d => d.email_id).filter(Boolean) || [])];
-  const emailMap = new Map<string, string>();
-
-  // Fetch in batches of 100
-  for (let i = 0; i < emailIds.length; i += 100) {
-    const batch = emailIds.slice(i, i + 100);
-    const { data: emails } = await supabase
-      .from('raw_emails')
-      .select('id, sender_email')
-      .in('id', batch);
-    emails?.forEach(e => emailMap.set(e.id, e.sender_email || ''));
-  }
+  const emailIds = [...new Set(shipmentDocs.map(d => d.email_id).filter(Boolean))];
+  const emails = await fetchByIds<{ id: string; sender_email: string }>(
+    'raw_emails',
+    'id, sender_email',
+    'id',
+    emailIds
+  );
+  const emailMap = new Map(emails.map(e => [e.id, e.sender_email || '']));
 
   // Document type distribution
   const docCounts: Record<string, number> = {};
