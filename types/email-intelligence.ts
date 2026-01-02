@@ -121,6 +121,8 @@ export type DocumentType =
   | 'shipping_instruction'
   | 'invoice'
   | 'delivery_order'
+  | 'proof_of_delivery'
+  | 'pod_confirmation'
   | 'cargo_manifest'
   | 'customs_document'
   | 'rate_confirmation'

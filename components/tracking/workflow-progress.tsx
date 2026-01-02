@@ -77,7 +77,7 @@ const WORKFLOW_STATES: WorkflowStateInfo[] = [
   { state_code: 'customs_invoice_received', state_name: 'Customs Invoice', state_order: 130, phase: 'arrival', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['customs_invoice', 'customs_document'] },
   { state_code: 'duty_summary_shared', state_name: 'Duty Summary', state_order: 140, phase: 'arrival', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['duty_summary'] },
   // Delivery
-  { state_code: 'pod_received', state_name: 'POD Received', state_order: 150, phase: 'delivery', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['proof_of_delivery', 'delivery_order'] },
+  { state_code: 'pod_received', state_name: 'POD Received', state_order: 150, phase: 'delivery', is_completed: false, is_current: false, is_skipped: false, required_doc_types: ['proof_of_delivery'] },
 ];
 
 export function ShipmentWorkflowProgress({ shipmentId, currentState, workflowPhase, compact = false }: WorkflowProgressProps) {

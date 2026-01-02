@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { ShipmentLinkCandidateRepository } from '@/lib/repositories/shipment-link-candidate-repository';
+import { ShipmentDocumentRepository } from '@/lib/repositories/shipment-document-repository';
+import { ShipmentRepository } from '@/lib/repositories/shipment-repository';
+import { ClassificationRepository } from '@/lib/repositories/classification-repository';
 import { withAuth } from '@/lib/auth/server-auth';
+import { ShipmentStatus } from '@/types/shipment';
+import { DocumentType } from '@/types/email-intelligence';
 
 /**
  * GET /api/shipments/link-candidates
@@ -28,6 +33,49 @@ export const GET = withAuth(async (request, { user }) => {
 });
 
 /**
+ * Determine shipment status from document type and dates
+ */
+function determineStatusFromDocument(
+  documentType: string,
+  etd?: string | null,
+  eta?: string | null,
+  currentStatus?: string
+): ShipmentStatus {
+  const now = new Date();
+  const etdDate = etd ? new Date(etd) : null;
+  const etaDate = eta ? new Date(eta) : null;
+
+  // Document-based status
+  switch (documentType) {
+    case 'proof_of_delivery':
+    case 'pod_confirmation':
+      // Only actual POD confirms delivery
+      return 'delivered';
+    case 'delivery_order':
+      // DO authorizes release but doesn't confirm delivery
+      return 'arrived';
+    case 'arrival_notice':
+    case 'container_release':
+      if (etaDate && etaDate < now) return 'arrived';
+      return 'in_transit';
+    case 'bill_of_lading':
+    case 'cargo_manifest':
+      if (etdDate && etdDate < now) return 'in_transit';
+      return 'booked';
+    case 'booking_confirmation':
+    case 'booking_amendment':
+    case 'shipping_instruction':
+      return 'booked';
+  }
+
+  // Date-based fallback
+  if (etaDate && etaDate < now) return 'arrived';
+  if (etdDate && etdDate < now) return 'in_transit';
+
+  return (currentStatus as ShipmentStatus) || 'draft';
+}
+
+/**
  * POST /api/shipments/link-candidates
  *
  * Confirm or reject a link candidate.
@@ -37,6 +85,9 @@ export const POST = withAuth(async (request, { user }) => {
   try {
     const supabase = createClient();
     const candidateRepo = new ShipmentLinkCandidateRepository(supabase);
+    const documentRepo = new ShipmentDocumentRepository(supabase);
+    const shipmentRepo = new ShipmentRepository(supabase);
+    const classificationRepo = new ClassificationRepository(supabase);
 
     const body = await request.json();
     const { candidate_id, user_id, action, reason } = body;
@@ -45,11 +96,64 @@ export const POST = withAuth(async (request, { user }) => {
       // Reject the link candidate
       const result = await candidateRepo.reject(candidate_id, reason);
       return NextResponse.json({ success: true, result });
-    } else {
-      // Confirm the link candidate (default action)
-      const result = await candidateRepo.confirm(candidate_id, user_id);
-      return NextResponse.json({ success: true, result });
     }
+
+    // Confirm the link candidate
+    // 1. Get candidate details
+    const { data: candidate } = await supabase
+      .from('shipment_link_candidates')
+      .select('*')
+      .eq('id', candidate_id)
+      .single();
+
+    if (!candidate) {
+      return NextResponse.json({ error: 'Candidate not found' }, { status: 404 });
+    }
+
+    // 2. Get document type from classification
+    let documentType: DocumentType = 'booking_confirmation';
+    const classification = await classificationRepo.findByEmailId(candidate.email_id);
+    if (classification?.document_type) {
+      documentType = classification.document_type as DocumentType;
+    }
+
+    // 3. Create shipment_document record
+    await documentRepo.create({
+      shipment_id: candidate.shipment_id,
+      email_id: candidate.email_id,
+      document_type: documentType,
+      link_confidence_score: candidate.confidence_score,
+      link_method: 'manual',
+    });
+
+    // 4. Update shipment status based on document type
+    const shipment = await shipmentRepo.findById(candidate.shipment_id);
+    const newStatus = determineStatusFromDocument(
+      documentType,
+      shipment.etd,
+      shipment.eta,
+      shipment.status
+    );
+
+    const statusPriority: Record<string, number> = {
+      draft: 0, booked: 1, in_transit: 2, arrived: 3, delivered: 4, cancelled: -1
+    };
+
+    if (statusPriority[newStatus] > statusPriority[shipment.status || 'draft']) {
+      await shipmentRepo.update(candidate.shipment_id, { status: newStatus });
+      console.log(`[LinkConfirm] Updated shipment ${candidate.shipment_id} status: ${shipment.status} -> ${newStatus}`);
+    }
+
+    // 5. Mark candidate as confirmed
+    const result = await candidateRepo.confirm(candidate_id, user_id);
+
+    return NextResponse.json({
+      success: true,
+      result,
+      document_created: true,
+      status_updated: statusPriority[newStatus] > statusPriority[shipment.status || 'draft'],
+      new_status: newStatus,
+    });
   } catch (error) {
     console.error('[API:POST /link-candidates] Error:', error);
     return NextResponse.json(

@@ -34,7 +34,9 @@ const DOC_TYPE_TO_MILESTONE: Record<string, string> = {
   'house_bl': 'hbl_released',
   'bill_of_lading': 'hbl_released',
   'arrival_notice': 'vessel_arrived',
-  'delivery_order': 'delivered',
+  'delivery_order': 'cargo_released',  // DO = cargo released, not delivered
+  'proof_of_delivery': 'delivered',
+  'pod_confirmation': 'delivered',
 };
 
 /**
@@ -60,9 +62,16 @@ function determineShipmentStatus(
   // Document type based status (from highest to lowest priority)
   if (documentType) {
     switch (documentType) {
-      case 'delivery_order':
+      case 'proof_of_delivery':
+      case 'pod_confirmation':
+        // Only actual POD confirms delivery
         return 'delivered';
+      case 'delivery_order':
+        // DO authorizes release but doesn't confirm delivery
+        // Vessel must have arrived for DO to be issued
+        return 'arrived';
       case 'arrival_notice':
+      case 'container_release':
         // If ETA has passed, likely arrived
         if (etaDate && etaDate < now) return 'arrived';
         return 'in_transit';
@@ -76,8 +85,6 @@ function determineShipmentStatus(
       case 'shipping_instruction':
       case 'rate_confirmation':
         return 'booked';
-      case 'container_release':
-        return 'arrived';
     }
   }
 
@@ -572,6 +579,9 @@ export class ShipmentLinkingService {
       // Auto-record milestone if service is available
       await this.autoRecordMilestone(shipmentId, documentType, emailId);
 
+      // Auto-update shipment status based on document type
+      await this.updateShipmentStatusFromDocument(shipmentId, documentType);
+
       return {
         matched: true,
         shipment_id: shipmentId,
@@ -1045,6 +1055,52 @@ export class ShipmentLinkingService {
     } catch (error) {
       // Log but don't fail - cutoff propagation is supplementary
       console.warn(`[Linking] Failed to propagate cutoffs for shipment ${shipmentId}:`, error);
+    }
+  }
+
+  /**
+   * Update shipment status based on linked document type
+   * Only upgrades status (never downgrades)
+   *
+   * Status hierarchy: draft -> booked -> in_transit -> arrived -> delivered
+   */
+  async updateShipmentStatusFromDocument(
+    shipmentId: string,
+    documentType: DocumentType
+  ): Promise<{ updated: boolean; newStatus?: ShipmentStatus }> {
+    try {
+      const shipment = await this.shipmentRepo.findById(shipmentId);
+      const currentStatus = shipment.status as ShipmentStatus;
+
+      // Determine new status based on document type and dates
+      const newStatus = determineShipmentStatus(
+        documentType,
+        shipment.etd,
+        shipment.eta,
+        currentStatus
+      );
+
+      // Status priority for comparison
+      const statusPriority: Record<ShipmentStatus, number> = {
+        draft: 0,
+        booked: 1,
+        in_transit: 2,
+        arrived: 3,
+        delivered: 4,
+        cancelled: -1,
+      };
+
+      // Only upgrade status (never downgrade)
+      if (statusPriority[newStatus] > statusPriority[currentStatus]) {
+        await this.shipmentRepo.update(shipmentId, { status: newStatus });
+        console.log(`[Linking] Updated shipment ${shipmentId} status: ${currentStatus} -> ${newStatus} (from ${documentType})`);
+        return { updated: true, newStatus };
+      }
+
+      return { updated: false };
+    } catch (error) {
+      console.warn(`[Linking] Failed to update status for shipment ${shipmentId}:`, error);
+      return { updated: false };
     }
   }
 }

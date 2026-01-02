@@ -60,6 +60,16 @@ const documentTypeConfig = {
     color: 'teal',
     icon: Truck
   },
+  proof_of_delivery: {
+    label: 'Proof of Delivery',
+    color: 'green',
+    icon: FileCheck
+  },
+  pod_confirmation: {
+    label: 'POD Confirmation',
+    color: 'green',
+    icon: FileCheck
+  },
   cargo_manifest: {
     label: 'Cargo Manifest',
     color: 'cyan',
