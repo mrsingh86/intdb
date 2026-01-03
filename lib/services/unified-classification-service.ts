@@ -27,10 +27,16 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
 import {
-  classifyEmail as classifyDeterministic,
+  classifyEmail as classifyCarrierEmail,
+  isShippingLineEmail,
   DocumentType,
   ClassificationResult as DeterministicResult,
 } from '../config/shipping-line-patterns';
+import { detectDirection, EmailDirection } from '../utils/direction-detector';
+import { matchAttachmentPatterns } from '../config/attachment-patterns';
+import { matchBodyIndicator } from '../config/body-indicators';
+import { matchPartnerPattern } from '../config/partner-patterns';
+import { matchIntogloPattern } from '../config/intoglo-patterns';
 
 // ============================================================================
 // Types
@@ -59,6 +65,10 @@ export interface ClassificationResult {
   labels: string[];
   needsManualReview: boolean;
   classificationReason: string;
+  // NEW: Direction and workflow state
+  direction: EmailDirection;
+  workflowState: string | null;
+  classificationSource?: 'attachment' | 'body' | 'subject' | 'carrier' | 'intoglo' | 'partner' | 'ai';
 }
 
 export type DocumentSubType =
@@ -110,6 +120,71 @@ const CLASSIFICATION_LABELS = [
   'schedule_change',
   'vessel_change',
 ] as const;
+
+// Workflow state mapping: document_type:direction → workflow_state
+const WORKFLOW_STATE_MAP: Record<string, string> = {
+  // Booking
+  'booking_confirmation:inbound': 'booking_confirmation_received',
+  'booking_confirmation:outbound': 'booking_confirmation_shared',
+  'booking_amendment:inbound': 'booking_confirmation_received',
+  'booking_amendment:outbound': 'booking_confirmation_shared',
+  'booking_cancellation:inbound': 'booking_cancelled',
+  // SI
+  'shipping_instruction:inbound': 'si_draft_received',
+  'si_draft:inbound': 'si_draft_received',
+  'si_draft:outbound': 'si_draft_sent',
+  'si_confirmation:inbound': 'si_confirmed',
+  'si_confirmation:outbound': 'si_confirmed',
+  'si_submission:inbound': 'si_confirmed',
+  // BL
+  'mbl_draft:inbound': 'mbl_draft_received',
+  'bill_of_lading:inbound': 'mbl_draft_received',
+  'hbl_draft:outbound': 'hbl_draft_sent',
+  'hbl_release:outbound': 'hbl_released',
+  'bill_of_lading:outbound': 'hbl_released',
+  // Invoice
+  'invoice:inbound': 'commercial_invoice_received',
+  'invoice:outbound': 'invoice_sent',
+  'commercial_invoice:inbound': 'commercial_invoice_received',
+  'freight_invoice:outbound': 'invoice_sent',
+  'duty_invoice:inbound': 'duty_invoice_received',
+  'duty_invoice:outbound': 'duty_summary_shared',
+  'duty_summary:outbound': 'duty_summary_shared',
+  // Arrival
+  'arrival_notice:inbound': 'arrival_notice_received',
+  'arrival_notice:outbound': 'arrival_notice_shared',
+  'shipment_notice:inbound': 'arrival_notice_received',
+  // Customs - India
+  'checklist:inbound': 'checklist_received',
+  'checklist:outbound': 'checklist_shared',
+  'shipping_bill:inbound': 'customs_export_filed',
+  'leo_copy:inbound': 'customs_export_cleared',
+  'bill_of_entry:inbound': 'customs_import_filed',
+  'customs_clearance:inbound': 'cargo_released',
+  'customs_clearance:outbound': 'cargo_released',
+  // Customs - US
+  'draft_entry:inbound': 'entry_draft_received',
+  'draft_entry:outbound': 'entry_draft_shared',
+  'entry_summary:inbound': 'entry_filed',
+  'entry_summary:outbound': 'entry_summary_shared',
+  'isf_filing:inbound': 'isf_filed',
+  'exam_notice:inbound': 'customs_hold',
+  // Delivery
+  'delivery_order:inbound': 'cargo_released',
+  'container_release:inbound': 'cargo_released',
+  'proof_of_delivery:inbound': 'pod_received',
+  'delivery_confirmation:inbound': 'pod_received',
+  'gate_in_confirmation:inbound': 'gate_in_confirmed',
+  'empty_return:inbound': 'empty_returned',
+  // VGM
+  'vgm_confirmation:inbound': 'vgm_confirmed',
+  'vgm_reminder:inbound': 'vgm_pending',
+  // SOB
+  'sob_confirmation:inbound': 'sob_received',
+  // Documents
+  'packing_list:inbound': 'documents_received',
+  'certificate:inbound': 'documents_received',
+};
 
 // Tool definition for structured AI output
 const CLASSIFICATION_TOOL: Anthropic.Tool = {
@@ -295,8 +370,9 @@ export class UnifiedClassificationService {
   /**
    * Pattern-based classification using comprehensive subject patterns
    * Returns classification if confident match found, null otherwise
+   * Note: direction and workflowState are set by caller
    */
-  private classifyBySubjectPattern(subject: string): ClassificationResult | null {
+  private classifyBySubjectPattern(subject: string, direction: EmailDirection): ClassificationResult | null {
     for (const { pattern, type, confidence } of this.SUBJECT_PATTERNS) {
       if (pattern.test(subject)) {
         return {
@@ -310,6 +386,9 @@ export class UnifiedClassificationService {
           labels: [],
           needsManualReview: false,
           classificationReason: `Subject pattern match: ${pattern.toString()}`,
+          direction,
+          workflowState: this.getWorkflowState(type, direction),
+          classificationSource: 'subject',
         };
       }
     }
@@ -351,7 +430,7 @@ export class UnifiedClassificationService {
    * Content-based classification for thread replies
    * Looks at body and attachment content, NOT subject
    */
-  private classifyByContent(input: ClassificationInput): ClassificationResult | null {
+  private classifyByContent(input: ClassificationInput, direction: EmailDirection): ClassificationResult | null {
     const content = `${input.bodyText || ''} ${input.attachmentContent || ''}`.toLowerCase();
 
     // Content patterns - what's actually IN this message/attachment?
@@ -410,6 +489,9 @@ export class UnifiedClassificationService {
           labels: [],
           needsManualReview: false,
           classificationReason: `Content pattern match for ${type}`,
+          direction,
+          workflowState: this.getWorkflowState(type, direction),
+          classificationSource: 'body',
         };
       }
     }
@@ -417,91 +499,159 @@ export class UnifiedClassificationService {
   }
 
   /**
-   * Classify an email using hybrid approach:
+   * Get workflow state for document type and direction
+   */
+  private getWorkflowState(documentType: string, direction: EmailDirection): string | null {
+    const key = `${documentType}:${direction}`;
+    return WORKFLOW_STATE_MAP[key] || null;
+  }
+
+  /**
+   * Clean subject by removing RE:/FW: prefixes
+   */
+  private cleanSubject(subject: string): string {
+    return subject.replace(/^(RE|Re|FW|Fw|FWD|Fwd):\s*/gi, '').trim();
+  }
+
+  /**
+   * Classify an email using multi-signal priority:
    *
-   * FOR ORIGINAL EMAILS (no Re:/Fwd:):
-   *   1. Subject pattern matching (fast, reliable)
-   *   2. Carrier-specific patterns
-   *   3. AI fallback
+   * 1. Detect direction (INBOUND vs OUTBOUND)
+   * 2. Try attachment patterns (highest priority - 95%)
+   * 3. Try body indicators (priority 2 - 90%)
+   * 4. Try subject patterns:
+   *    - Carrier patterns (for shipping line emails)
+   *    - Intoglo patterns (for outbound emails)
+   *    - Partner patterns (for inbound non-carrier)
+   * 5. AI fallback (for unknowns)
    *
-   * FOR THREAD REPLIES (Re:/Fwd:):
-   *   1. Content-based classification (body + attachments) - subject is unreliable!
-   *   2. AI fallback with full context
-   *
-   * This handles the common case where team continues in same thread but shares different documents.
+   * All results include direction and workflow state.
    */
   async classify(input: ClassificationInput): Promise<ClassificationResult> {
     const sender = input.trueSenderEmail || input.senderEmail;
+    const direction = detectDirection(sender);
+    const cleanedSubject = this.cleanSubject(input.subject);
     const isReply = this.isThreadReply(input.subject);
 
-    // ===== THREAD REPLIES: Use content, NOT subject =====
+    // Helper to build result with direction and workflow state
+    const buildResult = (
+      documentType: string,
+      confidence: number,
+      source: 'attachment' | 'body' | 'subject' | 'carrier' | 'intoglo' | 'partner' | 'ai',
+      matchedPattern: string,
+      carrierId?: string,
+      carrierName?: string
+    ): ClassificationResult => ({
+      documentType,
+      subType: this.detectSubType(input.subject),
+      carrierId: carrierId || null,
+      carrierName: carrierName || null,
+      confidence: isReply ? Math.max(confidence - 20, 50) : confidence,
+      method: source === 'ai' ? 'ai' : 'deterministic',
+      matchedPattern,
+      labels: this.inferLabels(input),
+      needsManualReview: confidence < 70,
+      classificationReason: `${source} pattern match: ${matchedPattern}`,
+      direction,
+      workflowState: this.getWorkflowState(documentType, direction),
+      classificationSource: source,
+    });
+
+    // ===== STEP 1: Attachment patterns (highest priority) =====
+    if (input.attachmentFilenames && input.attachmentFilenames.length > 0) {
+      const attachmentMatch = matchAttachmentPatterns(input.attachmentFilenames);
+      if (attachmentMatch) {
+        return buildResult(
+          attachmentMatch.type,
+          95,
+          'attachment',
+          attachmentMatch.pattern
+        );
+      }
+    }
+
+    // ===== STEP 2: Body indicators (priority 2) =====
+    if (input.bodyText && input.bodyText.length > 20) {
+      const bodyMatch = matchBodyIndicator(input.bodyText);
+      if (bodyMatch) {
+        return buildResult(
+          bodyMatch.type,
+          90,
+          'body',
+          bodyMatch.pattern
+        );
+      }
+    }
+
+    // ===== STEP 3: Subject-based classification =====
+
+    // 3a: For thread replies, try content-based first
     if (isReply) {
-      // Step 1: Content-based classification (body + attachments)
-      const contentResult = this.classifyByContent(input);
+      const contentResult = this.classifyByContent(input, direction);
       if (contentResult) {
         contentResult.labels = this.inferLabels(input);
         return contentResult;
       }
-
-      // Step 2: AI fallback for thread replies (will analyze body + attachments)
-      if (this.useAiFallback && this.anthropic) {
-        return await this.classifyWithAI(input);
-      }
-
-      // No match - general correspondence
-      return {
-        documentType: 'general_correspondence',
-        subType: null,
-        carrierId: null,
-        carrierName: null,
-        confidence: 60,
-        method: 'deterministic',
-        matchedPattern: 'thread_reply_no_match',
-        labels: this.inferLabels(input),
-        needsManualReview: true,
-        classificationReason: 'Thread reply - no clear document pattern in content',
-      };
     }
 
-    // ===== ORIGINAL EMAILS: Use subject patterns =====
-
-    // Step 1: Subject pattern matching (HIGHEST PRIORITY for original emails)
-    const subjectPatternResult = this.classifyBySubjectPattern(input.subject);
-    if (subjectPatternResult) {
+    // 3b: Try internal subject patterns
+    const subjectPatternResult = this.classifyBySubjectPattern(cleanedSubject, direction);
+    if (subjectPatternResult && subjectPatternResult.confidence >= 85) {
       subjectPatternResult.labels = this.inferLabels(input);
       return subjectPatternResult;
     }
 
-    // Step 3: Carrier-specific deterministic patterns (with attachment content validation)
-    const deterministicResult = classifyDeterministic(
-      input.subject,
+    // 3c: Carrier-specific patterns
+    const carrierResult = classifyCarrierEmail(
+      cleanedSubject,
       sender,
       input.attachmentFilenames,
       input.attachmentContent
     );
 
-    if (deterministicResult && deterministicResult.confidence > 0) {
-      const subType = this.detectSubType(input.subject);
-      return {
-        documentType: deterministicResult.documentType,
-        subType,
-        carrierId: deterministicResult.carrierId,
-        carrierName: deterministicResult.carrierName,
-        confidence: deterministicResult.confidence,
-        method: 'deterministic',
-        matchedPattern: deterministicResult.matchedPattern,
-        labels: this.inferLabels(input),
-        needsManualReview: false,
-        classificationReason: `Carrier pattern match: ${deterministicResult.matchedPattern}`,
-      };
+    if (carrierResult && carrierResult.confidence > 0) {
+      return buildResult(
+        carrierResult.documentType,
+        carrierResult.confidence,
+        'carrier',
+        carrierResult.matchedPattern,
+        carrierResult.carrierId,
+        carrierResult.carrierName
+      );
     }
 
-    // Step 4: AI fallback with Opus 4.5 (if enabled)
+    // 3d: For outbound emails, try Intoglo patterns
+    if (direction === 'outbound') {
+      const intogloMatch = matchIntogloPattern(cleanedSubject);
+      if (intogloMatch) {
+        return buildResult(
+          intogloMatch.type,
+          90,
+          'intoglo',
+          intogloMatch.pattern
+        );
+      }
+    }
+
+    // 3e: For inbound non-carrier, try partner patterns
+    if (direction === 'inbound') {
+      const partnerMatch = matchPartnerPattern(cleanedSubject);
+      if (partnerMatch) {
+        return buildResult(
+          partnerMatch.type,
+          85,
+          'partner',
+          partnerMatch.pattern
+        );
+      }
+    }
+
+    // ===== STEP 4: AI fallback =====
     if (this.useAiFallback && this.anthropic) {
-      return await this.classifyWithAI(input);
+      return await this.classifyWithAI(input, direction);
     }
 
-    // Step 5: Default to unknown
+    // ===== STEP 5: Default to unknown =====
     return {
       documentType: 'general_correspondence',
       subType: null,
@@ -513,13 +663,16 @@ export class UnifiedClassificationService {
       labels: [],
       needsManualReview: true,
       classificationReason: 'No pattern matched and AI fallback disabled',
+      direction,
+      workflowState: null,
+      classificationSource: undefined,
     };
   }
 
   /**
    * AI-based classification using structured tool_use
    */
-  private async classifyWithAI(input: ClassificationInput): Promise<ClassificationResult> {
+  private async classifyWithAI(input: ClassificationInput, direction: EmailDirection): Promise<ClassificationResult> {
     if (!this.anthropic) {
       throw new Error('Anthropic client not initialized');
     }
@@ -560,6 +713,9 @@ export class UnifiedClassificationService {
           labels: result.labels || [],
           needsManualReview: result.confidence < 70,
           classificationReason: result.reasoning,
+          direction,
+          workflowState: this.getWorkflowState(result.document_type, direction),
+          classificationSource: 'ai',
         };
       }
     } catch (err) {
@@ -577,6 +733,9 @@ export class UnifiedClassificationService {
       labels: [],
       needsManualReview: true,
       classificationReason: 'AI classification failed',
+      direction,
+      workflowState: null,
+      classificationSource: 'ai',
     };
   }
 
@@ -806,3 +965,189 @@ export function createClassificationService(
 ): UnifiedClassificationService {
   return new UnifiedClassificationService(supabase, options);
 }
+
+// ============================================================================
+// Standalone Functions (no Supabase/AI required)
+// Synchronous classification for simple use cases
+// ============================================================================
+
+export interface EmailClassificationInput {
+  subject: string;
+  senderEmail: string;
+  bodyText?: string;
+  attachmentFilenames?: string[];
+  attachmentContent?: string;
+}
+
+export interface SimpleClassificationResult {
+  documentType: string;
+  direction: EmailDirection;
+  workflowState: string | null;
+  confidence: number;
+  source: 'attachment' | 'body' | 'subject' | 'carrier' | 'intoglo' | 'partner' | 'unknown';
+  matchedPattern?: string;
+  category?: string;
+  carrierId?: string;
+  carrierName?: string;
+}
+
+/**
+ * Get workflow state for document type and direction (standalone function)
+ */
+export function getWorkflowState(documentType: string, direction: EmailDirection): string | null {
+  const key = `${documentType}:${direction}`;
+  return WORKFLOW_STATE_MAP[key] || null;
+}
+
+/**
+ * Get all possible workflow states for a document type
+ */
+export function getWorkflowStatesForType(documentType: string): { inbound?: string; outbound?: string } {
+  return {
+    inbound: WORKFLOW_STATE_MAP[`${documentType}:inbound`],
+    outbound: WORKFLOW_STATE_MAP[`${documentType}:outbound`],
+  };
+}
+
+/**
+ * Get all document types that lead to a specific workflow state
+ */
+export function getDocumentTypesForState(workflowState: string): string[] {
+  const types: string[] = [];
+  for (const [key, value] of Object.entries(WORKFLOW_STATE_MAP)) {
+    if (value === workflowState) {
+      const [docType] = key.split(':');
+      if (!types.includes(docType)) {
+        types.push(docType);
+      }
+    }
+  }
+  return types;
+}
+
+/**
+ * Clean subject by removing RE:/FW: prefixes
+ */
+function cleanSubjectLine(subject: string): string {
+  return subject.replace(/^(RE|Re|FW|Fw|FWD|Fwd):\s*/gi, '').trim();
+}
+
+/**
+ * Synchronous document classification (no AI fallback)
+ * Use this for simple classification without database/AI dependencies
+ */
+export function classifyDocument(input: EmailClassificationInput): SimpleClassificationResult {
+  const direction = detectDirection(input.senderEmail);
+  const cleanedSubject = cleanSubjectLine(input.subject);
+
+  // Priority 1: Attachment patterns (95% confidence)
+  if (input.attachmentFilenames && input.attachmentFilenames.length > 0) {
+    const attachmentMatch = matchAttachmentPatterns(input.attachmentFilenames);
+    if (attachmentMatch) {
+      return {
+        documentType: attachmentMatch.type,
+        direction,
+        workflowState: getWorkflowState(attachmentMatch.type, direction),
+        confidence: 95,
+        source: 'attachment',
+        matchedPattern: attachmentMatch.pattern,
+      };
+    }
+  }
+
+  // Priority 2: Body indicators (90% confidence)
+  if (input.bodyText && input.bodyText.length > 20) {
+    const bodyMatch = matchBodyIndicator(input.bodyText);
+    if (bodyMatch) {
+      return {
+        documentType: bodyMatch.type,
+        direction,
+        workflowState: getWorkflowState(bodyMatch.type, direction),
+        confidence: 90,
+        source: 'body',
+        matchedPattern: bodyMatch.pattern,
+      };
+    }
+  }
+
+  // Priority 3: Carrier patterns (for shipping line emails)
+  if (isShippingLineEmail(input.senderEmail)) {
+    const carrierResult = classifyCarrierEmail(
+      cleanedSubject,
+      input.senderEmail,
+      input.attachmentFilenames,
+      input.attachmentContent
+    );
+
+    if (carrierResult && carrierResult.confidence > 0) {
+      return {
+        documentType: carrierResult.documentType,
+        direction,
+        workflowState: getWorkflowState(carrierResult.documentType, direction),
+        confidence: carrierResult.confidence,
+        source: 'carrier',
+        matchedPattern: carrierResult.matchedPattern,
+        carrierId: carrierResult.carrierId,
+        carrierName: carrierResult.carrierName,
+      };
+    }
+  }
+
+  // Priority 4: Intoglo patterns (outbound emails)
+  if (direction === 'outbound') {
+    const intogloMatch = matchIntogloPattern(cleanedSubject);
+    if (intogloMatch) {
+      return {
+        documentType: intogloMatch.type,
+        direction,
+        workflowState: getWorkflowState(intogloMatch.type, direction),
+        confidence: 90,
+        source: 'intoglo',
+        matchedPattern: intogloMatch.pattern,
+        category: intogloMatch.category,
+      };
+    }
+  }
+
+  // Priority 5: Partner patterns (inbound non-carrier emails)
+  if (direction === 'inbound') {
+    const partnerMatch = matchPartnerPattern(cleanedSubject);
+    if (partnerMatch) {
+      return {
+        documentType: partnerMatch.type,
+        direction,
+        workflowState: getWorkflowState(partnerMatch.type, direction),
+        confidence: 85,
+        source: 'partner',
+        matchedPattern: partnerMatch.pattern,
+        category: partnerMatch.category,
+      };
+    }
+  }
+
+  // No match - return unknown
+  return {
+    documentType: 'unknown',
+    direction,
+    workflowState: null,
+    confidence: 0,
+    source: 'unknown',
+  };
+}
+
+/**
+ * Batch classify multiple emails (synchronous)
+ */
+export function classifyDocuments(inputs: EmailClassificationInput[]): SimpleClassificationResult[] {
+  return inputs.map(classifyDocument);
+}
+
+/**
+ * Check if document needs AI classification
+ */
+export function needsAIClassification(result: SimpleClassificationResult): boolean {
+  return result.source === 'unknown' || result.confidence < 50;
+}
+
+// Re-export EmailDirection for convenience
+export type { EmailDirection } from '../utils/direction-detector';

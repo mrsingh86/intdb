@@ -75,6 +75,23 @@ export type {
 } from './enhanced-pdf-extractor';
 
 // ============================================================================
+// Standalone Classification Functions (no Supabase/AI required)
+// ============================================================================
+
+export {
+  classifyDocument,
+  classifyDocuments,
+  needsAIClassification,
+  getWorkflowState,
+  getWorkflowStatesForType,
+  getDocumentTypesForState,
+} from './unified-classification-service';
+export type {
+  EmailClassificationInput,
+  SimpleClassificationResult,
+} from './unified-classification-service';
+
+// ============================================================================
 // Document Lifecycle & Workflow
 // ============================================================================
 

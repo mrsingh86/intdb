@@ -12,6 +12,7 @@
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';
+import { detectDirection } from '../utils/direction-detector';
 
 /**
  * Direction-aware document type to workflow state mapping.
@@ -38,20 +39,25 @@ const DIRECTION_WORKFLOW_MAPPING: Record<string, string> = {
 
   // SI flow
   'shipping_instruction:inbound': 'si_draft_received',
-  'si_submission:inbound': 'si_confirmed', // Carrier confirms SI
-  'si_submission:outbound': 'si_submitted', // Intoglo submits SI
+  'si_draft:inbound': 'si_draft_received',
+  'si_draft:outbound': 'si_draft_sent',
+  'si_submission:inbound': 'si_confirmed',
+  'si_submission:outbound': 'si_submitted',
   'si_confirmation:inbound': 'si_confirmed',
+  'si_confirmation:outbound': 'si_confirmed',
 
-  // Checklist flow (export)
+  // Checklist flow (export - India CHA)
   'checklist:inbound': 'checklist_received',
   'checklist:outbound': 'checklist_shared',
   'shipping_bill:inbound': 'shipping_bill_received',
   'leo_copy:inbound': 'shipping_bill_received',
+  'bill_of_entry:inbound': 'customs_import_filed',
 
   // VGM
   'vgm_submission:inbound': 'vgm_confirmed',
   'vgm_submission:outbound': 'vgm_submitted',
   'vgm_confirmation:inbound': 'vgm_confirmed',
+  'vgm_reminder:inbound': 'vgm_pending',
 
   // Gate-in & SOB
   'gate_in_confirmation:inbound': 'container_gated_in',
@@ -65,33 +71,50 @@ const DIRECTION_WORKFLOW_MAPPING: Record<string, string> = {
   // ISF (US import)
   'isf_submission:outbound': 'isf_filed',
   'isf_confirmation:inbound': 'isf_confirmed',
+  'isf_filing:inbound': 'isf_filed',
 
-  // MBL (from carrier)
+  // MBL Draft (Proforma BL from carrier - INBOUND)
+  'mbl_draft:inbound': 'mbl_draft_received',
   'bill_of_lading:inbound': 'mbl_draft_received',
 
-  // HBL (to/from shipper)
+  // HBL Draft (Intoglo creates and sends - OUTBOUND)
+  'hbl_draft:outbound': 'hbl_draft_sent',
+  'hbl_release:outbound': 'hbl_released',
   'bill_of_lading:outbound': 'hbl_released',
   'house_bl:outbound': 'hbl_released',
 
   // Invoice
   'freight_invoice:outbound': 'invoice_sent',
+  'freight_invoice:inbound': 'commercial_invoice_received',
   'invoice:outbound': 'invoice_sent',
   'payment_confirmation:inbound': 'invoice_paid',
 
-  // ===== PRE_ARRIVAL =====
-  'entry_summary:inbound': 'entry_draft_received',
-  'entry_summary:outbound': 'entry_draft_shared',
+  // ===== PRE_ARRIVAL (US Customs) =====
+  // From Customs Broker (INBOUND)
+  'draft_entry:inbound': 'entry_draft_received',       // Broker sends draft for review
+  'entry_summary:inbound': 'entry_filed',              // Broker files 7501
+  // Shared with Customer (OUTBOUND)
+  'draft_entry:outbound': 'entry_draft_shared',        // Intoglo shares draft with customer
+  'entry_summary:outbound': 'entry_summary_shared',    // Intoglo shares 7501 with customer
 
   // ===== ARRIVAL =====
   'arrival_notice:inbound': 'arrival_notice_received',
   'arrival_notice:outbound': 'arrival_notice_shared',
+  'shipment_notice:inbound': 'arrival_notice_received',
 
+  // Customs Clearance
   'customs_clearance:inbound': 'customs_cleared',
+  'customs_clearance:outbound': 'customs_cleared',
   'customs_document:inbound': 'duty_invoice_received',
   'duty_invoice:inbound': 'duty_invoice_received',
+  'duty_invoice:outbound': 'duty_summary_shared',
   'customs_document:outbound': 'duty_summary_shared',
   'duty_summary:outbound': 'duty_summary_shared',
 
+  // Exam/Hold
+  'exam_notice:inbound': 'customs_hold',
+
+  // Delivery Order
   'delivery_order:inbound': 'delivery_order_received',
   'delivery_order:outbound': 'delivery_order_shared',
 
@@ -101,7 +124,11 @@ const DIRECTION_WORKFLOW_MAPPING: Record<string, string> = {
   'delivery_confirmation:inbound': 'delivered',
   'pod:inbound': 'pod_received',
   'proof_of_delivery:inbound': 'pod_received',
+  'empty_return:inbound': 'empty_returned',
   'empty_return_confirmation:inbound': 'empty_returned',
+
+  // Certificates (generic document receipt)
+  'certificate:inbound': 'documents_received',
 };
 
 export type WorkflowPhase = 'pre_departure' | 'in_transit' | 'pre_arrival' | 'arrival' | 'delivery';
@@ -472,60 +499,20 @@ export class WorkflowStateService {
 
   /**
    * Determine email direction based on sender
-   * OUTBOUND = sender is @intoglo.com or @intoglo.in (and not a forwarded carrier email)
-   * INBOUND = sender is external or forwarded carrier email
+   * Uses the direction-detector utility for consistent detection.
+   *
+   * OUTBOUND = sender is @intoglo.com or @intoglo.in
+   * INBOUND = all other senders (carriers, partners, clients via group)
    */
   private async getEmailDirection(emailId: string): Promise<'inbound' | 'outbound'> {
     const { data: email } = await this.supabase
       .from('raw_emails')
-      .select('sender_email, true_sender_email, subject')
+      .select('sender_email')
       .eq('id', emailId)
       .single();
 
-    if (!email?.sender_email) {
-      return 'inbound'; // Default to inbound if unknown
-    }
-
-    // Use true_sender_email if available (for properly extracted forwarded emails)
-    const sender = (email.true_sender_email || email.sender_email).toLowerCase();
-    const subject = (email.subject || '').toLowerCase();
-
-    // Detect forwarded carrier emails by sender patterns
-    const isForwardedFromCarrier = sender.includes('via operations intoglo') ||
-      sender.includes('via ops intoglo') ||
-      sender.includes('via pricing') ||
-      sender.includes('via nam');
-
-    // Check for carrier domain patterns in the display name
-    const carrierPatterns = [
-      'maersk', 'hapag', 'hlag', 'cma-cgm', 'cmacgm', 'msc.com',
-      'evergreen', 'oocl', 'cosco', 'yangming', 'one-line', 'zim',
-      'in.export', 'in.import', 'booking.confirmation', 'cma cgm'
-    ];
-    const hasCarrierInName = carrierPatterns.some(p => sender.includes(p));
-
-    // Check for carrier subject patterns (for emails where display name was stripped)
-    const carrierSubjectPatterns = [
-      /^booking confirmation\s*:\s*\d+/,           // Maersk: "Booking Confirmation : 263815227"
-      /^bkg\s*#?\s*\d+/,                           // "Bkg #263441600"
-      /amendment.*booking/,                         // "Amendment to Booking"
-      /booking.*amendment/,                         // "Booking Amendment"
-      /^\[hapag/,                                   // Hapag-Lloyd emails
-      /^\[msc\]/,                                   // MSC emails
-      /^one booking/,                               // ONE Line
-    ];
-    const isCarrierSubject = carrierSubjectPatterns.some(p => p.test(subject));
-
-    // Special case: ops@intoglo.com with carrier subject pattern = INBOUND
-    const isOpsWithCarrierSubject = sender === 'ops@intoglo.com' && isCarrierSubject;
-
-    // If it's a forwarded carrier email, treat as INBOUND
-    if (isForwardedFromCarrier || hasCarrierInName || isOpsWithCarrierSubject) {
-      return 'inbound';
-    }
-
-    const isIntoglo = sender.includes('@intoglo.com') || sender.includes('@intoglo.in');
-    return isIntoglo ? 'outbound' : 'inbound';
+    // Use the centralized direction detector
+    return detectDirection(email?.sender_email);
   }
 
   /**
