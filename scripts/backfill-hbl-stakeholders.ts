@@ -254,6 +254,12 @@ async function backfillEmail(
       return result;
     }
 
+    // Skip Intoglo (our own company)
+    const isIntoglo = (name: string | null | undefined): boolean => {
+      if (!name) return false;
+      return name.toLowerCase().includes('intoglo');
+    };
+
     // Update entity_extractions
     const entities: Array<{
       email_id: string;
@@ -263,7 +269,7 @@ async function backfillEmail(
       extraction_method: string;
     }> = [];
 
-    if (data.shipper_name) {
+    if (data.shipper_name && !isIntoglo(data.shipper_name)) {
       entities.push({
         email_id: email.email_id,
         entity_type: 'shipper_name',
@@ -272,7 +278,7 @@ async function backfillEmail(
         extraction_method: 'ai_backfill',
       });
     }
-    if (data.shipper_address) {
+    if (data.shipper_address && !isIntoglo(data.shipper_name)) {
       entities.push({
         email_id: email.email_id,
         entity_type: 'shipper_address',
@@ -281,7 +287,7 @@ async function backfillEmail(
         extraction_method: 'ai_backfill',
       });
     }
-    if (data.consignee_name) {
+    if (data.consignee_name && !isIntoglo(data.consignee_name)) {
       entities.push({
         email_id: email.email_id,
         entity_type: 'consignee_name',
@@ -290,7 +296,7 @@ async function backfillEmail(
         extraction_method: 'ai_backfill',
       });
     }
-    if (data.consignee_address) {
+    if (data.consignee_address && !isIntoglo(data.consignee_name)) {
       entities.push({
         email_id: email.email_id,
         entity_type: 'consignee_address',
@@ -299,7 +305,7 @@ async function backfillEmail(
         extraction_method: 'ai_backfill',
       });
     }
-    if (data.notify_party) {
+    if (data.notify_party && !isIntoglo(data.notify_party)) {
       entities.push({
         email_id: email.email_id,
         entity_type: 'notify_party',
@@ -328,26 +334,26 @@ async function backfillEmail(
       }
     }
 
-    // Update shipment if linked
+    // Update shipment if linked (skip Intoglo)
     if (email.shipment_id) {
       const updateData: Record<string, string> = {};
 
-      if (data.shipper_name) {
+      if (data.shipper_name && !isIntoglo(data.shipper_name)) {
         updateData.shipper_name = data.shipper_name;
       }
-      if (data.shipper_address) {
+      if (data.shipper_address && !isIntoglo(data.shipper_name)) {
         updateData.shipper_address = data.shipper_address;
       }
-      if (data.consignee_name) {
+      if (data.consignee_name && !isIntoglo(data.consignee_name)) {
         updateData.consignee_name = data.consignee_name;
       }
-      if (data.consignee_address) {
+      if (data.consignee_address && !isIntoglo(data.consignee_name)) {
         updateData.consignee_address = data.consignee_address;
       }
-      if (data.notify_party) {
+      if (data.notify_party && !isIntoglo(data.notify_party)) {
         updateData.notify_party_name = data.notify_party;
       }
-      if (data.notify_party_address) {
+      if (data.notify_party_address && !isIntoglo(data.notify_party)) {
         updateData.notify_party_address = data.notify_party_address;
       }
 
@@ -383,11 +389,11 @@ async function main() {
   console.log(`Limit: ${limit || 'all'}`);
   console.log('');
 
-  // Initialize extraction service with Sonnet for better quality
+  // Initialize extraction service with Haiku for speed and cost
   const extractionService = new ShipmentExtractionService(
     supabase,
     ANTHROPIC_KEY,
-    { useAdvancedModel: true }  // Use Sonnet for backfill quality
+    { useAdvancedModel: false }  // Use Haiku - 10x cheaper, faster
   );
 
   // Get emails to backfill
@@ -400,31 +406,37 @@ async function main() {
     return;
   }
 
-  // Process each email
+  // Process emails in parallel batches for speed
   const results: BackfillResult[] = [];
   let successCount = 0;
   let errorCount = 0;
   let skippedCount = 0;
+  const BATCH_SIZE = 5;  // Process 5 emails in parallel
 
-  for (let i = 0; i < emails.length; i++) {
-    const email = emails[i];
-    process.stdout.write(`\r[${i + 1}/${emails.length}] Processing ${email.email_id.substring(0, 8)}...`);
+  for (let i = 0; i < emails.length; i += BATCH_SIZE) {
+    const batch = emails.slice(i, i + BATCH_SIZE);
+    process.stdout.write(`\r[${Math.min(i + BATCH_SIZE, emails.length)}/${emails.length}] Processing batch...`);
 
-    const result = await backfillEmail(email, extractionService, dryRun);
-    results.push(result);
+    // Process batch in parallel
+    const batchResults = await Promise.all(
+      batch.map(email => backfillEmail(email, extractionService, dryRun))
+    );
 
-    if (result.error) {
-      if (result.error === 'No stakeholder info found in document') {
-        skippedCount++;
-      } else {
-        errorCount++;
+    for (const result of batchResults) {
+      results.push(result);
+      if (result.error) {
+        if (result.error === 'No stakeholder info found in document') {
+          skippedCount++;
+        } else {
+          errorCount++;
+        }
+      } else if (result.updated || dryRun) {
+        successCount++;
       }
-    } else if (result.updated || dryRun) {
-      successCount++;
     }
 
-    // Rate limiting to avoid API throttling
-    await new Promise(r => setTimeout(r, 500));
+    // Small delay between batches to avoid rate limiting
+    await new Promise(r => setTimeout(r, 200));
   }
 
   console.log('\n\n' + '='.repeat(60));
