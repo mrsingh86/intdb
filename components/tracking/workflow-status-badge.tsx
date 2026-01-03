@@ -129,13 +129,23 @@ const sizeClasses = {
   }
 }
 
+// Default config for unknown states
+const defaultConfig = {
+  icon: AlertCircle,
+  label: 'Unknown',
+  color: 'text-gray-700',
+  bgColor: 'bg-gray-100',
+  borderColor: 'border-gray-200',
+  description: 'Unknown workflow state'
+}
+
 export function WorkflowStatusBadge({
   state,
   requiresApprovalFrom,
   size = 'md',
   showApprovalInfo = true
 }: WorkflowStatusBadgeProps) {
-  const config = workflowStateConfig[state]
+  const config = workflowStateConfig[state] || defaultConfig
   const Icon = config.icon
   const sizes = sizeClasses[size]
 

@@ -24,6 +24,7 @@ interface Shipment {
   bl_number: string | null;
   status: string;
   workflow_state: string | null;
+  workflow_phase: string | null;  // Added for phase counting
   vessel_name: string | null;
   voyage_number: string | null;
   port_of_loading: string | null;
@@ -42,7 +43,32 @@ interface Shipment {
 
 type Phase = 'all' | 'pre_departure' | 'in_transit' | 'arrival' | 'delivered';
 
-// Terminal-style status colors
+// Terminal-style colors for workflow_state
+const WORKFLOW_STATE_COLORS: Record<string, { dot: string; text: string }> = {
+  // Pre-departure states (blue)
+  booking_confirmation_received: { dot: 'bg-terminal-blue', text: 'text-terminal-blue' },
+  booking_confirmation_shared: { dot: 'bg-terminal-blue', text: 'text-terminal-blue' },
+  si_draft_received: { dot: 'bg-terminal-blue', text: 'text-terminal-blue' },
+  si_draft_sent: { dot: 'bg-terminal-blue', text: 'text-terminal-blue' },
+  si_confirmed: { dot: 'bg-terminal-blue', text: 'text-terminal-blue' },
+  mbl_draft_received: { dot: 'bg-terminal-blue', text: 'text-terminal-blue' },
+  sob_received: { dot: 'bg-terminal-blue', text: 'text-terminal-blue' },
+  // In-transit states (purple)
+  invoice_sent: { dot: 'bg-terminal-purple', text: 'text-terminal-purple' },
+  hbl_released: { dot: 'bg-terminal-purple', text: 'text-terminal-purple' },
+  // Arrival states (amber)
+  arrival_notice_received: { dot: 'bg-terminal-amber', text: 'text-terminal-amber' },
+  arrival_notice_shared: { dot: 'bg-terminal-amber', text: 'text-terminal-amber' },
+  duty_summary_shared: { dot: 'bg-terminal-amber', text: 'text-terminal-amber' },
+  duty_invoice_received: { dot: 'bg-terminal-amber', text: 'text-terminal-amber' },
+  cargo_released: { dot: 'bg-terminal-amber', text: 'text-terminal-amber' },
+  // Delivered (green)
+  pod_received: { dot: 'bg-terminal-green', text: 'text-terminal-green' },
+  // Cancelled (muted)
+  booking_cancelled: { dot: 'bg-terminal-muted', text: 'text-terminal-muted' },
+};
+
+// Fallback for legacy status display
 const STATUS_DOT_COLORS: Record<string, string> = {
   in_transit: 'bg-terminal-purple',
   arrived: 'bg-terminal-amber',
@@ -107,16 +133,16 @@ function ShipmentsPageContent() {
     }
   };
 
-  // Phase counts
+  // Phase counts - uses workflow_phase from database
   const phaseCounts = useMemo(() => {
     const counts = { all: 0, pre_departure: 0, in_transit: 0, arrival: 0, delivered: 0 };
 
     for (const s of shipments) {
       counts.all++;
-      const status = (s.status || '').toLowerCase();
-      if (status === 'in_transit') counts.in_transit++;
-      else if (status === 'arrived') counts.arrival++;
-      else if (status === 'delivered') counts.delivered++;
+      const phase = s.workflow_phase || 'pre_departure';
+      if (phase === 'in_transit') counts.in_transit++;
+      else if (phase === 'arrival') counts.arrival++;
+      else if (phase === 'delivery') counts.delivered++;
       else counts.pre_departure++;
     }
 
@@ -126,14 +152,14 @@ function ShipmentsPageContent() {
   // Filtered shipments
   const filteredShipments = useMemo(() => {
     return shipments.filter(s => {
-      const status = (s.status || '').toLowerCase();
+      const phase = s.workflow_phase || 'pre_departure';
 
-      // Phase filter
+      // Phase filter - uses workflow_phase from database
       if (activePhase !== 'all') {
-        if (activePhase === 'pre_departure' && !['booked', 'draft'].includes(status)) return false;
-        if (activePhase === 'in_transit' && status !== 'in_transit') return false;
-        if (activePhase === 'arrival' && status !== 'arrived') return false;
-        if (activePhase === 'delivered' && status !== 'delivered') return false;
+        if (activePhase === 'pre_departure' && phase !== 'pre_departure') return false;
+        if (activePhase === 'in_transit' && phase !== 'in_transit') return false;
+        if (activePhase === 'arrival' && phase !== 'arrival') return false;
+        if (activePhase === 'delivered' && phase !== 'delivery') return false;
       }
 
       // Quick filter (from Mission Control)
@@ -181,14 +207,16 @@ function ShipmentsPageContent() {
     return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const getStatusDot = (status: string) => {
-    const s = status?.toLowerCase() || 'draft';
-    return STATUS_DOT_COLORS[s] || 'bg-terminal-muted';
+  const getWorkflowStateColors = (workflowState: string | null) => {
+    const state = workflowState || '';
+    const colors = WORKFLOW_STATE_COLORS[state];
+    return colors || { dot: 'bg-terminal-muted', text: 'text-terminal-muted' };
   };
 
-  const getStatusText = (status: string) => {
-    const s = status?.toLowerCase() || 'draft';
-    return STATUS_TEXT_COLORS[s] || 'text-terminal-muted';
+  const formatWorkflowState = (state: string | null) => {
+    if (!state) return 'UNKNOWN';
+    // Convert snake_case to Title Case
+    return state.replace(/_/g, ' ');
   };
 
   if (loading) {
@@ -394,9 +422,9 @@ function ShipmentsPageContent() {
                     </td>
                     <td className="px-4 py-4">
                       <span className="flex items-center gap-1.5">
-                        <span className={`h-2 w-2 rounded-full ${getStatusDot(shipment.status)}`} />
-                        <span className={`font-mono text-xs uppercase ${getStatusText(shipment.status)}`}>
-                          {shipment.status?.replace(/_/g, ' ') || 'UNKNOWN'}
+                        <span className={`h-2 w-2 rounded-full ${getWorkflowStateColors(shipment.workflow_state).dot}`} />
+                        <span className={`font-mono text-xs uppercase ${getWorkflowStateColors(shipment.workflow_state).text}`}>
+                          {formatWorkflowState(shipment.workflow_state)}
                         </span>
                       </span>
                     </td>
