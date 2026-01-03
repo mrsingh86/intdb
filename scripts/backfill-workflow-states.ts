@@ -2,12 +2,13 @@
  * Backfill Workflow States
  *
  * Updates workflow_state for all shipments based on their linked documents.
- * Uses direction-aware mapping and forceSetState to set the FINAL state
- * that each shipment should be in based on all its documents.
+ * Uses the unified classification service for direction detection and workflow state mapping.
  */
 
 import { createClient } from '@supabase/supabase-js';
 import { WorkflowStateService } from '../lib/services/workflow-state-service';
+import { getWorkflowState } from '../lib/services/unified-classification-service';
+import { detectDirection } from '../lib/utils/direction-detector';
 import * as dotenv from 'dotenv';
 
 dotenv.config({ path: '.env' });
@@ -16,81 +17,65 @@ const supabaseUrl = process.env.SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 /**
- * Direction-aware document type to workflow state mapping.
- * Key format: {document_type}:{direction}
+ * Workflow state progression order.
+ * Higher number = further in the shipment lifecycle.
+ * Used to determine the "highest" state when multiple documents exist.
  */
-const DIRECTION_WORKFLOW_MAPPING: Record<string, { state: string; order: number }> = {
+const WORKFLOW_STATE_ORDER: Record<string, number> = {
   // ===== PRE_DEPARTURE =====
-  'booking_confirmation:inbound': { state: 'booking_confirmation_received', order: 10 },
-  'booking_amendment:inbound': { state: 'booking_confirmation_received', order: 10 },
-  'booking_confirmation:outbound': { state: 'booking_confirmation_shared', order: 15 },
-  'booking_amendment:outbound': { state: 'booking_confirmation_shared', order: 15 },
-
-  // Cancellation (terminal state - always wins)
-  'booking_cancellation:inbound': { state: 'booking_cancelled', order: 999 },
-
-  'invoice:inbound': { state: 'commercial_invoice_received', order: 20 },
-  'commercial_invoice:inbound': { state: 'commercial_invoice_received', order: 20 },
-  'packing_list:inbound': { state: 'packing_list_received', order: 25 },
-
-  'shipping_instruction:inbound': { state: 'si_draft_received', order: 30 },
-  'si_draft:inbound': { state: 'si_draft_received', order: 30 },
-
-  'checklist:inbound': { state: 'checklist_received', order: 40 },
-  'checklist:outbound': { state: 'checklist_shared', order: 42 },
-  'shipping_bill:inbound': { state: 'shipping_bill_received', order: 48 },
-  'leo_copy:inbound': { state: 'shipping_bill_received', order: 48 },
-
-  'si_submission:outbound': { state: 'si_submitted', order: 55 },
-  'si_submission:inbound': { state: 'si_confirmed', order: 60 },
-  'si_confirmation:inbound': { state: 'si_confirmed', order: 60 },
-
-  'vgm_submission:outbound': { state: 'vgm_submitted', order: 65 },
-  'vgm_submission:inbound': { state: 'vgm_confirmed', order: 68 },
-  'vgm_confirmation:inbound': { state: 'vgm_confirmed', order: 68 },
-
-  'gate_in_confirmation:inbound': { state: 'container_gated_in', order: 72 },
-  'sob_confirmation:inbound': { state: 'sob_received', order: 80 },
-
-  'departure_notice:inbound': { state: 'vessel_departed', order: 90 },
-  'sailing_confirmation:inbound': { state: 'vessel_departed', order: 90 },
+  'booking_confirmation_received': 10,
+  'booking_confirmation_shared': 15,
+  'commercial_invoice_received': 20,
+  'packing_list_received': 25,
+  'si_draft_received': 30,
+  'si_draft_sent': 32,
+  'checklist_received': 40,
+  'checklist_shared': 42,
+  'shipping_bill_received': 48,
+  'customs_export_filed': 48,
+  'customs_export_cleared': 50,
+  'si_confirmed': 60,
+  'vgm_pending': 62,
+  'vgm_confirmed': 68,
+  'gate_in_confirmed': 72,
+  'sob_received': 80,
+  'vessel_departed': 90,
 
   // ===== IN_TRANSIT =====
-  'isf_submission:outbound': { state: 'isf_filed', order: 100 },
-  'isf_confirmation:inbound': { state: 'isf_confirmed', order: 105 },
-
-  'bill_of_lading:inbound': { state: 'mbl_draft_received', order: 110 },
-  'bill_of_lading:outbound': { state: 'hbl_released', order: 130 },
-  'house_bl:outbound': { state: 'hbl_released', order: 130 },
-
-  'freight_invoice:outbound': { state: 'invoice_sent', order: 135 },
-  'invoice:outbound': { state: 'invoice_sent', order: 135 },
-  'payment_confirmation:inbound': { state: 'invoice_paid', order: 140 },
+  'isf_filed': 100,
+  'isf_confirmed': 105,
+  'mbl_draft_received': 110,
+  'hbl_draft_sent': 120,
+  'hbl_released': 130,
+  'invoice_sent': 135,
+  'invoice_paid': 140,
 
   // ===== PRE_ARRIVAL =====
-  'entry_summary:inbound': { state: 'entry_draft_received', order: 153 },
-  'entry_summary:outbound': { state: 'entry_draft_shared', order: 156 },
+  'entry_draft_received': 153,
+  'entry_draft_shared': 156,
+  'entry_filed': 160,
+  'entry_summary_shared': 165,
 
   // ===== ARRIVAL =====
-  'arrival_notice:inbound': { state: 'arrival_notice_received', order: 180 },
-  'arrival_notice:outbound': { state: 'arrival_notice_shared', order: 185 },
-
-  'customs_clearance:inbound': { state: 'customs_cleared', order: 190 },
-  'customs_document:inbound': { state: 'duty_invoice_received', order: 195 },
-  'duty_invoice:inbound': { state: 'duty_invoice_received', order: 195 },
-  'customs_document:outbound': { state: 'duty_summary_shared', order: 200 },
-
-  'delivery_order:inbound': { state: 'delivery_order_received', order: 205 },
-  'delivery_order:outbound': { state: 'delivery_order_shared', order: 210 },
+  'arrival_notice_received': 180,
+  'arrival_notice_shared': 185,
+  'customs_cleared': 190,
+  'cargo_released': 192,
+  'duty_invoice_received': 195,
+  'duty_summary_shared': 200,
+  'delivery_order_received': 205,
+  'delivery_order_shared': 210,
 
   // ===== DELIVERY =====
-  'container_release:inbound': { state: 'container_released', order: 220 },
-  'container_release:outbound': { state: 'container_released', order: 220 },
-  'dispatch_notice:inbound': { state: 'out_for_delivery', order: 225 },
-  'delivery_confirmation:inbound': { state: 'delivered', order: 230 },
-  'pod:inbound': { state: 'pod_received', order: 235 },
-  'proof_of_delivery:inbound': { state: 'pod_received', order: 235 },
-  'empty_return_confirmation:inbound': { state: 'empty_returned', order: 240 },
+  'container_released': 220,
+  'out_for_delivery': 225,
+  'delivered': 230,
+  'pod_received': 235,
+  'empty_returned': 240,
+
+  // Terminal states
+  'booking_cancelled': 999,
+  'customs_hold': 500,
 };
 
 async function backfillWorkflowStates() {
@@ -98,7 +83,7 @@ async function backfillWorkflowStates() {
   const workflowService = new WorkflowStateService(supabase);
 
   console.log('═══════════════════════════════════════════════════════════════════════════════');
-  console.log('              WORKFLOW STATE BACKFILL (Direction-Aware)');
+  console.log('       WORKFLOW STATE BACKFILL (Using Unified Classification Service)');
   console.log('═══════════════════════════════════════════════════════════════════════════════');
   console.log('');
 
@@ -140,7 +125,7 @@ async function backfillWorkflowStates() {
 
   for (const shipment of shipments) {
     try {
-      // Get linked documents with their email senders and subjects
+      // Get linked documents with their email senders
       const { data: documents } = await supabase
         .from('shipment_documents')
         .select(`
@@ -165,84 +150,24 @@ async function backfillWorkflowStates() {
 
         // Get email data
         const rawEmail = (doc as any).raw_emails || {};
-        const senderEmail = (rawEmail.sender_email || '').toLowerCase();
-        const trueSender = (rawEmail.true_sender_email || '').toLowerCase();
-        const subject = (rawEmail.subject || '').toLowerCase();
+        const senderEmail = rawEmail.sender_email || rawEmail.true_sender_email || '';
 
-        // CARRIER DOMAIN PATTERNS - Check BOTH sender_email and true_sender_email
-        const carrierDomains = [
-          '@maersk.com', '@hapag-lloyd.com', '@hlag.com',
-          '@cma-cgm.com', '@cmacgm.com', '@customer.cmacgm-group.com',
-          '@msc.com', '@evergreen-marine.com', '@oocl.com',
-          '@coscon.com', '@cosco.com', '@yangming.com', '@one-line.com', '@zim.com'
-        ];
+        // Use unified classification service for direction detection
+        const direction = detectDirection(senderEmail);
 
-        // If true_sender has a carrier domain, it's definitely INBOUND
-        const trueSenderIsCarrier = carrierDomains.some(d => trueSender.includes(d));
-        const senderIsCarrier = carrierDomains.some(d => senderEmail.includes(d));
+        // Use unified classification service for workflow state mapping
+        const workflowState = getWorkflowState(doc.document_type, direction);
 
-        // Detect "via Operations" pattern in sender display name
-        const isForwardedVia = senderEmail.includes('via operations') ||
-          senderEmail.includes('via ops') ||
-          senderEmail.includes('via pricing') ||
-          senderEmail.includes('via nam');
+        if (workflowState) {
+          const stateOrder = WORKFLOW_STATE_ORDER[workflowState] || 0;
 
-        // Check for carrier name patterns in sender (display name)
-        const carrierNamePatterns = [
-          'maersk', 'hapag', 'hlag', 'cma-cgm', 'cmacgm', 'msc',
-          'evergreen', 'oocl', 'cosco', 'yangming', 'one-line', 'zim',
-          'in.export', 'in.import', 'booking.confirmation', 'cma cgm'
-        ];
-        const hasCarrierInDisplayName = carrierNamePatterns.some(p => senderEmail.includes(p));
-
-        // SUBJECT PATTERNS that indicate carrier emails
-        const carrierSubjectPatterns = [
-          /^booking confirmation\s*:\s*\d+/i,          // Maersk: "Booking Confirmation : 263815227"
-          /^bkg\s*#?\s*\d+/i,                          // "Bkg #263441600"
-          /amendment.*booking/i,                        // "Amendment to Booking"
-          /booking.*amendment/i,                        // "Booking Amendment"
-          /^\[hapag/i,                                  // Hapag-Lloyd emails
-          /^\[msc\]/i,                                  // MSC emails
-          /^one booking/i,                              // ONE Line
-          /^cosco shipping line/i,                      // COSCO: "Cosco Shipping Line Booking Confirmation"
-          /^cma cgm -/i,                                // CMA CGM: "CMA CGM - Booking confirmation available"
-        ];
-        const isCarrierSubject = carrierSubjectPatterns.some(p => p.test(subject));
-
-        // DIRECTION DETECTION - Prioritize carrier signals
-        let direction: 'inbound' | 'outbound';
-
-        if (trueSenderIsCarrier) {
-          // TRUE SENDER has carrier domain = definitely INBOUND (forwarded carrier email)
-          direction = 'inbound';
-        } else if (senderIsCarrier) {
-          // SENDER has carrier domain = definitely INBOUND (direct carrier email)
-          direction = 'inbound';
-        } else if (isForwardedVia || hasCarrierInDisplayName) {
-          // "via Operations" or carrier name in display name = INBOUND
-          direction = 'inbound';
-        } else if (isCarrierSubject) {
-          // Subject matches carrier pattern = INBOUND
-          direction = 'inbound';
-        } else {
-          // Default: check if from Intoglo
-          const isIntoglo = senderEmail.includes('@intoglo.com') || senderEmail.includes('@intoglo.in');
-          direction = isIntoglo ? 'outbound' : 'inbound';
-        }
-
-        // Look up the state mapping
-        const mappingKey = `${doc.document_type}:${direction}`;
-        const mapping = DIRECTION_WORKFLOW_MAPPING[mappingKey];
-
-        if (mapping) {
-          // PRIORITY RULE: For same document type, inbound (received) takes precedence over outbound (shared)
-          // This handles cases where same booking confirmation is both forwarded internally AND received from carrier
-          const shouldUpdate = mapping.order > highestOrder ||
+          // PRIORITY RULE: Higher order wins, but inbound takes precedence for same doc type
+          const shouldUpdate = stateOrder > highestOrder ||
             (direction === 'inbound' && triggerDoc === doc.document_type);
 
           if (shouldUpdate) {
-            highestOrder = mapping.order;
-            targetState = mapping.state;
+            highestOrder = stateOrder;
+            targetState = workflowState;
             triggerDoc = doc.document_type;
           }
         }
@@ -304,8 +229,8 @@ async function backfillWorkflowStates() {
   // Sort by state order
   const sortedStates = Object.entries(stateDistribution)
     .sort((a, b) => {
-      const orderA = Object.values(DIRECTION_WORKFLOW_MAPPING).find(m => m.state === a[0])?.order || 999;
-      const orderB = Object.values(DIRECTION_WORKFLOW_MAPPING).find(m => m.state === b[0])?.order || 999;
+      const orderA = WORKFLOW_STATE_ORDER[a[0]] || 999;
+      const orderB = WORKFLOW_STATE_ORDER[b[0]] || 999;
       return orderA - orderB;
     });
 
