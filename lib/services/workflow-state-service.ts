@@ -21,6 +21,37 @@ import { detectDirection } from '../utils/direction-detector';
  *
  * Key format: {document_type}:{direction}
  */
+/**
+ * Carrier sender patterns - used to identify emails from shipping lines
+ */
+const CARRIER_SENDER_PATTERNS = [
+  /maersk/i,
+  /hlag|hapag/i,
+  /cosco|coscon/i,
+  /cma.?cgm/i,
+  /one-line|ocean network express/i,
+  /evergreen/i,
+  /\bmsc\b|mediterranean shipping/i,
+  /yang.?ming|yml/i,
+  /\bzim\b/i,
+  /oocl/i,
+  /apl\b/i,
+  /noreply@hlag/i,
+  /donotreply@maersk/i,
+  /do_not_reply/i,
+  /donotreply/i,
+  /@service\.hlag/i,
+];
+
+/**
+ * Check if sender email is from a known carrier/shipping line
+ */
+function isCarrierSender(senderEmail: string | null | undefined): boolean {
+  if (!senderEmail) return false;
+  const sender = senderEmail.toLowerCase();
+  return CARRIER_SENDER_PATTERNS.some(pattern => pattern.test(sender));
+}
+
 const DIRECTION_WORKFLOW_MAPPING: Record<string, string> = {
   // ===== PRE_DEPARTURE =====
   // Booking stage
@@ -37,11 +68,10 @@ const DIRECTION_WORKFLOW_MAPPING: Record<string, string> = {
   'commercial_invoice:inbound': 'commercial_invoice_received',
   'packing_list:inbound': 'packing_list_received',
 
-  // SI flow
-  'shipping_instruction:inbound': 'si_draft_received',
-  'si_draft:inbound': 'si_draft_received',
+  // SI flow - NOTE: shipping_instruction and si_draft are handled specially
+  // by checkSISenderType() to distinguish shipper vs carrier
+  // These are fallback mappings:
   'si_draft:outbound': 'si_draft_sent',
-  'si_submission:inbound': 'si_confirmed',
   'si_submission:outbound': 'si_submitted',
   'si_confirmation:inbound': 'si_confirmed',
   'si_confirmation:outbound': 'si_confirmed',
@@ -412,6 +442,10 @@ export class WorkflowStateService {
   /**
    * Auto-transition based on document type and email direction
    * Direction-aware: INBOUND (from external) vs OUTBOUND (from Intoglo)
+   *
+   * Special handling for SI documents:
+   * - SI from shipper/client → si_draft_received
+   * - SI confirmation from carrier → si_confirmed
    */
   async autoTransitionFromDocument(
     shipmentId: string,
@@ -420,8 +454,18 @@ export class WorkflowStateService {
   ): Promise<TransitionResult | null> {
     await this.ensureCacheValid();
 
-    // Determine email direction
+    // Determine email direction and sender
     const direction = await this.getEmailDirection(emailId);
+    const senderEmail = await this.getEmailSender(emailId);
+
+    // Special handling for SI documents - check sender type
+    const siDocTypes = ['shipping_instruction', 'si_draft', 'si_submission'];
+    if (siDocTypes.includes(documentType) && direction === 'inbound') {
+      const mappedState = this.getSIStateFromSender(documentType, senderEmail);
+      if (mappedState) {
+        return await this.tryTransitionToState(shipmentId, mappedState, emailId, documentType, direction);
+      }
+    }
 
     // Try direction-aware mapping first
     const mappingKey = `${documentType}:${direction}`;
@@ -518,6 +562,80 @@ export class WorkflowStateService {
 
     // Fallback to calculating from sender
     return detectDirection(email?.sender_email);
+  }
+
+  /**
+   * Get sender email address for an email
+   */
+  private async getEmailSender(emailId: string): Promise<string | null> {
+    const { data: email } = await this.supabase
+      .from('raw_emails')
+      .select('sender_email')
+      .eq('id', emailId)
+      .single();
+
+    return email?.sender_email || null;
+  }
+
+  /**
+   * Determine the correct workflow state for SI documents based on sender type.
+   *
+   * SI FLOW:
+   * - SI from shipper/client (non-carrier) → si_draft_received
+   * - SI submission confirmation from carrier → si_confirmed
+   */
+  private getSIStateFromSender(documentType: string, senderEmail: string | null): string | null {
+    const fromCarrier = isCarrierSender(senderEmail);
+
+    // si_submission is always a confirmation from carrier
+    if (documentType === 'si_submission') {
+      return 'si_confirmed';
+    }
+
+    // shipping_instruction or si_draft
+    if (fromCarrier) {
+      // Carrier sending SI confirmation/notification → si_confirmed
+      return 'si_confirmed';
+    } else {
+      // Shipper/client sending SI draft → si_draft_received
+      return 'si_draft_received';
+    }
+  }
+
+  /**
+   * Helper to try transitioning to a mapped state with forward-only check
+   */
+  private async tryTransitionToState(
+    shipmentId: string,
+    targetStateCode: string,
+    emailId: string,
+    documentType: string,
+    direction: string
+  ): Promise<TransitionResult | null> {
+    const targetState = this.statesCache.get(targetStateCode);
+    if (!targetState) return null;
+
+    const { data: shipment } = await this.supabase
+      .from('shipments')
+      .select('workflow_state')
+      .eq('id', shipmentId)
+      .single();
+
+    const currentStateCode = shipment?.workflow_state;
+    const currentState = currentStateCode ? this.statesCache.get(currentStateCode) : null;
+    const currentOrder = currentState?.state_order || 0;
+
+    // Only transition if it's forward progression
+    if (targetState.state_order > currentOrder) {
+      return await this.transitionTo(shipmentId, targetStateCode, {
+        triggered_by_email_id: emailId,
+        triggered_by_document_type: documentType,
+        notes: `Auto-transitioned from ${documentType} (${direction})`,
+        skip_validation: true,
+      });
+    }
+
+    return null;
   }
 
   /**

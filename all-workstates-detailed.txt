@@ -1,0 +1,2383 @@
+====================================================================================================
+COMPLETE WORKFLOW STATE EXAMPLES
+Generated: 2026-01-03T17:27:38.626Z
+====================================================================================================
+
+
+####################################################################################################
+STATE: BOOKING_CONFIRMATION_RECEIVED
+Count: 18 shipments currently at this state
+####################################################################################################
+
+================================================================================
+SHIPMENT: INCMA0358187
+================================================================================
+Total Documents: 1
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 1
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: "'CMA CGM Website' via pricing" <pricing@intoglo.com>
+
+SUBJECT: CMA CGM - Export Invoice available - INEPBC26016106 -  CEI0329370 -  INCW1 to USORF
+
+RECEIVED: 2025-12-31T12:55:11
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+CMA CGM Notifications CMA CGM - Export Invoice available - INEPBC26016106 Dear Valued Customer, Please find enclosed your invoice issued by an entity of CMA CGM group. Your invoice is also published
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - link-32-facebook.png (0 KB)
+  - link-32-instagram.png (1 KB)
+  - link-32-linkedin.png (1 KB)
+  - link-40-x.png (0 KB)
+  - logo-CMA.png (5 KB)
+  - dialog-illu.png (37 KB)
+  - INEPBC26016106.pdf (141 KB)
+
+
+================================================================================
+SHIPMENT: 263812267
+================================================================================
+Total Documents: 1
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 1
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: "in.export via Operations Intoglo" <ops@intoglo.com>
+
+SUBJECT: Booking Confirmation : 263812267
+
+RECEIVED: 2026-01-02T05:38:35
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - DB_aabhghddcdbd0x025D.pdf (109 KB)
+
+
+####################################################################################################
+STATE: BOOKING_CONFIRMATION_SHARED
+Count: 44 shipments currently at this state
+####################################################################################################
+
+================================================================================
+SHIPMENT: COSU6440918980
+================================================================================
+Total Documents: 3
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 3
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: PLEASE-No-Reply-IRIS-4 via Operations Intoglo <ops@intoglo.com>
+
+SUBJECT: Cosco Shipping Line Booking Confirmation - COSU6440918980 / Booking Office: NDE / POL: MUN // IPE-S4H-036 W
+
+RECEIVED: 2026-01-02T12:11:03
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear valued customer, We hereby notify with honor that your booking request is confirmed. Please refer to attached booking confirmation for details. If you have any questions, please do not hesitate to
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - 6440918980.pdf (41 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 3
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: Lokesh Kumar <lokesh.kumar@intoglo.com>
+
+SUBJECT: ADD PICKUP & HANDOVER YARD LUDHIANA //Re: Cosco Shipping Line Booking Confirmation - 6440918980 / Booking Office: NDE / POL: MUN // IPE-S4H-036 W
+
+RECEIVED: 2026-01-02T12:17:09
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Team,
+
+As we have requested for container pickup & handover yard at ICD Ludhiana
+Pb however it is not mention kindly mention as per request and share
+revised booking at the earliest
+
+Container  Pickup & Handover : ICD Ludhiana Pb.
+
+
+
+*Thanks & Regards*
+
+*Lokesh K.Sharma*
+
+* Mob. 6395062845*
+... [truncated - 2354 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 3
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: PLEASE-No-Reply-IRIS-4 via Operations Intoglo <ops@intoglo.com>
+
+SUBJECT: Cosco Shipping Line Booking Confirmation - COSU6440918980 / Booking Office: NDE / POL: MUN // IPE-S4H-036 W
+
+RECEIVED: 2026-01-02T12:38:59
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear valued customer, We hereby notify with honor that your booking request is confirmed. Please refer to attached booking confirmation for details. If you have any questions, please do not hesitate to
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - 6440918980.pdf (55 KB)
+
+
+================================================================================
+SHIPMENT: 263042012
+================================================================================
+Total Documents: 1
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 1
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: ops@intoglo.com
+TRUE SENDER: in.export@maersk.com
+
+SUBJECT: Booking Confirmation : 263042012
+
+RECEIVED: 2025-12-11T10:39:44
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - DB_aabhgfeejfic0x0B3A.pdf (107 KB)
+  - DB_aabhgfeejfic0x0B3A.pdf (107 KB)
+
+
+####################################################################################################
+STATE: SI_DRAFT_RECEIVED
+Count: 6 shipments currently at this state
+####################################################################################################
+
+================================================================================
+SHIPMENT: 263485278
+================================================================================
+Total Documents: 7
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 7
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: ops@intoglo.com
+TRUE SENDER: in.export@maersk.com
+
+SUBJECT: Booking Confirmation : 263485278
+
+RECEIVED: 2025-12-23T06:24:45
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - DB_aabhggehbaid0x04B3.pdf (107 KB)
+  - DB_aabhggehbaid0x04B3.pdf (107 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 7
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: aditya.mandar@intoglo.com
+TRUE SENDER: aditya.mandar@intoglo.com
+
+SUBJECT: BKG 263485278 | Raaj Tubes | 40' HC x 1 | Mundra to Chicago, IL | Container movement and Clearance initiation
+
+RECEIVED: 2025-12-27T12:33:59
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Gaurav,
+
+We are planning one 40HC from Mundra to Chicago,IL for our new Client
+Raajratna.
+We need to place the Container, customs clearance and container handover to
+the carrier within timelines for this shipment. Workflow in your process is
+written below which needs to be followed accordingly.
+
+
+   1. Container Pick Up - 29-Dec-2025
+   2. Container placement at factory - 30-Dec-2025
+   3. Checklist filing
+   4. Container carting
+   5. Customs clearance
+   6. VGM,TR, Form-13 submission
+... [truncated - 1071 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - DB_aabhggehbaid0x04B3.pdf (107 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 7
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: lokesh.kumar@intoglo.com
+
+SUBJECT: Re: BKG #263485278 | 1X40HC | MUNDRA TO CHICAGO | RAAJTUBES | ETD : 5-JAN-2025
+
+RECEIVED: 2025-12-27T07:20:09
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Team,
+
+Please note the vsl cutoffs fyr.
+
+[image: image.png]
+
+
+
+*Thanks & Regards*
+
+*Lokesh K.Sharma*
+
+* Mob. 6395062845*
+
+
+... [truncated - 1578 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - image.png (15 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 4 of 7
+--------------------------------------------------------------------------------
+
+Type: rate_quote
+Direction: OUTBOUND
+
+FROM: ops@intoglo.com
+TRUE SENDER: in.export@maersk.com
+
+SUBJECT: Price overview - booking confirmation : 263485278
+
+RECEIVED: 2025-12-23T06:24:45
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - DB_aabhggehbaid0x0546.pdf (53 KB)
+  - DB_aabhggehbaid0x0546.pdf (53 KB)
+
+... and 3 more documents
+
+================================================================================
+SHIPMENT: 31232060
+================================================================================
+Total Documents: 4
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 4
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-31232060 USNYC NORTHP
+
+RECEIVED: 2025-12-27T10:22:46
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - mailText.txt (0 KB)
+  - HL-31232060 USNYC NORTHP BC ORIGINAL.PDF (53 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 4
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: tanya.raghav@intoglo.com
+TRUE SENDER: tanya.raghav@intoglo.com
+
+SUBJECT: 31232060 & 34864426 | NORTHPOLE | 1X40HC | ICD LUDHIANA TO NEW YORK | ETD : 08-JAN-2025
+
+RECEIVED: 2025-12-27T10:56:12
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Team,
+
+Good Day.
+
+Please find the Booking copy attached below. There are two bookings and we
+will merge it later into one.
+
+Thanks & Regards
+
+Tanya Raghav
+
+8449453742
+
+Operations
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - HL-31232060 USNYC NORTHP BC ORIGINAL.PDF (53 KB)
+  - HL-34864426 USNYC NORTHP BC ORIGINAL.PDF (53 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 4
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-31232060 USNYC NORTHP
+
+RECEIVED: 2025-12-27T10:21:29
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - mailText.txt (0 KB)
+  - HL-31232060 USNYC NORTHP BC ORIGINAL.PDF (53 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 4 of 4
+--------------------------------------------------------------------------------
+
+Type: shipping_instruction
+Direction: INBOUND
+
+FROM: noreply@hlag.cloud
+
+SUBJECT: Shipping Instruction Submitted Sh#31232060
+
+RECEIVED: 2026-01-02T11:41:56
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Shipping Instruction Dear Customer, This is confirmation that your Shipping Instruction was sent. Document Details Booking No: 31232060 Document Status: SI sent Date of Submission: 2026-01-02 Time of
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - Shipping Instruction Sh#31232060.pdf (74 KB)
+
+
+####################################################################################################
+STATE: SI_CONFIRMED
+Count: 0 shipments currently at this state
+####################################################################################################
+  (No shipments currently at this state)
+
+####################################################################################################
+STATE: SOB_RECEIVED
+Count: 4 shipments currently at this state
+####################################################################################################
+
+================================================================================
+SHIPMENT: 263187790
+================================================================================
+Total Documents: 13
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 13
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: aditya.mandar@intoglo.com
+TRUE SENDER: aditya.mandar@intoglo.com
+
+SUBJECT: BKG 263187790 | Raaj Tubes | 40' HC x 1 | Mundra to Chicago, IL | Container movement and Clearance initiation
+
+RECEIVED: 2025-12-27T12:30:48
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Gaurav,
+
+We are planning one 40HC from Mundra to Chicago,IL for our new Client
+Raajratna.
+We need to place the Container, customs clearance and container handover to
+the carrier within timelines for this shipment. Workflow in your process is
+written below which needs to be followed accordingly.
+
+
+   1. Container Pick Up - 30-Dec-2025
+   2. Container placement at factory - 31-Dec-2025
+   3. Checklist filing
+   4. Container carting
+   5. Customs clearance
+   6. VGM,TR, Form-13 submission
+... [truncated - 1067 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - DB_aabhgfifigdc0x039C.pdf (106 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 13
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: ops@intoglo.com
+TRUE SENDER: maerskfmcspot@maersk.com
+
+SUBJECT: Shipment Number 263187790-FMC Filing reference Number 21VLS1TZ
+
+RECEIVED: 2025-12-16T15:27:49
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - 263187790_000_20251216.zip (20 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 13
+--------------------------------------------------------------------------------
+
+Type: booking_amendment
+Direction: INBOUND
+
+FROM: donotreply via Operations Intoglo <ops@intoglo.com>
+
+SUBJECT: Amendment submitted 263187790-02Jan2026 06:12:12 UTC
+
+RECEIVED: 2026-01-02T06:12:14
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Customer,Attached pls find the amendment request of Transport Documents submitted by you. We are reviewing your request and get back to you shortly. Thanks for confirming by clicking tick box on
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - 263187790-2026-Jan-02 06:12:12 UTC.pdf (67 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 4 of 13
+--------------------------------------------------------------------------------
+
+Type: sob_confirmation
+Direction: INBOUND
+
+FROM: donotreply via Operations Intoglo <ops@intoglo.com>
+
+SUBJECT: TPDoc, sea waybill, shipped on board 263187790
+
+RECEIVED: 2026-01-02T06:12:29
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Customer,
+
+We are pleased to inform that verify copy for your shipment has been processed. Please find attached for your review.
+
+To ensure smooth release of final bill and invoice, Maersk kindly ask you to:
+Verify the prepaid charges and payer details (showing below in this email body) or can be checked on Maersk.com
+
+Note that any request to change payterm or payer after vessel sails will incur an amendment fee
+
+Thank you for your cooperation.
+
+Your Maersk
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - DB_aabhghddedeg0x0257.pdf (75 KB)
+
+... and 9 more documents
+
+================================================================================
+SHIPMENT: 263453241
+================================================================================
+Total Documents: 7
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 7
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: ops@intoglo.com
+TRUE SENDER: in.export@maersk.com
+
+SUBJECT: Booking Confirmation : 263453241
+
+RECEIVED: 2025-12-22T12:23:00
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - DB_aabhggeagbhi0x0EED.pdf (105 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 7
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: ops@intoglo.com
+TRUE SENDER: maerskfmcspot@maersk.com
+
+SUBJECT: Shipment Number 263453241-FMC Filing reference Number 9LJJJWG
+
+RECEIVED: 2025-12-22T21:10:46
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - 263453241_000_20251222.zip (19 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 7
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: ops@intoglo.com
+TRUE SENDER: in.export@maersk.com
+
+SUBJECT: Price overview - booking confirmation : 263453241
+
+RECEIVED: 2025-12-22T12:23:00
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - DB_aabhggeagbhi0x0F49.pdf (54 KB)
+  - DB_aabhggeagbhi0x0F49.pdf (54 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 4 of 7
+--------------------------------------------------------------------------------
+
+Type: si_submission
+Direction: INBOUND
+
+FROM: donotreply via Operations Intoglo <ops@intoglo.com>
+
+SUBJECT: SI submitted 263453241-02Jan2026 09:43:29 UTC
+
+RECEIVED: 2026-01-02T09:43:32
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Customer,Attached pls find the shipping instruction details submitted by you. We will process this shipping instruction and send you the draft Bill of Lading soon. You agree and acknowledge that
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - 263453241-2026-Jan-02 09:43:29.pdf (69 KB)
+
+... and 3 more documents
+
+####################################################################################################
+STATE: MBL_DRAFT_RECEIVED
+Count: 2 shipments currently at this state
+####################################################################################################
+
+================================================================================
+SHIPMENT: 34864426
+================================================================================
+Total Documents: 13
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 13
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-34864426 USNYC NORTHP
+
+RECEIVED: 2025-12-27T11:04:30
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - HL-34864426 USNYC NORTHP BC 1ST UPDATE.PDF (53 KB)
+  - mailText.txt (0 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 13
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-34864426 USNYC NORTHP
+
+RECEIVED: 2025-12-27T07:04:14
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - HL-34864426 USNYC NORTHP BC ORIGINAL.PDF (53 KB)
+  - mailText.txt (0 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 13
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-34864426 USNYC NORTHP
+
+RECEIVED: 2025-12-27T11:04:30
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - mailText.txt (0 KB)
+  - HL-34864426 USNYC NORTHP BC 1ST UPDATE.PDF (53 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 4 of 13
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-34864426 USNYC NORTHP
+
+RECEIVED: 2025-12-27T07:02:58
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - HL-34864426 USNYC NORTHP BC ORIGINAL.PDF (53 KB)
+  - mailText.txt (0 KB)
+
+... and 9 more documents
+
+================================================================================
+SHIPMENT: 29982815
+================================================================================
+Total Documents: 21
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 21
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-29982815 USNYC PEARL
+
+RECEIVED: 2025-12-24T05:55:05
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - mailText.txt (0 KB)
+  - HL-29982815 USNYC PEARL BC 1ST UPDATE.PDF (54 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 21
+--------------------------------------------------------------------------------
+
+Type: container_release
+Direction: OUTBOUND
+
+FROM: pricing@intoglo.com
+TRUE SENDER: r$vbr01@hlag.com
+
+SUBJECT: Hapag Lloyd Container Pick up Notification 29982815/BREMEN EXPRESS
+
+RECEIVED: 2025-12-26T09:09:50
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Robotic Process Automation at Hapag-Lloyd
+
+Pick up         [Hapag-Lloyd Logo]
+Dear Customer,
+
+This is a follow-up email for your bookings with Hapag Lloyd.
+
+As per our records for the below confirmed shipments you have not yet picked up the container(s).:
+
+Shipment Number: 29982815
+Vessel : BREMEN EXPRESS
+
+Hence we urge you to pick up the container(s) as soon as possible to avoid missing deadlines of your shipment.
+
+In case you have picked up the container/s already please ignore this message.
+... [truncated - 1553 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 21
+--------------------------------------------------------------------------------
+
+Type: shipping_instruction
+Direction: INBOUND
+
+FROM: noreply@hlag.cloud
+
+SUBJECT: Shipping Instruction Submitted Sh#29982815
+
+RECEIVED: 2025-12-31T11:44:37
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Shipping Instruction Dear Customer, This is confirmation that your Shipping Instruction was sent. Document Details Booking No: 29982815 Document Status: SI sent Date of Submission: 2025-12-31 Time of
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+--------------------------------------------------------------------------------
+DOCUMENT 4 of 21
+--------------------------------------------------------------------------------
+
+Type: booking_amendment
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+
+SUBJECT: HL-29982815 USNYC PEARL
+
+RECEIVED: 2025-12-31T13:10:04
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear customer, Attached our booking confirmation 4TH UPDATE for the following booking: Your reference : PEARL Our reference : 29982815 Forwarder reference : na EDI reference : na Please use the
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+... and 17 more documents
+
+####################################################################################################
+STATE: HBL_RELEASED
+Count: 12 shipments currently at this state
+####################################################################################################
+
+================================================================================
+SHIPMENT: COSU6439083630
+================================================================================
+Total Documents: 3
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 3
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: ops@intoglo.com
+TRUE SENDER: please-no-reply-iris-4@coscon.com
+
+SUBJECT: Cosco Shipping Line Booking Confirmation - COSU6439083630 / Booking Office: MRA / POL: MUN // PMX-QJ3-095 E
+
+RECEIVED: 2025-12-13T08:41:15
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - 6439083630.pdf (56 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 3
+--------------------------------------------------------------------------------
+
+Type: bill_of_lading
+Direction: OUTBOUND
+
+FROM: ops@intoglo.com
+TRUE SENDER: cbs@coscon.com
+
+SUBJECT: PROD_Invoice INTOGLO PRIVATE LIMITED SAP 7085061000 B/L COSU6439083630; Inv No. CIEX242512004205 MUN [From :Pranit Sawant]_no reply
+
+RECEIVED: 2025-12-24T10:25:19
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - IN03-202512-180520-6439083630-CIEX242512004205-invoice.pdf (231 KB)
+  - IN03-202512-180520-6439083630-CIEX242512004205-invoice.pdf (231 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 3
+--------------------------------------------------------------------------------
+
+Type: bill_of_lading
+Direction: OUTBOUND
+
+FROM: ops@intoglo.com
+TRUE SENDER: do_not_reply_bl_issue@coscon.com
+
+SUBJECT: COSCON - Proforma Bill of Lading for COSU6439083630/Vessel: XIN FU ZHOU SVVD: PMX-QJ3-095 E
+
+RECEIVED: 2025-12-18T07:15:10
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - 6439083630-20251218071510.PDF (26 KB)
+  - 6439083630-20251218071510.PDF (26 KB)
+
+
+================================================================================
+SHIPMENT: 30260275
+================================================================================
+Total Documents: 9
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 9
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-30260275 USNYC PEARL
+
+RECEIVED: 2025-12-24T05:54:58
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - mailText.txt (0 KB)
+  - HL-30260275 USNYC PEARL BC 1ST UPDATE.PDF (53 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 9
+--------------------------------------------------------------------------------
+
+Type: bill_of_lading
+Direction: INBOUND
+
+FROM: no_reply via Operations Intoglo <ops@intoglo.com>
+
+SUBJECT: SW HLCL Sh#30260275 Doc#HLCUBO12512BJPJ1
+
+RECEIVED: 2025-12-31T12:19:31
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Customer, Here is your BL/SWB DRAFT! Did you know that you can now review and approve your BL Drafts in an instant? Use our web solution and approve your BL Drafts much faster and easier than
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 9
+--------------------------------------------------------------------------------
+
+Type: bill_of_lading
+Direction: INBOUND
+
+FROM: no_reply via pricing <pricing@intoglo.com>
+
+SUBJECT: SW HLCL Sh#30260275 Doc#HLCUBO12512BJPJ1
+
+RECEIVED: 2025-12-31T12:18:15
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Customer, Here is your BL/SWB DRAFT! Did you know that you can now review and approve your BL Drafts in an instant? Use our web solution and approve your BL Drafts much faster and easier than
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+--------------------------------------------------------------------------------
+DOCUMENT 4 of 9
+--------------------------------------------------------------------------------
+
+Type: booking_amendment
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+
+SUBJECT: HL-30260275 USNYC PEARL
+
+RECEIVED: 2025-12-31T13:09:51
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear customer, Attached our booking confirmation 4TH UPDATE for the following booking: Your reference : PEARL Our reference : 30260275 Forwarder reference : na EDI reference : na Please use the
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+... and 5 more documents
+
+####################################################################################################
+STATE: INVOICE_SENT
+Count: 27 shipments currently at this state
+####################################################################################################
+
+================================================================================
+SHIPMENT: 263629283
+================================================================================
+Total Documents: 21
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 21
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: ops@intoglo.com
+TRUE SENDER: in.export@maersk.com
+
+SUBJECT: Booking Confirmation : 263629283
+
+RECEIVED: 2025-12-26T09:13:56
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - DB_aabhggheaede0x06BA.pdf (108 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 21
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: aditya.mandar@intoglo.com
+TRUE SENDER: aditya.mandar@intoglo.com
+
+SUBJECT: Re: 1x40 | Moondust | Clearance initiation | Dock stuffing
+
+RECEIVED: 2025-12-26T10:23:27
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Booking 263629283
+
+On Fri, 26 Dec 2025 at 15:51, Naveen Chaudhary <ans@anscargo.in> wrote:
+
+> Please share booking also
+>
+>
+>
+> Thanks & Regards!
+>
+> ----------------------------
+>
+> Mr. Naveen Chaudhary
+>
+>
+... [truncated - 10761 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - image001.jpg (4 KB)
+  - image002.jpg (2 KB)
+  - image003.png (0 KB)
+  - image004.png (1 KB)
+  - DB_aabhggheaede0x06BA.pdf (108 KB)
+  - image002.jpg (2 KB)
+  - image004.png (1 KB)
+  - image001.jpg (4 KB)
+  - image003.png (0 KB)
+  - DB_aabhggheaede0x06BA.pdf (108 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 21
+--------------------------------------------------------------------------------
+
+Type: shipping_instruction
+Direction: INBOUND
+
+FROM: ans@anscargo.in
+TRUE SENDER: ans@anscargo.in
+
+SUBJECT: RE: BKG 263629283 | 1x40 | Moondust | Clearance initiation | Dock stuffing
+
+RECEIVED: 2025-12-27T09:32:22
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+DEAR ADITYA JI
+
+ 
+
+VALUE IS TOO HIGH, KINDLY SAHRE SHIPPER KYC, P.O ORDER  AND PAYMENT ADVISE 
+
+ 
+
+ 
+
+ 
+
+ 
+
+Thanks & Regards
+... [truncated - 11063 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - image006.jpg (4 KB)
+  - image008.png (0 KB)
+  - image010.jpg (3 KB)
+  - image012.jpg (0 KB)
+  - image014.png (15 KB)
+  - image016.jpg (2 KB)
+  - image018.jpg (2 KB)
+  - image020.jpg (2 KB)
+  - image007.jpg (2 KB)
+  - image009.png (1 KB)
+  - image011.jpg (2 KB)
+  - image013.jpg (0 KB)
+  - image015.jpg (3 KB)
+  - image017.jpg (3 KB)
+  - image019.jpg (3 KB)
+  - image021.jpg (2 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 4 of 21
+--------------------------------------------------------------------------------
+
+Type: bill_of_lading
+Direction: INBOUND
+
+FROM: ans@anscargo.in
+TRUE SENDER: ans@anscargo.in
+
+SUBJECT: RE: BKG 263629283 | 1x40 | Moondust | Clearance initiation | Dock stuffing
+
+RECEIVED: 2025-12-27T09:02:01
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Please find attached checklist for approval.
+
+Please share Purchase order of shipment!
+
+ 
+
+Share signed stamped docs for E Sanchit with scomat, LUT & 
+
+E-invoice or declaration for turnover below 5 CR
+
+Pls ignore if already sent
+
+ 
+
+ 
+... [truncated - 10061 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - image001.jpg (4 KB)
+  - image003.png (0 KB)
+  - image005.png (15 KB)
+  - image002.jpg (2 KB)
+  - image004.png (1 KB)
+  - 807 check.pdf (96 KB)
+
+... and 17 more documents
+
+================================================================================
+SHIPMENT: AMC2475813
+================================================================================
+Total Documents: 4
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 4
+--------------------------------------------------------------------------------
+
+Type: invoice
+Direction: OUTBOUND
+
+FROM: pricing@intoglo.com
+TRUE SENDER: website-noreply@cma-cgm.com
+
+SUBJECT: CMA CGM - Export Invoice available - INEMHC26113456 -  AMC2475813 -  INNSA to USNYC
+
+RECEIVED: 2025-12-21T19:46:38
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - link-32-facebook.png (0 KB)
+  - link-32-instagram.png (1 KB)
+  - logo-CMA.png (5 KB)
+  - link-32-linkedin.png (1 KB)
+  - link-40-x.png (0 KB)
+  - dialog-illu.png (37 KB)
+  - INEMHC26113456.pdf (140 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 4
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: pricing@intoglo.com
+TRUE SENDER: website-noreply@cma-cgm.com
+
+SUBJECT: CMA CGM - Booking confirmation available – AMC2475813 -  - 0INLJW1MA  - INNSA to USNYC
+
+RECEIVED: 2025-12-14T06:48:21
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== link-32-facebook.png ===
+
+f
+
+=== link-32-instagram.png ===
+
+©
+
+=== link-40-x.png ===
+
+X
+
+=== logo-CMA.png ===
+
+—
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - BKGCONF_AMC2475813.pdf (28 KB)
+  - link-32-facebook.png (0 KB)
+  - link-32-instagram.png (1 KB)
+  - link-40-x.png (0 KB)
+  - logo-CMA.png (5 KB)
+  - dialog-illu.png (37 KB)
+  - link-32-linkedin.png (1 KB)
+  - link-32-linkedin.png (1 KB)
+  - link-40-x.png (0 KB)
+  - dialog-illu.png (37 KB)
+  - link-32-facebook.png (0 KB)
+  - link-32-instagram.png (1 KB)
+  - logo-CMA.png (5 KB)
+  - BKGCONF_AMC2475813.pdf (28 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 4
+--------------------------------------------------------------------------------
+
+Type: general_correspondence
+Direction: OUTBOUND
+
+FROM: Priya Khatri <priya.khatri@intoglo.com>
+
+SUBJECT: Re: Bkg #AMC2475813 / BAFNA / 1x40HC / NHAVA SHEVA TO NEW YORK / ETD : 21-DEC-25
+
+RECEIVED: 2026-01-02T08:13:43
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Hi Team,
+
+Please find the attached Tax Invoice.
+
+
+
+Thanks
+Priya Khatri
+Sr. Executive - Credit Control
+h <https://intoglo.com/>ttps://i <https://intoglo.com/>nto
+<https://intoglo.com/>glo.com <https://intoglo.com/>
+
+___________________________________________________
+*New Bank Details for INR Payments:*
+*Account Holder Name:* Intoglo Private Limited
+... [truncated - 2510 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - TAX INVOICE - INDEL20260001639 - PPBAFNPNQ (31-Dec-25) (1).pdf (59 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 4 of 4
+--------------------------------------------------------------------------------
+
+Type: shipping_instruction
+Direction: OUTBOUND
+
+FROM: pricing@intoglo.com
+TRUE SENDER: website-noreply@cma-cgm.com
+
+SUBJECT: CMA CGM - Shipping instruction submitted - AMC2475813 -  - 0INLJW1MA  - INNSA to USNYC
+
+RECEIVED: 2025-12-16T06:29:11
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== link-32-facebook.png ===
+
+f
+
+=== link-32-instagram.png ===
+
+©
+
+=== link-40-x.png ===
+
+X
+
+=== logo-CMA.png ===
+
+—
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - dialog-illu.png (37 KB)
+  - link-32-facebook.png (0 KB)
+  - link-32-linkedin.png (1 KB)
+  - link-32-instagram.png (1 KB)
+  - link-40-x.png (0 KB)
+  - logo-CMA.png (5 KB)
+  - SI_AMC2475813.pdf (41 KB)
+
+
+####################################################################################################
+STATE: ARRIVAL_NOTICE_RECEIVED
+Count: 1 shipments currently at this state
+####################################################################################################
+
+================================================================================
+SHIPMENT: 21635244
+================================================================================
+Total Documents: 35
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 35
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-21635244 USORF HIGHW
+
+RECEIVED: 2025-12-24T11:24:39
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== HL-21635244 USORF HIGHW BC 3RD UPDATE.PDF ===
+
+Page 1 of 3
+BOBC0201-060TB
+Hapag-Lloyd Aktiengesellschaft
+Our Reference:21635244
+Your Reference:HIGHW
+Submit your VGM
+HAPAG-LLOYD INDIA PVT. LTD.
+501,5TH FLOOR SATELLITE GAZEBO,, B-WING,GURU HARGOVINDJI MARG, ANDHERI(EAST), 
+MUMBAI 400093, INDIA (AS AGENT)
+Chairman of the Supervisory Board: Michael Behrendt 
+Executive Board: Rolf Habben Jansen (CEO), Donya-Florence Amer, Dheeraj Bhatia, Mark Frese, Dr. Maximilian Rothkopf 
+Registered Office: Hamburg, Company Register: Amtsgericht Hamburg HRB 97937
+Received from:
+... [truncated - 6899 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - mailText.txt (0 KB)
+  - HL-21635244 USORF HIGHW BC 3RD UPDATE.PDF (53 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 35
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-21635244 USORF HIGHW
+
+RECEIVED: 2025-12-26T16:40:18
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== mailText.txt ===
+
+Dear customer,
+
+Attached our booking confirmation 4TH UPDATE for the following booking:
+
+Your reference      :  HIGHW
+Our reference       :  21635244
+Forwarder reference :  n.a.
+EDI reference       :  n.a.
+
+
+
+Please use the software Acrobat Reader for reading it.
+
+... [truncated - 6899 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - mailText.txt (0 KB)
+  - HL-21635244 USORF HIGHW BC 4TH UPDATE.PDF (53 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 35
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-21635244 USORF HIGHW
+
+RECEIVED: 2025-12-26T16:41:32
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== mailText.txt ===
+
+Dear customer,
+
+Attached our booking confirmation 4TH UPDATE for the following booking:
+
+Your reference      :  HIGHW
+Our reference       :  21635244
+Forwarder reference :  n.a.
+EDI reference       :  n.a.
+
+
+
+Please use the software Acrobat Reader for reading it.
+
+... [truncated - 6899 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - mailText.txt (0 KB)
+  - HL-21635244 USORF HIGHW BC 4TH UPDATE.PDF (53 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 4 of 35
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-21635244 USORF HIGHW
+
+RECEIVED: 2025-12-24T11:23:31
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== HL-21635244 USORF HIGHW BC 3RD UPDATE.PDF ===
+
+Page 1 of 3
+BOBC0201-060TB
+Hapag-Lloyd Aktiengesellschaft
+Our Reference:21635244
+Your Reference:HIGHW
+Submit your VGM
+HAPAG-LLOYD INDIA PVT. LTD.
+501,5TH FLOOR SATELLITE GAZEBO,, B-WING,GURU HARGOVINDJI MARG, ANDHERI(EAST), 
+MUMBAI 400093, INDIA (AS AGENT)
+Chairman of the Supervisory Board: Michael Behrendt 
+Executive Board: Rolf Habben Jansen (CEO), Donya-Florence Amer, Dheeraj Bhatia, Mark Frese, Dr. Maximilian Rothkopf 
+Registered Office: Hamburg, Company Register: Amtsgericht Hamburg HRB 97937
+Received from:
+... [truncated - 6899 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - HL-21635244 USORF HIGHW BC 3RD UPDATE.PDF (53 KB)
+  - mailText.txt (0 KB)
+
+... and 31 more documents
+
+####################################################################################################
+STATE: ARRIVAL_NOTICE_SHARED
+Count: 9 shipments currently at this state
+####################################################################################################
+
+================================================================================
+SHIPMENT: CEI0329370
+================================================================================
+Total Documents: 13
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 13
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: pricing@intoglo.com
+TRUE SENDER: website-noreply@cma-cgm.com
+
+SUBJECT: CMA CGM - Booking confirmation available – CEI0329370 -  - 0INLLW1MA  - INDA1 to USORF
+
+RECEIVED: 2025-12-20T05:02:35
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== link-32-facebook.png ===
+
+f
+
+=== link-32-instagram.png ===
+
+©
+
+=== link-40-x.png ===
+
+X
+
+=== logo-CMA.png ===
+
+—
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - BKGCONF_CEI0329370.pdf (89 KB)
+  - link-32-facebook.png (0 KB)
+  - link-32-linkedin.png (1 KB)
+  - link-32-instagram.png (1 KB)
+  - link-40-x.png (0 KB)
+  - logo-CMA.png (5 KB)
+  - dialog-illu.png (37 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 13
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: pricing@intoglo.com
+TRUE SENDER: website-noreply@cma-cgm.com
+
+SUBJECT: CMA CGM - Booking confirmation available – CEI0329370 -  - 0INLLW1MA  - INCW1 to USORF
+
+RECEIVED: 2025-12-22T11:32:28
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== link-32-facebook.png ===
+
+f
+
+=== link-32-instagram.png ===
+
+©
+
+=== link-40-x.png ===
+
+X
+
+=== logo-CMA.png ===
+
+—
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - BKGCONF_CEI0329370.pdf (89 KB)
+  - link-32-facebook.png (0 KB)
+  - link-32-linkedin.png (1 KB)
+  - link-32-instagram.png (1 KB)
+  - link-40-x.png (0 KB)
+  - logo-CMA.png (5 KB)
+  - dialog-illu.png (37 KB)
+  - link-32-linkedin.png (1 KB)
+  - link-40-x.png (0 KB)
+  - dialog-illu.png (37 KB)
+  - link-32-facebook.png (0 KB)
+  - link-32-instagram.png (1 KB)
+  - logo-CMA.png (5 KB)
+  - BKGCONF_CEI0329370.pdf (89 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 13
+--------------------------------------------------------------------------------
+
+Type: booking_amendment
+Direction: OUTBOUND
+
+FROM: ops@intoglo.com
+TRUE SENDER: ind.service@cma-cgm.com
+
+SUBJECT: #SS RE: CEI0329370 // NEED REVISED BKG TO HAND OVER THE CONTAINER
+
+RECEIVED: 2025-12-22T08:52:50
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear OPS Team,
+
+Ref to below, please check & assist to confirm to proceed with required amendment.
+
+
+
+
+
+
+Thanks for contacting Customer Service Exports team, please do not hesitate to contact us for further queries.
+
+
+
+Shweta SACHDEV
+Customer Service CMA CGM India
+... [truncated - 2126 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+--------------------------------------------------------------------------------
+DOCUMENT 4 of 13
+--------------------------------------------------------------------------------
+
+Type: booking_amendment
+Direction: OUTBOUND
+
+FROM: ops@intoglo.com
+TRUE SENDER: ind.service@cma-cgm.com
+
+SUBJECT: RE: #SS RE: CEI0329370 // NEED REVISED BKG TO HAND OVER THE CONTAINER
+
+RECEIVED: 2025-12-22T10:56:30
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Meenakshi,
+
+Greetings from CMA CGM!
+
+Subject Booking has been amended & posted on WEB.
+
+
+
+
+
+
+Thanks for contacting Customer Service Exports team, please do not hesitate to contact us for further queries.
+
+
+
+... [truncated - 4432 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - 54f671bf88ab46fa86d9809de67e952d.  (1 KB)
+  - 512de87873d642e7bb3a41c964de92de.  (1 KB)
+  - image009.jpg (413 KB)
+  - image001.png (13 KB)
+  - bbe9a1760b1f4ece8f1395de1e3e472e.  (1 KB)
+  - image024.png (2 KB)
+
+... and 9 more documents
+
+================================================================================
+SHIPMENT: 263638404
+================================================================================
+Total Documents: 40
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 40
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: ops@intoglo.com
+TRUE SENDER: in.export@maersk.com
+
+SUBJECT: Booking Confirmation : 263638404
+
+RECEIVED: 2025-12-26T13:32:30
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - DB_aabhgghffjei0x0B3B.pdf (107 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 40
+--------------------------------------------------------------------------------
+
+Type: arrival_notice
+Direction: OUTBOUND
+
+FROM: ops@intoglo.com
+TRUE SENDER: in.export@maersk.com
+
+SUBJECT: RE: 263638404 // NEED CUT OFF DETAILS
+
+RECEIVED: 2025-12-27T12:18:58
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Customer,
+
+Please note cutoffs for subject vessel is not yet finalized by the terminal we are awaiting updates from terminal.
+
+Once received will share the same via advisories.
+
+You can expect cutoffs 5 days prior to ETD.
+
+Please subscribe to our advisories from the link given below.
+
+Hope to have responded to your query. Closing this correspondence. In case of any new query / issue please send a fresh mail. Kindly do not continue your correspondence on this mail for a new query.
+
+Maersk advisories are available at single click. Subscribe to
+
+https://www.maersk.com/newsletter
+... [truncated - 2120 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 40
+--------------------------------------------------------------------------------
+
+Type: shipping_instruction
+Direction: OUTBOUND
+
+FROM: meenakshi.reddy@intoglo.com
+TRUE SENDER: meenakshi.reddy@intoglo.com
+
+SUBJECT: 263638404 // NEED CUT OFF DETAILS
+
+RECEIVED: 2025-12-27T11:33:16
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Team,
+
+263638404 // NEED CUT OFF DETAILS
+
+
+Thanks/Regards,
+
+Meenakshi Reddy
+
+Mobile: 9354303398
+
+https://www.intoglo.com
+
+
+
+... [truncated - 988 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+--------------------------------------------------------------------------------
+DOCUMENT 4 of 40
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: <shivam.gupta@intoglo.com>
+
+SUBJECT: BOOKING FOR 1*40'HC FROM GURGAON TO TORONTO // BKG NO.: 263638404
+
+RECEIVED: 2026-01-02T06:50:18
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Nagbendra sir,
+
+ 
+
+Kindly find the attached booking for 40'hc Toronto Via Newark routing.
+
+ 
+
+Vessel cut-offs are as below:-
+
+ 
+
+Forwarding window :- 4-6th jan 2026
+
+ 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - image001.png (17 KB)
+  - DB_aabhghddfihc0x02F6.pdf (108 KB)
+
+... and 36 more documents
+
+####################################################################################################
+STATE: DUTY_INVOICE_RECEIVED
+Count: 3 shipments currently at this state
+####################################################################################################
+
+================================================================================
+SHIPMENT: 19207547
+================================================================================
+Total Documents: 54
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 54
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-19207547 USORF SONA DET
+
+RECEIVED: 2025-12-24T11:24:58
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== HL-19207547 USORF SONA DET BC 3RD UPDATE.PDF ===
+
+Page 1 of 3
+BOBC0201-060TB
+Hapag-Lloyd Aktiengesellschaft
+Our Reference:19207547
+Your Reference:SONA DET
+Submit your VGM
+HAPAG-LLOYD INDIA PVT. LTD.
+501,5TH FLOOR SATELLITE GAZEBO,, B-WING,GURU HARGOVINDJI MARG, ANDHERI(EAST), 
+MUMBAI 400093, INDIA (AS AGENT)
+Chairman of the Supervisory Board: Michael Behrendt 
+Executive Board: Rolf Habben Jansen (CEO), Donya-Florence Amer, Dheeraj Bhatia, Mark Frese, Dr. Maximilian Rothkopf 
+Registered Office: Hamburg, Company Register: Amtsgericht Hamburg HRB 97937
+Received from:
+... [truncated - 7054 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - HL-19207547 USORF SONA DET BC 3RD UPDATE.PDF (53 KB)
+  - mailText.txt (0 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 54
+--------------------------------------------------------------------------------
+
+Type: invoice
+Direction: OUTBOUND
+
+FROM: aditya.mandar@intoglo.com
+TRUE SENDER: aditya.mandar@intoglo.com
+
+SUBJECT: Re: 1x20 GP | SONA BLW | GARHI TO LOUISVILLE | CLEARANCE INITIATION | FACTORY STUFFING | Invoice # 2610028928
+
+RECEIVED: 2025-12-22T11:30:22
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Please refer Booking - 19207547
+
+
+
+
+
+On Mon, 22 Dec 2025 at 14:58, Aditya Mandar <aditya.mandar@intoglo.com>
+wrote:
+
+> Booking copy awaited.Will share once received.
+>
+> On Mon, 22 Dec 2025 at 14:54, Naveen Chaudhary <ans@anscargo.in> wrote:
+>
+>> Hi,
+>>
+... [truncated - 3512 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - image001.jpg (4 KB)
+  - image003.png (0 KB)
+  - image005.jpg (3 KB)
+  - image007.jpg (0 KB)
+  - HL-19207547 USORF SONA DET BC 2ND UPDATE.PDF (54 KB)
+  - image002.jpg (2 KB)
+  - image004.png (1 KB)
+  - image006.jpg (2 KB)
+  - image008.jpg (0 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 54
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-19207547 USORF SONA DET
+
+RECEIVED: 2025-12-26T16:44:36
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - mailText.txt (0 KB)
+  - HL-19207547 USORF SONA DET BC 4TH UPDATE.PDF (53 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 4 of 54
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-19207547 USORF SONA DET
+
+RECEIVED: 2025-12-24T11:23:59
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== HL-19207547 USORF SONA DET BC 3RD UPDATE.PDF ===
+
+Page 1 of 3
+BOBC0201-060TB
+Hapag-Lloyd Aktiengesellschaft
+Our Reference:19207547
+Your Reference:SONA DET
+Submit your VGM
+HAPAG-LLOYD INDIA PVT. LTD.
+501,5TH FLOOR SATELLITE GAZEBO,, B-WING,GURU HARGOVINDJI MARG, ANDHERI(EAST), 
+MUMBAI 400093, INDIA (AS AGENT)
+Chairman of the Supervisory Board: Michael Behrendt 
+Executive Board: Rolf Habben Jansen (CEO), Donya-Florence Amer, Dheeraj Bhatia, Mark Frese, Dr. Maximilian Rothkopf 
+Registered Office: Hamburg, Company Register: Amtsgericht Hamburg HRB 97937
+Received from:
+... [truncated - 7054 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - mailText.txt (0 KB)
+  - HL-19207547 USORF SONA DET BC 3RD UPDATE.PDF (53 KB)
+
+... and 50 more documents
+
+================================================================================
+SHIPMENT: 262822342
+================================================================================
+Total Documents: 17
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 17
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: ops@intoglo.com
+TRUE SENDER: in.export@maersk.com
+
+SUBJECT: Booking Confirmation : 262822342
+
+RECEIVED: 2025-12-05T10:44:13
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - DB_aabhgejdbefb0x0A3E.pdf (108 KB)
+  - DB_aabhgejdbefb0x0A3E.pdf (108 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 17
+--------------------------------------------------------------------------------
+
+Type: sob_confirmation
+Direction: OUTBOUND
+
+FROM: lokesh.kumar@intoglo.com
+TRUE SENDER: lokesh.kumar@intoglo.com
+
+SUBJECT: SOB CONFIRMATION // Re: 262822342 : Intoglo Quote for Dominant Global | Malanpur to Newark | Maersk | 40 HC // SP25121143
+
+RECEIVED: 2025-12-26T11:33:20
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Team,
+
+Kindly note- subject shipment has been sailed.
+
+Please find below tracking screenshot for your reference :
+
++Invoicing <invoicing@intoglo.com> & +Bhoopendra Chauhan
+<bhoopendra.chauhan@intoglo.com> HBL NO.: SE1225003104
+
+[image: image.png]
+
+
+
+*Thanks & Regards*
+
+... [truncated - 43013 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - 2.jpg (2 KB)
+  - 4.png (4 KB)
+  - 1.jpg (3 KB)
+  - 3.png (4 KB)
+  - 5.jpg (2 KB)
+  - 6.jpg (3 KB)
+  - 8.png (3 KB)
+  - 10.jpg (1 KB)
+  - 12.png (4 KB)
+  - 14.png (4 KB)
+  - 16.png (4 KB)
+  - 18.jpg (2 KB)
+  - 20.png (4 KB)
+  - 26.jpg (1 KB)
+  - 31.jpg (3 KB)
+  - 30.jpg (1 KB)
+  - 27.png (3 KB)
+  - 23.jpg (2 KB)
+  - 22.png (4 KB)
+  - 21.jpg (33 KB)
+  - 7.jpg (1 KB)
+  - 9.png (3 KB)
+  - 11.jpg (2 KB)
+  - 13.jpg (2 KB)
+  - 15.jpg (2 KB)
+  - 17.jpg (2 KB)
+  - 19.png (4 KB)
+  - 25.jpg (3 KB)
+  - 24.jpg (1 KB)
+  - 32.png (3 KB)
+  - 34.jpg (3 KB)
+  - 28.jpg (3 KB)
+  - 33.png (4 KB)
+  - 29.jpg (2 KB)
+  - image.png (53 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 17
+--------------------------------------------------------------------------------
+
+Type: vessel_schedule
+Direction: OUTBOUND
+
+FROM: ops@intoglo.com
+TRUE SENDER: in.export@maersk.com
+
+SUBJECT: RE: GATEIN STATUS SHOWING PENDING // 262822342 //
+
+RECEIVED: 2025-12-17T09:23:56
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Hi Lokesh,
+
+
+For rail status, please coordinate with CONCOR. The container will be planned on the vessel only after it is available at the terminal and before the vessel cut-off.
+
+Note: Maersk advisories are available at single click. Subscribe to Maersk Newsletter/Advisory page and keep yourself updated with all critical information.
+
+Thanks & Regards/
+Amar Loke
+Efficiency Customer Service Exports – West Region - India
+Maersk Line India Pvt. Ltd.
+UNIT NO. 402, GODREJ TWO,
+PIROJSHANAGAR, EASTERN EXPRESS
+HIGHWAY, VIKHROLI (EAST),
+MUMBAI- 400079
+... [truncated - 1559 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - image.png (42 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 4 of 17
+--------------------------------------------------------------------------------
+
+Type: bill_of_lading
+Direction: OUTBOUND
+
+FROM: pallavi.bhardwaj@intoglo.com
+TRUE SENDER: pallavi.bhardwaj@intoglo.com
+
+SUBJECT: MBL NO.: 262822342 & 262864944AMS ERROE | HBL NO. : SE1225003104 & SE1225003106
+
+RECEIVED: 2025-12-17T16:56:21
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Team,
+
+Please note we are encountering an ams error for the subject MBL 262822342
+262864944*. *There is HBL involved in this shipment, So kindly check if the
+Manifest has been filed as a back to back shipment instead of Regular
+shipment*. *
+
+*HBL and MBL details are as per below, *
+
+*HBL NO.: *SE1225003104
+MBL NO.: 262822342
+
+HBL NO.: SE1225003106
+MBL NO.: 262864944
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+... and 13 more documents
+
+####################################################################################################
+STATE: CARGO_RELEASED
+Count: 2 shipments currently at this state
+####################################################################################################
+
+================================================================================
+SHIPMENT: 20262609
+================================================================================
+Total Documents: 28
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 28
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-20262609 USORF UFLEX
+
+RECEIVED: 2025-12-24T11:24:41
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== HL-20262609 USORF UFLEX BC 2ND UPDATE.PDF ===
+
+Page 1 of 3
+BOBC0201-060TB
+Hapag-Lloyd Aktiengesellschaft
+Our Reference:20262609
+Your Reference:UFLEX
+Submit your VGM
+HAPAG-LLOYD INDIA PVT. LTD.
+501,5TH FLOOR SATELLITE GAZEBO,, B-WING,GURU HARGOVINDJI MARG, ANDHERI(EAST), 
+MUMBAI 400093, INDIA (AS AGENT)
+Chairman of the Supervisory Board: Michael Behrendt 
+Executive Board: Rolf Habben Jansen (CEO), Donya-Florence Amer, Dheeraj Bhatia, Mark Frese, Dr. Maximilian Rothkopf 
+Registered Office: Hamburg, Company Register: Amtsgericht Hamburg HRB 97937
+Received from:
+... [truncated - 7190 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - HL-20262609 USORF UFLEX BC 2ND UPDATE.PDF (54 KB)
+  - mailText.txt (0 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 28
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-20262609 USORF UFLEX
+
+RECEIVED: 2025-12-24T11:24:41
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== HL-20262609 USORF UFLEX BC 2ND UPDATE.PDF ===
+
+Page 1 of 3
+BOBC0201-060TB
+Hapag-Lloyd Aktiengesellschaft
+Our Reference:20262609
+Your Reference:UFLEX
+Submit your VGM
+HAPAG-LLOYD INDIA PVT. LTD.
+501,5TH FLOOR SATELLITE GAZEBO,, B-WING,GURU HARGOVINDJI MARG, ANDHERI(EAST), 
+MUMBAI 400093, INDIA (AS AGENT)
+Chairman of the Supervisory Board: Michael Behrendt 
+Executive Board: Rolf Habben Jansen (CEO), Donya-Florence Amer, Dheeraj Bhatia, Mark Frese, Dr. Maximilian Rothkopf 
+Registered Office: Hamburg, Company Register: Amtsgericht Hamburg HRB 97937
+Received from:
+... [truncated - 7190 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - HL-20262609 USORF UFLEX BC 2ND UPDATE.PDF (54 KB)
+  - mailText.txt (0 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 28
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-20262609 USORF UFLEX
+
+RECEIVED: 2025-12-26T16:43:50
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - mailText.txt (0 KB)
+  - HL-20262609 USORF UFLEX BC 3RD UPDATE.PDF (53 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 4 of 28
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-20262609 USORF UFLEX
+
+RECEIVED: 2025-12-26T16:45:04
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+=== mailText.txt ===
+
+Dear customer,
+
+Attached our booking confirmation 3RD UPDATE for the following booking:
+
+Your reference      :  UFLEX
+Our reference       :  20262609
+Forwarder reference :  n.a.
+EDI reference       :  n.a.
+
+
+
+Please use the software Acrobat Reader for reading it.
+
+... [truncated - 7190 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - HL-20262609 USORF UFLEX BC 3RD UPDATE.PDF (53 KB)
+  - mailText.txt (0 KB)
+  - mailText.txt (0 KB)
+  - HL-20262609 USORF UFLEX BC 3RD UPDATE.PDF (53 KB)
+
+... and 24 more documents
+
+================================================================================
+SHIPMENT: 20154815
+================================================================================
+Total Documents: 47
+
+--------------------------------------------------------------------------------
+DOCUMENT 1 of 47
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-20154815 USNYC PEARL
+
+RECEIVED: 2025-12-24T14:10:25
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - HL-20154815 USNYC PEARL BC 3RD UPDATE.PDF (54 KB)
+  - mailText.txt (0 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 2 of 47
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: OUTBOUND
+
+FROM: lokesh.kumar@intoglo.com
+TRUE SENDER: lokesh.kumar@intoglo.com
+
+SUBJECT: Re: (2X40HC), 262444238 (1X20GP) // KOHL's - // Nhava Sheva - New York // 3 X 40 HC & 1 X 20 DRY INDC 2nd FEB'26
+
+RECEIVED: 2025-12-24T06:04:52
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Team,
+
+Kindly confirm the container pickup status
+plz note vsl cutoffs :
+
+Port cutoff : 29-31-Dec /
+VGM /30-Dec
+SI : 29-Dec
+
+
+
+*Thanks & Regards*
+
+*Lokesh K.Sharma*
+
+... [truncated - 16918 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - image001.png (5 KB)
+  - image002.gif (416 KB)
+  - image003.jpg (1 KB)
+  - image004.jpg (0 KB)
+  - 631d489a-8e62-4a17-bcde-2a0600a986e7.png (96 KB)
+  - image.png (65 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 3 of 47
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: uma.singh@pearlglobal.com
+TRUE SENDER: uma.singh@pearlglobal.com
+
+SUBJECT: Re: *Re: 20154815 (2X40HC), 262444238 (1X20GP) // KOHL's - // Nhava Sheva  - New York // 3 X 40 HC & 1 X 20 DRY INDC 2nd FEB'26
+
+RECEIVED: 2025-12-26T15:18:44
+
+BODY:
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Dear Lokesh,
+
+Container has been gated in within cutoff.
+
+
+
+Regards
+Uma
+
+Sent from Outlook for Android<https://aka.ms/AAb9ysg>
+________________________________
+From: Lokesh Kumar <lokesh.kumar@intoglo.com>
+Sent: Friday, December 26, 2025 3:16:52 PM
+To: Uma Singh <uma.singh@pearlglobal.com>; Rakesh Advani <rakesh.advani@nshlogistics.com>
+Cc: Meenakshi Reddy <meenakshi.reddy@intoglo.com>; Nooruddin <nooruddin@nshlogistics.com>; Pallavi Bhardwaj <pallavi.bhardwaj@intoglo.com>; Bhanu Dora <bhanu.dora@pearlglobal.com>; Vinita Pokhriyal <vinita@intoglo.com>; Sufal Roongta <sufal@intoglo.com>; Nitish Dua <nitish.dua@intoglo.com>; Satish Saini <satish.saini@pearlglobal.com>; Sam Phillipose <sam.phillipose@pearlglobal.com>; Manjunath <manjunath@nshlogistics.com>; MANJUNATH-NSH <manjun
+... [truncated - 19077 chars total]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ATTACHMENTS:
+  - image002.gif (416 KB)
+  - image004.jpg (1 KB)
+  - image.png (29 KB)
+  - image001.png (5 KB)
+  - image003.png (96 KB)
+  - image005.jpg (0 KB)
+
+--------------------------------------------------------------------------------
+DOCUMENT 4 of 47
+--------------------------------------------------------------------------------
+
+Type: booking_confirmation
+Direction: INBOUND
+
+FROM: India@service.hlag.com
+TRUE SENDER: india@service.hlag.com
+
+SUBJECT: HL-20154815 USNYC PEARL
+
+RECEIVED: 2025-12-24T14:11:23
+
+BODY: (empty)
+
+ATTACHMENTS:
+  - mailText.txt (0 KB)
+  - HL-20154815 USNYC PEARL BC 3RD UPDATE.PDF (54 KB)
+
+... and 43 more documents
+
+
+====================================================================================================
+SUMMARY
+====================================================================================================
+
+State                                      Current  Cumulative
+--------------------------------------------------------------
+booking_confirmation_received                   18  128 (100%)
+booking_confirmation_shared                     44   110 (86%)
+si_draft_received                                6    66 (52%)
+si_confirmed                                     0    60 (47%)
+sob_received                                     4    60 (47%)
+mbl_draft_received                               2    56 (44%)
+hbl_released                                    12    54 (42%)
+invoice_sent                                    27    42 (33%)
+arrival_notice_received                          1    15 (12%)
+arrival_notice_shared                            9    14 (11%)
+duty_invoice_received                            3      5 (4%)
+cargo_released                                   2      2 (2%)
