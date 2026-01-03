@@ -35,6 +35,26 @@ const documentTypeConfig = {
     color: 'amber',
     icon: FileEdit
   },
+  general_correspondence: {
+    label: 'Correspondence',
+    color: 'slate',
+    icon: FileText
+  },
+  sob_confirmation: {
+    label: 'SOB Confirmation',
+    color: 'cyan',
+    icon: Ship
+  },
+  shipment_notice: {
+    label: 'Shipment Notice',
+    color: 'sky',
+    icon: FileText
+  },
+  si_draft: {
+    label: 'SI Draft',
+    color: 'indigo',
+    icon: ClipboardList
+  },
   arrival_notice: {
     label: 'Arrival Notice',
     color: 'green',
@@ -99,6 +119,41 @@ const documentTypeConfig = {
     label: 'Freight Invoice',
     color: 'rose',
     icon: CreditCard
+  },
+  vgm_submission: {
+    label: 'VGM Submission',
+    color: 'violet',
+    icon: FileCheck
+  },
+  booking_cancellation: {
+    label: 'Cancellation',
+    color: 'rose',
+    icon: XCircle
+  },
+  rate_quote: {
+    label: 'Rate Quote',
+    color: 'lime',
+    icon: DollarSign
+  },
+  si_submission: {
+    label: 'SI Submission',
+    color: 'indigo',
+    icon: ClipboardList
+  },
+  pickup_notification: {
+    label: 'Pickup Notice',
+    color: 'teal',
+    icon: Truck
+  },
+  railment_status: {
+    label: 'Rail Status',
+    color: 'orange',
+    icon: Truck
+  },
+  isf_submission: {
+    label: 'ISF Submission',
+    color: 'amber',
+    icon: FileBox
   },
   unknown: {
     label: 'Unknown',
