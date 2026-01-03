@@ -129,61 +129,98 @@ const WORKFLOW_STATE_MAP: Record<string, string> = {
   'booking_amendment:inbound': 'booking_confirmation_received',
   'booking_amendment:outbound': 'booking_confirmation_shared',
   'booking_cancellation:inbound': 'booking_cancelled',
+  'booking_cancellation:outbound': 'booking_cancelled',
+
   // SI
   'shipping_instruction:inbound': 'si_draft_received',
+  'shipping_instruction:outbound': 'si_draft_sent',
   'si_draft:inbound': 'si_draft_received',
   'si_draft:outbound': 'si_draft_sent',
   'si_confirmation:inbound': 'si_confirmed',
   'si_confirmation:outbound': 'si_confirmed',
   'si_submission:inbound': 'si_confirmed',
+  'si_submission:outbound': 'si_confirmed',
+
   // BL
   'mbl_draft:inbound': 'mbl_draft_received',
   'bill_of_lading:inbound': 'mbl_draft_received',
+  'hbl_draft:inbound': 'hbl_draft_sent',  // Rare: carrier sends HBL draft
   'hbl_draft:outbound': 'hbl_draft_sent',
   'hbl_release:outbound': 'hbl_released',
   'bill_of_lading:outbound': 'hbl_released',
+
   // Invoice
   'invoice:inbound': 'commercial_invoice_received',
   'invoice:outbound': 'invoice_sent',
   'commercial_invoice:inbound': 'commercial_invoice_received',
+  'commercial_invoice:outbound': 'invoice_sent',
+  'freight_invoice:inbound': 'commercial_invoice_received',
   'freight_invoice:outbound': 'invoice_sent',
   'duty_invoice:inbound': 'duty_invoice_received',
   'duty_invoice:outbound': 'duty_summary_shared',
   'duty_summary:outbound': 'duty_summary_shared',
+
   // Arrival
   'arrival_notice:inbound': 'arrival_notice_received',
   'arrival_notice:outbound': 'arrival_notice_shared',
   'shipment_notice:inbound': 'arrival_notice_received',
+  'shipment_notice:outbound': 'arrival_notice_shared',
+
   // Customs - India
   'checklist:inbound': 'checklist_received',
   'checklist:outbound': 'checklist_shared',
   'shipping_bill:inbound': 'customs_export_filed',
+  'shipping_bill:outbound': 'customs_export_filed',
   'leo_copy:inbound': 'customs_export_cleared',
+  'leo_copy:outbound': 'customs_export_cleared',
   'bill_of_entry:inbound': 'customs_import_filed',
   'customs_clearance:inbound': 'cargo_released',
   'customs_clearance:outbound': 'cargo_released',
+  'customs_document:inbound': 'duty_invoice_received',
+  'customs_document:outbound': 'duty_summary_shared',
+
   // Customs - US
   'draft_entry:inbound': 'entry_draft_received',
   'draft_entry:outbound': 'entry_draft_shared',
   'entry_summary:inbound': 'entry_filed',
   'entry_summary:outbound': 'entry_summary_shared',
   'isf_filing:inbound': 'isf_filed',
+  'isf_filing:outbound': 'isf_filed',
+  'isf_submission:inbound': 'isf_filed',
+  'isf_submission:outbound': 'isf_filed',
   'exam_notice:inbound': 'customs_hold',
+
   // Delivery
   'delivery_order:inbound': 'cargo_released',
+  'delivery_order:outbound': 'cargo_released',
   'container_release:inbound': 'cargo_released',
+  'container_release:outbound': 'cargo_released',
+  'pickup_notification:inbound': 'cargo_released',
   'proof_of_delivery:inbound': 'pod_received',
+  'proof_of_delivery:outbound': 'pod_received',
   'delivery_confirmation:inbound': 'pod_received',
+  'delivery_confirmation:outbound': 'pod_received',
   'gate_in_confirmation:inbound': 'gate_in_confirmed',
+  'gate_in_confirmation:outbound': 'gate_in_confirmed',
   'empty_return:inbound': 'empty_returned',
+  'empty_return:outbound': 'empty_returned',
+
   // VGM
   'vgm_confirmation:inbound': 'vgm_confirmed',
+  'vgm_confirmation:outbound': 'vgm_confirmed',
+  'vgm_submission:inbound': 'vgm_confirmed',
+  'vgm_submission:outbound': 'vgm_submitted',
   'vgm_reminder:inbound': 'vgm_pending',
+
   // SOB
   'sob_confirmation:inbound': 'sob_received',
+  'sob_confirmation:outbound': 'sob_received',
+
   // Documents
   'packing_list:inbound': 'documents_received',
+  'packing_list:outbound': 'documents_received',
   'certificate:inbound': 'documents_received',
+  'certificate:outbound': 'documents_received',
 };
 
 // Tool definition for structured AI output
