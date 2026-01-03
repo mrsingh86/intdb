@@ -31,14 +31,11 @@ if (!SUPABASE_URL || !SUPABASE_KEY || !ANTHROPIC_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Document types that should have stakeholder info
+// Document types that should have stakeholder info (real customer data)
+// Only HBL documents for this backfill
 const STAKEHOLDER_DOC_TYPES = [
-  'bill_of_lading',
   'hbl_draft',
-  'bl_draft',
-  'shipping_instruction',
-  'si_draft',
-  'si_submission',
+  'hbl',
 ];
 
 interface BackfillResult {
