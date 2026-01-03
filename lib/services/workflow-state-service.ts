@@ -498,20 +498,25 @@ export class WorkflowStateService {
   }
 
   /**
-   * Determine email direction based on sender
-   * Uses the direction-detector utility for consistent detection.
+   * Get email direction from persisted field or calculate from sender.
+   * Uses persisted email_direction if available, otherwise calculates.
    *
-   * OUTBOUND = sender is @intoglo.com or @intoglo.in
-   * INBOUND = all other senders (carriers, partners, clients via group)
+   * OUTBOUND = sender is @intoglo.com or @intoglo.in (direct, not via group)
+   * INBOUND = all other senders (carriers, partners, clients, group forwards)
    */
   private async getEmailDirection(emailId: string): Promise<'inbound' | 'outbound'> {
     const { data: email } = await this.supabase
       .from('raw_emails')
-      .select('sender_email')
+      .select('email_direction, sender_email')
       .eq('id', emailId)
       .single();
 
-    // Use the centralized direction detector
+    // Use persisted direction if available
+    if (email?.email_direction) {
+      return email.email_direction as 'inbound' | 'outbound';
+    }
+
+    // Fallback to calculating from sender
     return detectDirection(email?.sender_email);
   }
 

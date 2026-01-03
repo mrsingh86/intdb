@@ -13,6 +13,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { RawEmail } from '@/types/email-intelligence';
 import { PaginationOptions, PaginatedResult } from '@/lib/types/repository-filters';
+import { detectDirection } from '@/lib/utils/direction-detector';
 
 export interface EmailQueryFilters {
   threadId?: string;
@@ -135,9 +136,15 @@ export class EmailRepository {
    * @throws Error if insertion fails
    */
   async create(email: Partial<RawEmail>): Promise<RawEmail> {
+    // Auto-detect email direction based on sender
+    const emailWithDirection = {
+      ...email,
+      email_direction: email.email_direction || detectDirection(email.sender_email),
+    };
+
     const { data, error } = await this.supabase
       .from('raw_emails')
-      .insert(email)
+      .insert(emailWithDirection)
       .select()
       .single();
 

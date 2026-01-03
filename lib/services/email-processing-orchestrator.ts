@@ -17,6 +17,7 @@ import { DocumentLifecycleService } from './document-lifecycle-service';
 import { BackfillService } from './shipment-linking/backfill-service';
 import { UnifiedClassificationService, ClassificationResult } from './unified-classification-service';
 import { ShipmentExtractionService, ShipmentData } from './shipment-extraction-service';
+import { WorkflowStateService } from './workflow-state-service';
 
 // ============================================================================
 // Configuration
@@ -105,6 +106,7 @@ export class EmailProcessingOrchestrator {
   private backfillService: BackfillService;
   private classificationService: UnifiedClassificationService;
   private extractionService: ShipmentExtractionService;
+  private workflowService: WorkflowStateService;
 
   constructor(supabaseUrl: string, supabaseKey: string, anthropicKey: string) {
     this.supabase = createClient(supabaseUrl, supabaseKey);
@@ -121,6 +123,8 @@ export class EmailProcessingOrchestrator {
       anthropicKey,
       { useAdvancedModel: false } // Use Haiku for cron (Sonnet available via API path)
     );
+    // Initialize workflow service for auto-transitioning states when documents are linked
+    this.workflowService = new WorkflowStateService(this.supabase);
   }
 
   /**
@@ -437,7 +441,37 @@ export class EmailProcessingOrchestrator {
     }
 
     // Known CMA CGM patterns (display name only, no domain)
-    if (/cma cgm website|cma cgm.*noreply/i.test(senderLower)) {
+    if (/cma cgm website|cma cgm.*noreply|cma.cgm/i.test(senderLower)) {
+      return true;
+    }
+
+    // Known COSCO patterns
+    if (/coscon|cosco/i.test(senderLower)) {
+      return true;
+    }
+
+    // Known ONE patterns
+    if (/one-line|ocean network express/i.test(senderLower)) {
+      return true;
+    }
+
+    // Known Evergreen patterns
+    if (/evergreen/i.test(senderLower)) {
+      return true;
+    }
+
+    // Known MSC patterns
+    if (/\bmsc\b|mediterranean shipping/i.test(senderLower)) {
+      return true;
+    }
+
+    // Known Yang Ming patterns
+    if (/yang\s*ming|yml/i.test(senderLower)) {
+      return true;
+    }
+
+    // Known ZIM patterns
+    if (/\bzim\b/i.test(senderLower)) {
       return true;
     }
 
@@ -824,8 +858,8 @@ export class EmailProcessingOrchestrator {
       console.log(`[Orchestrator] Creating new shipment for booking ${bookingNumber} from ${carrier}`);
       shipmentData.booking_number = bookingNumber;
       shipmentData.created_from_email_id = emailId;
-      shipmentData.workflow_state = 'booking_confirmed';
-      shipmentData.workflow_phase = 'pre_carriage';
+      shipmentData.workflow_state = 'booking_confirmation_received';
+      shipmentData.workflow_phase = 'pre_departure';
       shipmentData.is_direct_carrier_confirmed = true; // Mark as confirmed for dashboard visibility
 
       const { data: newShipment, error } = await this.supabase
@@ -869,6 +903,7 @@ export class EmailProcessingOrchestrator {
 
   /**
    * Link email to shipment via shipment_documents table
+   * Also triggers workflow state transition based on document type
    */
   private async linkEmailToShipment(
     emailId: string,
@@ -884,6 +919,18 @@ export class EmailProcessingOrchestrator {
         document_type: documentType,
         created_at: new Date().toISOString()
       }, { onConflict: 'email_id,shipment_id' });
+
+    // Auto-transition workflow state based on document type
+    try {
+      await this.workflowService.autoTransitionFromDocument(
+        shipmentId,
+        documentType,
+        emailId
+      );
+    } catch (error) {
+      console.error(`[Orchestrator] Failed to transition workflow for ${shipmentId}:`, error);
+      // Don't throw - document is still linked, workflow transition is secondary
+    }
   }
 
   /**
