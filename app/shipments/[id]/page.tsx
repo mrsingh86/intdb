@@ -3,17 +3,15 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Shipment, ShipmentDocument } from '@/types/shipment';
+import { Shipment } from '@/types/shipment';
 import {
   MultiSourceETADisplay,
   DateSource,
   DocumentFlowBadge,
   WorkflowStatusBadge,
   RevisionBadge,
-  PartyTypeBadge,
   DateUrgencyBadge,
   ShipmentWorkflowProgress,
-  MilestoneTimeline,
 } from '@/components/tracking';
 import {
   History,
@@ -48,32 +46,14 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { DocumentTypeBadge } from '@/components/ui/document-type-badge';
-import { PartyType, WorkflowState, DocumentDirection, DocumentType } from '@/types/email-intelligence';
-
-interface DocumentWithFlow extends ShipmentDocument {
-  gmail_message_id?: string;
-  true_sender_email?: string;
-  sender_email?: string;
-  received_at?: string;
-  classification?: {
-    document_direction?: DocumentDirection;
-    sender_party_type?: PartyType;
-    receiver_party_type?: PartyType;
-    workflow_state?: WorkflowState;
-    requires_approval_from?: PartyType | null;
-    revision_type?: 'original' | 'update' | 'amendment' | 'cancellation';
-    revision_number?: number;
-  };
-}
-
-interface GroupedDocument {
-  document_type: string;
-  true_sender: string;
-  sender_display: string;
-  versions: DocumentWithFlow[];
-  latest: DocumentWithFlow;
-  version_count: number;
-}
+import { PartyType, DocumentType } from '@/types/email-intelligence';
+import {
+  DocumentWithFlow,
+  GroupedDocument,
+  groupDocumentsBySenderAndType,
+  sortGroupsByLatestDate,
+  deduplicateByMessageId,
+} from '@/lib/utils';
 
 interface MultiSourceDates {
   etd_sources: DateSource[];
@@ -480,23 +460,34 @@ export default function ShipmentDetailPage() {
         </div>
 
         {/* Quick Jump Navigation - Terminal Style */}
-        <div className="flex items-center gap-4 py-3 border-b border-terminal-border text-xs font-mono">
+        <div className="flex items-center gap-4 py-3 border-b border-terminal-border text-xs font-mono flex-wrap">
           <span className="text-terminal-muted">Jump to:</span>
           <a href="#overview" className="text-terminal-blue hover:text-terminal-green transition-colors">[overview]</a>
           <a href="#documents" className="text-terminal-blue hover:text-terminal-green transition-colors flex items-center gap-1">
             [documents]
             <span className="text-terminal-muted">({documents.length})</span>
           </a>
-          <a href="#timeline" className="text-terminal-blue hover:text-terminal-green transition-colors">[timeline]</a>
-          <a href="#containers" className="text-terminal-blue hover:text-terminal-green transition-colors flex items-center gap-1">
-            [containers]
-            {containers.length > 0 && <span className="text-terminal-muted">({containers.length})</span>}
-          </a>
-          <a href="#revisions" className="text-terminal-blue hover:text-terminal-green transition-colors flex items-center gap-1">
-            [revisions]
-            {revisions.length > 0 && <span className="text-terminal-muted">({revisions.length})</span>}
-          </a>
-          <a href="#stakeholders" className="text-terminal-blue hover:text-terminal-green transition-colors">[stakeholders]</a>
+          {milestones.length > 0 && (
+            <a href="#timeline" className="text-terminal-blue hover:text-terminal-green transition-colors flex items-center gap-1">
+              [timeline]
+              <span className="text-terminal-muted">({milestones.length})</span>
+            </a>
+          )}
+          {containers.length > 0 && (
+            <a href="#containers" className="text-terminal-blue hover:text-terminal-green transition-colors flex items-center gap-1">
+              [containers]
+              <span className="text-terminal-muted">({containers.length})</span>
+            </a>
+          )}
+          {revisions.length > 0 && (
+            <a href="#revisions" className="text-terminal-blue hover:text-terminal-green transition-colors flex items-center gap-1">
+              [revisions]
+              <span className="text-terminal-muted">({revisions.length})</span>
+            </a>
+          )}
+          {(stakeholders.shipper || stakeholders.consignee || stakeholders.carrier || stakeholders.notify_party) && (
+            <a href="#stakeholders" className="text-terminal-blue hover:text-terminal-green transition-colors">[stakeholders]</a>
+          )}
         </div>
 
         {/* All Sections */}
@@ -821,34 +812,37 @@ export default function ShipmentDetailPage() {
             <DocumentsTab documents={documents} />
           </section>
 
-          {/* SECTION: Timeline */}
-          <section id="timeline" className="scroll-mt-4">
-            <SectionHeader icon={Clock} title="Timeline" color="blue" />
-            <TimelineTab
-              documents={documents}
-              shipmentId={shipmentId}
-              etd={shipment.etd}
-              eta={shipment.eta}
-            />
-          </section>
+          {/* SECTION: Timeline - Only show if milestones exist */}
+          {milestones.length > 0 && (
+            <section id="timeline" className="scroll-mt-4">
+              <SectionHeader icon={Clock} title="Timeline" count={milestones.length} color="blue" />
+              <TrackingMilestones milestones={milestones} />
+            </section>
+          )}
 
-          {/* SECTION: Containers */}
-          <section id="containers" className="scroll-mt-4">
-            <SectionHeader icon={Package} title="Containers" count={containers.length} color="purple" />
-            <ContainersTab containers={containers} milestones={milestones} />
-          </section>
+          {/* SECTION: Containers - Only show if containers exist */}
+          {containers.length > 0 && (
+            <section id="containers" className="scroll-mt-4">
+              <SectionHeader icon={Package} title="Containers" count={containers.length} color="purple" />
+              <ContainersTab containers={containers} />
+            </section>
+          )}
 
-          {/* SECTION: Revisions */}
-          <section id="revisions" className="scroll-mt-4">
-            <SectionHeader icon={History} title="Revision History" count={revisions.length} color="amber" />
-            <RevisionsTab revisions={revisions} bookingNumber={shipment.booking_number} />
-          </section>
+          {/* SECTION: Revisions - Only show if revisions exist */}
+          {revisions.length > 0 && (
+            <section id="revisions" className="scroll-mt-4">
+              <SectionHeader icon={History} title="Revision History" count={revisions.length} color="amber" />
+              <RevisionsTab revisions={revisions} bookingNumber={shipment.booking_number} />
+            </section>
+          )}
 
-          {/* SECTION: Stakeholders */}
-          <section id="stakeholders" className="scroll-mt-4">
-            <SectionHeader icon={Users} title="Stakeholders" color="blue" />
-            <StakeholdersSection stakeholders={stakeholders} />
-          </section>
+          {/* SECTION: Stakeholders - Only show if stakeholders exist */}
+          {(stakeholders.shipper || stakeholders.consignee || stakeholders.carrier || stakeholders.notify_party) && (
+            <section id="stakeholders" className="scroll-mt-4">
+              <SectionHeader icon={Users} title="Stakeholders" color="blue" />
+              <StakeholdersSection stakeholders={stakeholders} />
+            </section>
+          )}
         </div>
       </div>
     </div>
@@ -947,71 +941,7 @@ function DocumentsTab({ documents }: { documents: DocumentWithFlow[] }) {
     );
   }
 
-  // Group documents by (document_type + true_sender_email)
-  const groupDocuments = (docs: DocumentWithFlow[]): GroupedDocument[] => {
-    const seen = new Set<string>();
-    const groups = new Map<string, DocumentWithFlow[]>();
-
-    for (const doc of docs) {
-      if (doc.gmail_message_id && seen.has(doc.gmail_message_id)) {
-        continue;
-      }
-      if (doc.gmail_message_id) {
-        seen.add(doc.gmail_message_id);
-      }
-
-      const sender = doc.true_sender_email || doc.sender_email || 'unknown';
-      const key = `${doc.document_type}|${sender}`;
-
-      if (!groups.has(key)) {
-        groups.set(key, []);
-      }
-      groups.get(key)!.push(doc);
-    }
-
-    return Array.from(groups.entries()).map(([key, versions]) => {
-      const sorted = versions.sort((a, b) => {
-        const dateA = new Date(a.received_at || a.document_date || a.created_at || 0);
-        const dateB = new Date(b.received_at || b.document_date || b.created_at || 0);
-        return dateB.getTime() - dateA.getTime();
-      });
-
-      const [docType, sender] = key.split('|');
-      const senderDisplay = extractSenderDisplay(sender);
-
-      return {
-        document_type: docType,
-        true_sender: sender,
-        sender_display: senderDisplay,
-        versions: sorted,
-        latest: sorted[0],
-        version_count: sorted.length,
-      };
-    });
-  };
-
-  const extractSenderDisplay = (email: string): string => {
-    if (!email || email === 'unknown') return 'Unknown';
-
-    const domain = email.split('@')[1] || email;
-    const carrierPatterns: Record<string, string> = {
-      'maersk.com': 'Maersk',
-      'hapag-lloyd.com': 'Hapag-Lloyd',
-      'msc.com': 'MSC',
-      'cma-cgm.com': 'CMA CGM',
-      'one-line.com': 'ONE',
-      'evergreen-marine.com': 'Evergreen',
-      'intoglo.com': 'Intoglo',
-    };
-
-    for (const [pattern, name] of Object.entries(carrierPatterns)) {
-      if (domain.includes(pattern.split('.')[0])) return name;
-    }
-
-    return domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1);
-  };
-
-  const groupedDocs = groupDocuments(documents);
+  const groupedDocs = groupDocumentsBySenderAndType(documents);
   const toggleGroup = (key: string) => {
     setExpandedGroups(prev => {
       const next = new Set(prev);
@@ -1040,13 +970,14 @@ function DocumentsTab({ documents }: { documents: DocumentWithFlow[] }) {
 
       {/* Grouped Document List */}
       <div className="divide-y divide-terminal-border">
-        {groupedDocs.map((group) => {
+        {groupedDocs.map((group, index) => {
           const key = `${group.document_type}|${group.true_sender}`;
+          const uniqueKey = `${key}|${index}`;
           const isExpanded = expandedGroups.has(key);
           const latest = group.latest;
 
           return (
-            <div key={key}>
+            <div key={uniqueKey}>
               {/* Group Header */}
               <div
                 className="px-4 py-3 hover:bg-terminal-elevated cursor-pointer flex items-center gap-4 transition-colors"
@@ -1154,237 +1085,116 @@ function DocumentsTab({ documents }: { documents: DocumentWithFlow[] }) {
   );
 }
 
-function TimelineTab({
-  documents,
-  shipmentId,
-  etd,
-  eta,
-}: {
-  documents: DocumentWithFlow[];
-  shipmentId: string;
-  etd?: string;
-  eta?: string;
-}) {
-  // Deduplicate documents by gmail_message_id and group by (document_type + true_sender)
-  const deduplicateAndGroup = (docs: DocumentWithFlow[]): GroupedDocument[] => {
-    const seen = new Set<string>();
-    const groups = new Map<string, DocumentWithFlow[]>();
-
-    for (const doc of docs) {
-      if (doc.gmail_message_id && seen.has(doc.gmail_message_id)) {
-        continue;
-      }
-      if (doc.gmail_message_id) {
-        seen.add(doc.gmail_message_id);
-      }
-
-      const sender = doc.true_sender_email || doc.sender_email || 'unknown';
-      const key = `${doc.document_type}|${sender}`;
-
-      if (!groups.has(key)) {
-        groups.set(key, []);
-      }
-      groups.get(key)!.push(doc);
-    }
-
-    return Array.from(groups.entries()).map(([key, versions]) => {
-      const sorted = versions.sort((a, b) => {
-        const dateA = new Date(a.received_at || a.document_date || a.created_at || 0);
-        const dateB = new Date(b.received_at || b.document_date || b.created_at || 0);
-        return dateB.getTime() - dateA.getTime();
-      });
-
-      const [docType, sender] = key.split('|');
-      return {
-        document_type: docType,
-        true_sender: sender,
-        sender_display: extractSenderName(sender),
-        versions: sorted,
-        latest: sorted[0],
-        version_count: sorted.length,
-      };
+// Shared date formatter for milestones
+function formatMilestoneDate(date: string) {
+  try {
+    return new Date(date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
     });
-  };
+  } catch {
+    return date;
+  }
+}
 
-  const extractSenderName = (email: string): string => {
-    if (!email || email === 'unknown') return 'Unknown';
-    const domain = email.split('@')[1] || email;
-    const patterns: Record<string, string> = {
-      'maersk': 'Maersk', 'hapag': 'Hapag-Lloyd', 'msc': 'MSC',
-      'cma': 'CMA CGM', 'one-line': 'ONE', 'evergreen': 'Evergreen', 'intoglo': 'Intoglo',
-    };
-    for (const [pattern, name] of Object.entries(patterns)) {
-      if (domain.includes(pattern)) return name;
-    }
-    return domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1);
-  };
+// Shared event icon getter
+function getEventIcon(eventType: string) {
+  const type = eventType.toLowerCase();
+  if (type.includes('depart') || type.includes('sail')) {
+    return <Ship className="h-4 w-4 text-terminal-blue" />;
+  }
+  if (type.includes('arriv') || type.includes('dock')) {
+    return <Anchor className="h-4 w-4 text-terminal-green" />;
+  }
+  if (type.includes('load') || type.includes('discharge')) {
+    return <Package className="h-4 w-4 text-terminal-amber" />;
+  }
+  return <CheckCircle2 className="h-4 w-4 text-terminal-muted" />;
+}
 
-  const groupedDocs = deduplicateAndGroup(documents);
-
-  // Sort groups by latest document date (most recent first)
-  const sortedGroups = [...groupedDocs].sort((a, b) => {
-    const dateA = new Date(a.latest.received_at || a.latest.document_date || a.latest.created_at || 0);
-    const dateB = new Date(b.latest.received_at || b.latest.document_date || b.latest.created_at || 0);
-    return dateB.getTime() - dateA.getTime();
-  });
-
+function TrackingMilestones({ milestones }: { milestones: ShipmentEventData[] }) {
   return (
-    <div className="grid grid-cols-2 gap-6">
-      {/* Milestone Timeline */}
-      <div>
-        <MilestoneTimeline shipmentId={shipmentId} etd={etd} eta={eta} />
+    <div className="rounded-lg border border-terminal-border bg-terminal-surface overflow-hidden">
+      <div className="px-4 py-2.5 bg-terminal-elevated border-b border-terminal-border flex items-center gap-2">
+        <span className="h-2 w-2 rounded-full bg-terminal-green" />
+        <MapPin className="h-4 w-4 text-terminal-green" />
+        <span className="font-medium text-terminal-text text-sm">Tracking Milestones</span>
+        <span className="ml-auto text-xs font-mono text-terminal-muted">[{milestones.length}]</span>
       </div>
 
-      {/* Document Timeline - Terminal Style */}
-      <div className="rounded-lg border border-terminal-border bg-terminal-surface overflow-hidden">
-        <div className="px-4 py-2.5 bg-terminal-elevated border-b border-terminal-border flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-terminal-blue" />
-            <FileText className="h-4 w-4 text-terminal-blue" />
-            <span className="font-medium text-terminal-text text-sm">Document Timeline</span>
-          </div>
-          <span className="text-xs font-mono text-terminal-muted">[{sortedGroups.length}] unique</span>
-        </div>
+      {milestones.length > 0 ? (
+        <div className="p-4">
+          <div className="relative">
+            {milestones.map((event, idx) => {
+              const isLast = idx === milestones.length - 1;
 
-        {sortedGroups.length === 0 ? (
-          <div className="text-center py-8 text-terminal-muted font-mono text-sm">
-            No documents linked yet
-          </div>
-        ) : (
-          <div className="p-4">
-            <div className="flow-root">
-              <ul className="-mb-8">
-                {sortedGroups.map((group, idx) => {
-                  const latest = group.latest;
-                  const classification = latest.classification;
-                  const isLast = idx === sortedGroups.length - 1;
+              return (
+                <div key={event.id} className="relative pb-6 last:pb-0">
+                  {!isLast && (
+                    <div className="absolute left-4 top-8 bottom-0 w-0.5 bg-terminal-border" />
+                  )}
 
-                  return (
-                    <li key={`${group.document_type}|${group.true_sender}`}>
-                      <div className="relative pb-8">
-                        {!isLast && (
-                          <span
-                            className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-terminal-border"
-                            aria-hidden="true"
-                          />
-                        )}
-                        <div className="relative flex space-x-4">
-                          <div>
-                            <span className="h-8 w-8 rounded-full bg-terminal-blue/20 flex items-center justify-center ring-4 ring-terminal-surface border border-terminal-blue/30">
-                              <span className="text-terminal-blue text-xs font-mono font-bold">
-                                {idx + 1}
-                              </span>
-                            </span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-3 mb-2">
-                              <DocumentTypeBadge type={group.document_type as DocumentType} size="sm" />
-                              {group.version_count > 1 && (
-                                <span className="px-1.5 py-0.5 text-[10px] font-mono bg-terminal-blue/10 text-terminal-blue border border-terminal-blue/30 rounded">
-                                  {group.version_count} ver
-                                </span>
-                              )}
-                              {classification?.revision_type && classification.revision_type !== 'original' && (
-                                <RevisionBadge
-                                  revisionType={classification.revision_type}
-                                  revisionNumber={classification.revision_number}
-                                  size="sm"
-                                />
-                              )}
-                            </div>
+                  <div className="flex gap-4">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-terminal-elevated flex items-center justify-center z-10 border border-terminal-border">
+                      {getEventIcon(event.event_type)}
+                    </div>
 
-                            {/* Sender info */}
-                            <div className="text-sm mb-2">
-                              <span className="font-medium text-terminal-text">{group.sender_display}</span>
-                              <span className="text-terminal-muted text-xs font-mono ml-1">({group.true_sender.split('@')[0]})</span>
-                            </div>
-
-                            <div className="flex items-center gap-4 text-sm mb-2">
-                              {classification?.document_direction && classification?.sender_party_type && (
-                                <DocumentFlowBadge
-                                  direction={classification.document_direction}
-                                  senderPartyType={classification.sender_party_type}
-                                  receiverPartyType={classification.receiver_party_type}
-                                  size="sm"
-                                  variant="detailed"
-                                />
-                              )}
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                              <p className="text-xs font-mono text-terminal-muted">
-                                {latest.received_at
-                                  ? new Date(latest.received_at).toLocaleDateString()
-                                  : latest.document_date
-                                    ? new Date(latest.document_date).toLocaleDateString()
-                                    : 'No date'}
-                              </p>
-                              <Link
-                                href={`/emails/${latest.email_id}`}
-                                className="text-xs font-mono text-terminal-blue hover:text-terminal-green transition-colors"
-                              >
-                                [view]
-                              </Link>
-                            </div>
-                          </div>
-                        </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-terminal-text capitalize text-sm">
+                          {event.event_type.replace(/_/g, ' ')}
+                        </span>
+                        <span className="text-xs font-mono text-terminal-muted">
+                          {formatMilestoneDate(event.event_date)}
+                        </span>
                       </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
+
+                      {event.location && (
+                        <div className="flex items-center gap-1 text-xs text-terminal-muted font-mono mb-1">
+                          <MapPin className="h-3 w-3" />
+                          {event.location}
+                          {event.location_code && (
+                            <span className="text-terminal-muted">({event.location_code})</span>
+                          )}
+                        </div>
+                      )}
+
+                      {event.description && (
+                        <p className="text-xs text-terminal-muted">{event.description}</p>
+                      )}
+
+                      <span className="text-[10px] font-mono text-terminal-muted capitalize">
+                        src: {event.source_type.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="p-6 text-center text-terminal-muted font-mono text-sm">
+          No tracking milestones recorded yet
+        </div>
+      )}
     </div>
   );
 }
 
-function ContainersTab({
-  containers,
-  milestones,
-}: {
-  containers: ContainerData[];
-  milestones: ShipmentEventData[];
-}) {
-  if (containers.length === 0 && milestones.length === 0) {
+function ContainersTab({ containers }: { containers: ContainerData[] }) {
+  if (containers.length === 0) {
     return (
       <div className="rounded-lg border border-terminal-border bg-terminal-surface p-12 text-center">
         <Package className="mx-auto h-12 w-12 text-terminal-muted mb-4" />
         <h3 className="text-sm font-medium text-terminal-text mb-2 font-mono">No Container Information</h3>
-        <p className="text-xs text-terminal-muted font-mono">Container details and tracking events will appear here</p>
+        <p className="text-xs text-terminal-muted font-mono">Container details will appear here once available</p>
       </div>
     );
   }
-
-  const formatDate = (date: string) => {
-    try {
-      return new Date(date).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-    } catch {
-      return date;
-    }
-  };
-
-  const getEventIcon = (eventType: string) => {
-    const type = eventType.toLowerCase();
-    if (type.includes('depart') || type.includes('sail')) {
-      return <Ship className="h-4 w-4 text-terminal-blue" />;
-    }
-    if (type.includes('arriv') || type.includes('dock')) {
-      return <Anchor className="h-4 w-4 text-terminal-green" />;
-    }
-    if (type.includes('load') || type.includes('discharge')) {
-      return <Package className="h-4 w-4 text-terminal-amber" />;
-    }
-    return <CheckCircle2 className="h-4 w-4 text-terminal-muted" />;
-  };
 
   const getContainerTypeLabel = (type?: string) => {
     if (!type) return 'Standard';
@@ -1471,73 +1281,6 @@ function ContainersTab({
         ) : (
           <div className="p-6 text-center text-terminal-muted font-mono text-sm">
             No container details available
-          </div>
-        )}
-      </div>
-
-      {/* Milestones Timeline - Terminal Style */}
-      <div className="rounded-lg border border-terminal-border bg-terminal-surface overflow-hidden">
-        <div className="px-4 py-2.5 bg-terminal-elevated border-b border-terminal-border flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-terminal-green" />
-          <MapPin className="h-4 w-4 text-terminal-green" />
-          <span className="font-medium text-terminal-text text-sm">Tracking Milestones</span>
-          <span className="ml-auto text-xs font-mono text-terminal-muted">[{milestones.length}]</span>
-        </div>
-
-        {milestones.length > 0 ? (
-          <div className="p-4">
-            <div className="relative">
-              {milestones.map((event, idx) => {
-                const isLast = idx === milestones.length - 1;
-
-                return (
-                  <div key={event.id} className="relative pb-6 last:pb-0">
-                    {!isLast && (
-                      <div className="absolute left-4 top-8 bottom-0 w-0.5 bg-terminal-border" />
-                    )}
-
-                    <div className="flex gap-4">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-terminal-elevated flex items-center justify-center z-10 border border-terminal-border">
-                        {getEventIcon(event.event_type)}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-terminal-text capitalize text-sm">
-                            {event.event_type.replace(/_/g, ' ')}
-                          </span>
-                          <span className="text-xs font-mono text-terminal-muted">
-                            {formatDate(event.event_date)}
-                          </span>
-                        </div>
-
-                        {event.location && (
-                          <div className="flex items-center gap-1 text-xs text-terminal-muted font-mono mb-1">
-                            <MapPin className="h-3 w-3" />
-                            {event.location}
-                            {event.location_code && (
-                              <span className="text-terminal-muted">({event.location_code})</span>
-                            )}
-                          </div>
-                        )}
-
-                        {event.description && (
-                          <p className="text-xs text-terminal-muted">{event.description}</p>
-                        )}
-
-                        <span className="text-[10px] font-mono text-terminal-muted capitalize">
-                          src: {event.source_type.replace(/_/g, ' ')}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <div className="p-6 text-center text-terminal-muted font-mono text-sm">
-            No tracking milestones recorded yet
           </div>
         )}
       </div>

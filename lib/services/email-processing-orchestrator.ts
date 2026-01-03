@@ -273,6 +273,7 @@ export class EmailProcessingOrchestrator {
 
       // 5. Extract data using CONSOLIDATED ShipmentExtractionService
       // This ensures single extraction path for both cron and API
+      // Pass documentType for document-specific extraction hints (e.g., HBL party extraction)
       const pdfContent = await this.getPdfContent(emailId);
       const extractionResult = await this.extractionService.extractFromContent({
         emailId,
@@ -280,6 +281,7 @@ export class EmailProcessingOrchestrator {
         bodyText: email.body_text || '',
         pdfContent,
         carrier,
+        documentType,  // HBL/SI docs get special prompts to extract shipper/consignee/notify_party
       });
 
       if (!extractionResult.success || !extractionResult.data) {
@@ -605,6 +607,17 @@ export class EmailProcessingOrchestrator {
     }
     if (hblNumber) {
       entities.push({ email_id: emailId, entity_type: 'hbl_number', entity_value: hblNumber, confidence_score: 75, extraction_method: 'regex_subject' });
+    }
+
+    // Stakeholders (shipper/consignee/notify) - extracted from HBL/SI documents
+    if (data.shipper_name) {
+      entities.push({ email_id: emailId, entity_type: 'shipper_name', entity_value: data.shipper_name, confidence_score: 85, extraction_method: 'ai' });
+    }
+    if (data.consignee_name) {
+      entities.push({ email_id: emailId, entity_type: 'consignee_name', entity_value: data.consignee_name, confidence_score: 85, extraction_method: 'ai' });
+    }
+    if (data.notify_party_name) {
+      entities.push({ email_id: emailId, entity_type: 'notify_party', entity_value: data.notify_party_name, confidence_score: 85, extraction_method: 'ai' });
     }
 
     if (entities.length > 0) {
@@ -978,20 +991,102 @@ export class EmailProcessingOrchestrator {
     data: ExtractedBookingData,
     documentType?: string
   ): Promise<{ shipmentId?: string }> {
-    const bookingNumber = data.booking_number;
-    if (!bookingNumber) {
+    // Try multiple identifier types: booking → MBL → HBL → container
+    let shipment: { id: string } | null = null;
+    let matchedBy: string | null = null;
+
+    // 1. Try booking number first (from extraction)
+    if (data.booking_number) {
+      const { data: match } = await this.supabase
+        .from('shipments')
+        .select('id')
+        .eq('booking_number', data.booking_number)
+        .single();
+      if (match) {
+        shipment = match;
+        matchedBy = `booking:${data.booking_number}`;
+      }
+    }
+
+    // 2. If no match, get entities from database for this email
+    if (!shipment) {
+      const { data: entities } = await this.supabase
+        .from('entity_extractions')
+        .select('entity_type, entity_value')
+        .eq('email_id', emailId);
+
+      if (entities && entities.length > 0) {
+        // Try MBL/BL number
+        const blEntities = entities.filter(e =>
+          e.entity_type === 'mbl_number' || e.entity_type === 'bl_number'
+        );
+        for (const e of blEntities) {
+          if (!e.entity_value) continue;
+          const { data: match } = await this.supabase
+            .from('shipments')
+            .select('id')
+            .eq('mbl_number', e.entity_value.toUpperCase())
+            .single();
+          if (match) {
+            shipment = match;
+            matchedBy = `mbl:${e.entity_value}`;
+            break;
+          }
+        }
+
+        // Try HBL number
+        if (!shipment) {
+          const hblEntities = entities.filter(e => e.entity_type === 'hbl_number');
+          for (const e of hblEntities) {
+            if (!e.entity_value) continue;
+            const { data: match } = await this.supabase
+              .from('shipments')
+              .select('id')
+              .eq('hbl_number', e.entity_value.toUpperCase())
+              .single();
+            if (match) {
+              shipment = match;
+              matchedBy = `hbl:${e.entity_value}`;
+              break;
+            }
+          }
+        }
+
+        // Try container number
+        if (!shipment) {
+          const containerEntities = entities.filter(e => e.entity_type === 'container_number');
+          for (const e of containerEntities) {
+            if (!e.entity_value) continue;
+            // Check container_numbers array
+            const { data: match } = await this.supabase
+              .from('shipments')
+              .select('id')
+              .contains('container_numbers', [e.entity_value.toUpperCase()])
+              .limit(1);
+            if (match && match.length > 0) {
+              shipment = match[0];
+              matchedBy = `container:${e.entity_value}`;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // No shipment found
+    if (!shipment) {
       return {};
     }
 
-    const { data: existing } = await this.supabase
-      .from('shipments')
-      .select('id')
-      .eq('booking_number', bookingNumber)
-      .single();
+    const existing = shipment;
+    if (matchedBy) {
+      console.log(`[Orchestrator] Matched email ${emailId.substring(0, 8)} via ${matchedBy}`);
+    }
 
     if (existing) {
-      // Update stakeholders from HBL/SI documents (these have real customer info)
-      const stakeholderDocTypes = ['bill_of_lading', 'bl_draft', 'hbl_draft', 'shipping_instruction', 'si_draft', 'si_submission'];
+      // Update stakeholders ONLY from HBL and SI Draft (these have real customer info)
+      // NOT from: bill_of_lading (MBL), bl_draft, shipping_instruction, si_submission
+      const stakeholderDocTypes = ['si_draft', 'hbl_draft', 'hbl'];
       if (documentType && stakeholderDocTypes.includes(documentType)) {
         const updateData: Record<string, string> = {};
 
@@ -1023,6 +1118,13 @@ export class EmailProcessingOrchestrator {
 
           console.log(`[Orchestrator] Updated stakeholders from ${documentType} for shipment ${existing.id}`);
         }
+      }
+
+      // CRITICAL: Link email to shipment in shipment_documents table
+      // This was missing - documents were found but not linked!
+      if (documentType) {
+        await this.linkEmailToShipment(emailId, existing.id, documentType);
+        console.log(`[Orchestrator] Linked ${documentType} email to shipment ${existing.id}`);
       }
 
       return { shipmentId: existing.id };

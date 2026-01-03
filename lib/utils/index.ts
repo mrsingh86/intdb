@@ -38,3 +38,19 @@ export {
   sanitizeContainerNumber,
   isBookingNumberFormat,
 } from './container-validator';
+
+// ============================================================================
+// Document Grouping Utilities
+// ============================================================================
+
+export {
+  extractSenderDisplayName,
+  deduplicateByMessageId,
+  groupDocumentsBySenderAndType,
+  sortGroupsByLatestDate,
+} from './document-grouping';
+
+export type {
+  DocumentWithFlow,
+  GroupedDocument,
+} from './document-grouping';

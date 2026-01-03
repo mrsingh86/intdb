@@ -179,17 +179,19 @@ ROUTING - CRITICAL DISTINCTION BETWEEN SEAPORTS AND INLAND LOCATIONS:
 ⚠️ IMPORTANT: port_of_loading and port_of_discharge MUST be SEAPORTS, not inland locations!
 
 SEAPORTS (POL/POD) - Major ocean terminals where ships load/unload:
-- port_of_loading: SEAPORT name (e.g., Mundra, Pipavav, Nhava Sheva, Shanghai, Rotterdam)
+FORMAT: Use "City, Terminal" format (e.g., "Nhava Sheva, NSICT DPW", "Newark, Maher Terminal")
+- port_of_loading: SEAPORT with terminal name (e.g., "Mundra, Adani Terminal", "Pipavav, APM Terminals")
 - port_of_loading_code: UN/LOCODE (5 chars, e.g., INMUN, INPAV, INNSA, CNSHA)
-- port_of_discharge: SEAPORT name (e.g., Houston, Newark, Los Angeles, Charleston)
+- port_of_discharge: SEAPORT with terminal name (e.g., "Houston, Barbours Cut", "Newark, Maher Terminal")
 - port_of_discharge_code: UN/LOCODE (e.g., USHOU, USEWR, USLAX, USCHS)
 
 INLAND LOCATIONS (Place of Receipt/Delivery) - NOT seaports:
+FORMAT: Use "City, Terminal/ICD" format (e.g., "Gurgaon, Gateway Rail", "Ludhiana, ICD Sanehwal")
 - place_of_receipt: INLAND origin (ICD, depot, warehouse, factory, rail terminal)
-  Examples: "ICD Sanehwal", "Ludhiana Container Depot", "Gateway Rail Gurgaon", "New Delhi ICD"
+  Examples: "Gurgaon, Gateway Rail", "Ludhiana, ICD Container Depot", "Delhi, ICD Tughlakabad"
 - place_of_receipt_code: Location code if available
 - place_of_delivery: INLAND destination (ICD, warehouse, consignee location)
-  Examples: "Maher Terminal", "Chicago ICD", "Fort Worth Rail"
+  Examples: "Chicago, CN Rail Terminal", "Fort Worth, BNSF Ramp", "Brampton, CN Rail"
 - place_of_delivery_code: Location code if available
 - final_destination: Ultimate destination city if different from POD
 - transhipment_ports: Array of intermediate SEAPORTS
@@ -400,18 +402,25 @@ Multi-leg routing example: LUDHIANA CONTAINER DEPOT → PIPAVAV TERMINAL → HOU
 - ETD: From the ocean leg departure
 - ETA: From the ocean leg arrival
 
+PORT FORMAT: Use "City, Terminal" format for all ports.
+
 Common Maersk seaport terminals in India:
-- PIPAVAV TERMINAL → port_of_loading: "Pipavav", code: "INPAV"
-- MUNDRA / MUNDRA ADANI → port_of_loading: "Mundra", code: "INMUN"
-- NHAVA SHEVA / JNPT / NSICT / NSIGT → port_of_loading: "Nhava Sheva", code: "INNSA"
-- HAZIRA → port_of_loading: "Hazira", code: "INHZA"
+- PIPAVAV TERMINAL → port_of_loading: "Pipavav, APM Terminals", code: "INPAV"
+- MUNDRA / MUNDRA ADANI → port_of_loading: "Mundra, Adani Terminal", code: "INMUN"
+- NHAVA SHEVA / JNPT / NSICT → port_of_loading: "Nhava Sheva, NSICT DPW", code: "INNSA"
+- NHAVA SHEVA / NSIGT → port_of_loading: "Nhava Sheva, NSIGT", code: "INNSA"
+- HAZIRA → port_of_loading: "Hazira, Adani Terminal", code: "INHZA"
 
 Common Maersk seaport terminals in USA:
-- HOUSTON BARBOURS CUT → port_of_discharge: "Houston", code: "USHOU"
-- NEWARK / PORT ELIZABETH → port_of_discharge: "Newark", code: "USEWR"
-- LOS ANGELES / LONG BEACH → port_of_discharge: "Los Angeles", code: "USLAX"
-- CHARLESTON → port_of_discharge: "Charleston", code: "USCHS"
-- SAVANNAH → port_of_discharge: "Savannah", code: "USSAV"
+- HOUSTON BARBOURS CUT → port_of_discharge: "Houston, Barbours Cut", code: "USHOU"
+- NEWARK / PORT ELIZABETH / MAHER → port_of_discharge: "Newark, Maher Terminal", code: "USEWR"
+- LOS ANGELES / LONG BEACH → port_of_discharge: "Los Angeles, APM Terminals", code: "USLAX"
+- CHARLESTON → port_of_discharge: "Charleston, Wando Welch", code: "USCHS"
+- SAVANNAH → port_of_discharge: "Savannah, Garden City", code: "USSAV"
+
+Inland port format examples:
+- place_of_receipt: "Gurgaon, Gateway Rail" or "Ludhiana, ICD Container Depot"
+- place_of_delivery: "Chicago, CN Rail Terminal" or "Fort Worth, BNSF Ramp"
 
 CUTOFF DATES - Look for:
 - "SI Cut off" / "Documentation Cut off" → si_cutoff
@@ -539,6 +548,178 @@ ARRIVAL NOTICE:
 `
 };
 
+// Document-type specific hints - especially for HBL party extraction
+const DOCUMENT_TYPE_HINTS: Record<string, string> = {
+  'bill_of_lading': `⚠️ BILL OF LADING - IDENTIFY MBL vs HBL ⚠️
+
+FIRST: Determine if this is a MASTER BL (MBL) or HOUSE BL (HBL):
+
+MBL (from shipping line - Maersk, Hapag, MSC, CMA, etc.):
+- DO NOT extract shipper_name/consignee_name (they are freight forwarder, not real customer)
+- Focus on: bl_number, mbl_number, vessel, voyage, ports, containers
+
+HBL (from freight forwarder):
+- DO extract shipper_name, consignee_name, notify_party (these are real customers)
+- Look for hbl_number
+
+BILL OF LADING NUMBERS:
+- bl_number: The main BL number shown
+- mbl_number: Master BL number (shipping line issued)
+- hbl_number: House BL number (freight forwarder issued)
+
+VOYAGE & ROUTING (always extract):
+- vessel_name, voyage_number
+- port_of_loading, port_of_discharge
+- container_numbers
+`,
+  'hbl_draft': `⚠️ HOUSE BL DRAFT - STAKEHOLDER EXTRACTION REQUIRED ⚠️
+
+This is a HOUSE BL Draft. MUST extract party information:
+
+MANDATORY FIELDS:
+- shipper_name: Full company name of exporter
+- shipper_address: Complete address
+- consignee_name: Full company name of importer
+- consignee_address: Complete address
+- notify_party: Notify party name
+- notify_party_address: Notify party address
+
+Also extract: hbl_number, vessel, voyage, ports, containers.
+`,
+  'hbl': `⚠️ HOUSE BILL OF LADING - STAKEHOLDER EXTRACTION REQUIRED ⚠️
+
+This is a HOUSE BL. MUST extract party information:
+
+MANDATORY FIELDS:
+- shipper_name: Full company name of exporter
+- shipper_address: Complete address
+- consignee_name: Full company name of importer
+- consignee_address: Complete address
+- notify_party: Notify party name
+- notify_party_address: Notify party address
+
+Also extract: hbl_number, vessel, voyage, ports, containers.
+`,
+  'bl_draft': `⚠️ BL DRAFT - VOYAGE DETAILS ⚠️
+
+Extract voyage and routing details. DO NOT extract shipper/consignee (use HBL for that).
+Focus on: bl_number, vessel, voyage, ports, containers.
+`,
+  'shipping_instruction': `⚠️ SHIPPING INSTRUCTION - VOYAGE DETAILS ⚠️
+
+Extract booking/voyage details. DO NOT extract shipper/consignee (use SI Draft for that).
+Focus on: booking_number, vessel, voyage, ports, cutoffs.
+`,
+  'si_draft': `⚠️ SI DRAFT - STAKEHOLDER EXTRACTION REQUIRED ⚠️
+
+This is an SI Draft. MUST extract party information:
+
+MANDATORY FIELDS:
+- shipper_name: Full company name of exporter
+- shipper_address: Complete address
+- consignee_name: Full company name of importer
+- consignee_address: Complete address
+- notify_party: Notify party name
+- notify_party_address: Notify party address
+
+Also extract: booking_number, vessel, voyage, ports, containers.
+`,
+  'si_submission': `⚠️ SI SUBMISSION - VOYAGE DETAILS ⚠️
+
+Extract booking/voyage details. DO NOT extract shipper/consignee (use SI Draft for that).
+Focus on: booking_number, vessel, voyage, ports, cutoffs.
+`,
+  'booking_confirmation': `⚠️ BOOKING CONFIRMATION - VOYAGE & CUTOFF DETAILS ARE CRITICAL ⚠️
+
+MANDATORY IDENTIFIERS:
+- booking_number: The booking/reference number (e.g., "263825330")
+
+VOYAGE DETAILS:
+- vessel_name: Main vessel name (not feeder)
+- voyage_number: Voyage number/code
+- etd: Estimated departure date (MUST be 2025 or 2026)
+- eta: Estimated arrival date
+
+ROUTING:
+- port_of_loading: Origin port (city name)
+- port_of_discharge: Destination port (city name)
+- final_destination: Final delivery location if different
+
+CUTOFF DATES (CRITICAL):
+- si_cutoff: Shipping instruction deadline
+- vgm_cutoff: VGM submission deadline
+- cargo_cutoff: Cargo delivery deadline
+- gate_cutoff: Gate-in deadline
+- doc_cutoff: Documentation deadline
+
+Note: Shipper/consignee here is often freight forwarder, NOT real customer.
+`,
+  'booking_amendment': `⚠️ BOOKING AMENDMENT - IDENTIFY WHAT CHANGED ⚠️
+
+Focus on:
+1. booking_number: Must match original
+2. CHANGED FIELDS - look for "NEW:", "REVISED:", "UPDATED:" labels:
+   - vessel_name, voyage_number (vessel change)
+   - etd, eta (schedule change)
+   - Cutoff dates (deadline changes)
+   - container_numbers (equipment change)
+`,
+  'arrival_notice': `⚠️ ARRIVAL NOTICE - ARRIVAL DETAILS ARE CRITICAL ⚠️
+
+ARRIVAL DETAILS:
+- eta: Arrival date at destination
+- port_of_discharge: Arrival port
+- terminal: Terminal name for pickup
+- vessel_name: Arriving vessel
+
+REFERENCE NUMBERS:
+- bl_number or mbl_number: Bill of lading number
+- container_numbers: Containers arriving
+- it_number: IT/In-Transit number (CRITICAL for US imports)
+
+Look for free time expiry, demurrage/detention info.
+`,
+  'invoice': `⚠️ INVOICE - AMOUNTS & REFERENCES ARE CRITICAL ⚠️
+
+INVOICE DETAILS:
+- invoice_number: Invoice/bill number
+
+REFERENCE NUMBERS to link:
+- booking_number, bl_number, container_numbers
+
+AMOUNTS:
+- Total amount, currency, charge breakdown
+`,
+  'delivery_order': `⚠️ DELIVERY ORDER - RELEASE DETAILS ARE CRITICAL ⚠️
+
+RELEASE INFO:
+- container_numbers: Containers being released
+- Release date, pickup location/terminal
+
+REFERENCE NUMBERS:
+- bl_number: BL this DO is against
+- booking_number: Original booking
+
+CONSIGNEE:
+- consignee_name: Who can pick up cargo
+`,
+  'customs_document': `⚠️ CUSTOMS DOCUMENT - ENTRY & DUTY DETAILS ARE CRITICAL ⚠️
+
+CUSTOMS ENTRY:
+- entry_number: Customs entry number
+- entry_date: Entry filing/clearance date
+- it_number: IT/transit number
+
+DUTY & TAXES:
+- duty_amount: Total duty payable
+- duty_currency: Currency
+
+CLASSIFICATION:
+- hs_code_customs: HS tariff codes
+- cargo_description: Cargo description
+`
+};
+
 // ============================================================================
 // Main Service
 // ============================================================================
@@ -594,7 +775,11 @@ export class ShipmentExtractionService {
 
       let hasPdfContent = false;
       for (const att of attachments || []) {
-        if (att.extracted_text && att.mime_type?.includes('pdf')) {
+        // Check both mime_type AND filename for PDF detection
+        // Some PDFs have mime_type "application/octet-stream" instead of "application/pdf"
+        const isPdf = att.mime_type?.toLowerCase().includes('pdf') ||
+                      att.filename?.toLowerCase().endsWith('.pdf');
+        if (att.extracted_text && isPdf) {
           combinedContent += `\n\n--- PDF ATTACHMENT: ${att.filename} ---\n${att.extracted_text}`;
           hasPdfContent = true;
         }
@@ -687,6 +872,7 @@ export class ShipmentExtractionService {
     bodyText: string;
     pdfContent: string;
     carrier: string;
+    documentType?: string;  // For document-type specific extraction hints (e.g., bill_of_lading)
   }): Promise<ExtractionResult> {
     const startTime = Date.now();
 
@@ -697,8 +883,9 @@ export class ShipmentExtractionService {
       // Map carrier string to CarrierId
       const carrierId = this.mapToCarrierId(input.carrier);
 
-      // Extract using AI with anti-hallucination validation
-      const extracted = await this.extractWithAI(content, carrierId);
+      // Extract using AI with carrier and document-type specific hints
+      // HBL documents get special prompts to ensure party extraction
+      const extracted = await this.extractWithAI(content, carrierId, input.documentType);
 
       if (!extracted) {
         return {
@@ -846,11 +1033,15 @@ export class ShipmentExtractionService {
   }
 
   /**
-   * Extract data using AI with carrier-specific hints
+   * Extract data using AI with carrier-specific and document-type-specific hints
    */
-  private async extractWithAI(content: string, carrier: CarrierId): Promise<any | null> {
+  private async extractWithAI(content: string, carrier: CarrierId, documentType?: string): Promise<any | null> {
     const carrierHint = CARRIER_HINTS[carrier] || '';
-    const prompt = (carrierHint ? carrierHint + '\n\n' : '') +
+    const documentHint = documentType ? (DOCUMENT_TYPE_HINTS[documentType] || '') : '';
+
+    // Document type hint takes priority (more specific), then carrier hint
+    const hints = [documentHint, carrierHint].filter(Boolean).join('\n\n');
+    const prompt = (hints ? hints + '\n\n' : '') +
       COMPREHENSIVE_EXTRACTION_PROMPT.replace('{CONTENT}', content.substring(0, 15000));
 
     try {

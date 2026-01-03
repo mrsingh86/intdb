@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 import { ShipmentRepository } from '@/lib/repositories/shipment-repository';
 import { ShipmentDocumentRepository } from '@/lib/repositories/shipment-document-repository';
 import { withAuth } from '@/lib/auth/server-auth';
+import { detectOutboundActions } from '@/lib/services/outbound-action-detector';
 
 /**
  * GET /api/shipments/[id]
@@ -74,6 +75,52 @@ export const GET = withAuth(async (request, { user, params }) => {
       };
     }
 
+    // Fallback 2: Check entity_extractions from HBL/SI Draft ONLY
+    // These have real customer stakeholders (MBL/booking have freight forwarder as shipper)
+    if (!stakeholders.shipper || !stakeholders.consignee) {
+      const stakeholderDocTypes = ['si_draft', 'hbl_draft', 'hbl'];
+      const hblSiDocs = documents.filter((d: any) => stakeholderDocTypes.includes(d.document_type));
+      const hblSiEmailIds = hblSiDocs.map((d: any) => d.email_id).filter(Boolean);
+
+      if (hblSiEmailIds.length > 0) {
+        const { data: extractedEntities } = await supabase
+          .from('entity_extractions')
+          .select('entity_type, entity_value')
+          .in('email_id', hblSiEmailIds)
+          .in('entity_type', ['shipper', 'shipper_name', 'consignee', 'consignee_name', 'notify_party']);
+
+        if (extractedEntities) {
+          for (const entity of extractedEntities) {
+            const type = entity.entity_type;
+            const value = entity.entity_value;
+            if (!value) continue;
+
+            // Skip Intoglo entries (we want real customer stakeholders)
+            if (value.toLowerCase().includes('intoglo')) continue;
+
+            if ((type === 'shipper' || type === 'shipper_name') && !stakeholders.shipper) {
+              stakeholders.shipper = {
+                party_name: value,
+                party_type: 'shipper',
+              };
+            }
+            if ((type === 'consignee' || type === 'consignee_name') && !stakeholders.consignee) {
+              stakeholders.consignee = {
+                party_name: value,
+                party_type: 'consignee',
+              };
+            }
+            if (type === 'notify_party' && !stakeholders.notify_party) {
+              stakeholders.notify_party = {
+                party_name: value,
+                party_type: 'notify_party',
+              };
+            }
+          }
+        }
+      }
+    }
+
     // Fetch carrier info if available
     let carrier = null;
     if (shipment.carrier_id) {
@@ -85,11 +132,50 @@ export const GET = withAuth(async (request, { user, params }) => {
       carrier = carrierData;
     }
 
+    // Detect outbound actions from:
+    // 1. Linked emails (documents)
+    // 2. All outbound emails containing booking number (sent by Intoglo staff)
+    let outboundWorkflowStates: string[] = [];
+    const allOutboundStates = new Set<string>();
+
+    // Method 1: Check linked documents for outbound emails
+    const emailIds = documents.map((d: any) => d.email_id).filter(Boolean);
+    if (emailIds.length > 0) {
+      const { data: linkedEmails } = await supabase
+        .from('raw_emails')
+        .select('sender_email, subject')
+        .in('id', emailIds);
+
+      if (linkedEmails) {
+        const states = detectOutboundActions(linkedEmails);
+        states.forEach(s => allOutboundStates.add(s));
+      }
+    }
+
+    // Method 2: Search for outbound emails by booking number (unlinked outbound emails)
+    // Outbound = sent by Intoglo staff (@intoglo.com or @intoglo.in)
+    if (shipment.booking_number) {
+      const { data: outboundEmails } = await supabase
+        .from('raw_emails')
+        .select('sender_email, subject')
+        .or('sender_email.ilike.%@intoglo.com,sender_email.ilike.%@intoglo.in')
+        .ilike('subject', `%${shipment.booking_number}%`)
+        .limit(50);
+
+      if (outboundEmails) {
+        const states = detectOutboundActions(outboundEmails);
+        states.forEach(s => allOutboundStates.add(s));
+      }
+    }
+
+    outboundWorkflowStates = Array.from(allOutboundStates);
+
     return NextResponse.json({
       shipment,
       documents,
       stakeholders,
       carrier,
+      outboundWorkflowStates,
     });
   } catch (error: any) {
     console.error('[API:GET /shipments/[id]] Error:', error);
