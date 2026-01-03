@@ -27,3 +27,14 @@ export {
   getAllRowsWithFilter,
   getRowsByIds,
 } from './supabase-pagination';
+
+// ============================================================================
+// Container Validation Utilities
+// ============================================================================
+
+export {
+  isValidContainerNumber,
+  normalizeContainerNumber,
+  sanitizeContainerNumber,
+  isBookingNumberFormat,
+} from './container-validator';

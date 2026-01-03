@@ -13,6 +13,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Shipment, ShipmentStatus } from '@/types/shipment';
 import { PaginationOptions, PaginatedResult } from '../types/repository-filters';
+import { sanitizeContainerNumber } from '../utils';
 
 export interface ShipmentQueryFilters {
   status?: ShipmentStatus[];
@@ -150,7 +151,7 @@ export class ShipmentRepository {
    * Checks both shipments.container_number_primary AND shipment_containers table
    */
   async findByContainerNumber(containerNumber: string): Promise<Shipment | null> {
-    // First check shipments.container_number_primary
+    // 1. Check shipments.container_number_primary
     const { data: primaryMatch } = await this.supabase
       .from('shipments')
       .select('*')
@@ -161,7 +162,18 @@ export class ShipmentRepository {
       return primaryMatch[0];
     }
 
-    // Then check shipment_containers table
+    // 2. Check shipments.container_numbers array (JSON contains)
+    const { data: arrayMatch } = await this.supabase
+      .from('shipments')
+      .select('*')
+      .contains('container_numbers', [containerNumber])
+      .limit(1);
+
+    if (arrayMatch && arrayMatch.length > 0) {
+      return arrayMatch[0];
+    }
+
+    // 3. Check shipment_containers table (legacy/detailed container records)
     const { data: containerMatch } = await this.supabase
       .from('shipment_containers')
       .select('shipment_id')
@@ -184,9 +196,17 @@ export class ShipmentRepository {
    * @throws Error if creation fails
    */
   async create(shipment: Partial<Shipment>): Promise<Shipment> {
+    // Sanitize container number to prevent garbage data
+    const sanitizedShipment = {
+      ...shipment,
+      container_number_primary: sanitizeContainerNumber(
+        shipment.container_number_primary
+      ),
+    };
+
     const { data, error } = await this.supabase
       .from('shipments')
-      .insert(shipment)
+      .insert(sanitizedShipment)
       .select()
       .single();
 
@@ -201,9 +221,17 @@ export class ShipmentRepository {
    * Update existing shipment
    */
   async update(id: string, updates: Partial<Shipment>): Promise<Shipment> {
+    // Sanitize container number if being updated
+    const sanitizedUpdates = { ...updates };
+    if ('container_number_primary' in updates) {
+      sanitizedUpdates.container_number_primary = sanitizeContainerNumber(
+        updates.container_number_primary
+      );
+    }
+
     const { data, error } = await this.supabase
       .from('shipments')
-      .update(updates)
+      .update(sanitizedUpdates)
       .eq('id', id)
       .select()
       .single();

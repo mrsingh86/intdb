@@ -97,7 +97,7 @@ export default function ShipmentsDashboardPage() {
     };
   }, [shipments]);
 
-  // Workflow state breakdown - all document milestones
+  // Workflow state breakdown - matches ACTUAL database values
   const workflowStats = useMemo(() => {
     const countByState = (state: string) => shipments.filter(s => s.workflow_state === state).length;
     const countByPhase = (phase: string) => shipments.filter(s => s.workflow_phase === phase).length;
@@ -108,21 +108,25 @@ export default function ShipmentsDashboardPage() {
       in_transit: countByPhase('in_transit'),
       arrival: countByPhase('arrival'),
       delivery: countByPhase('delivery'),
-      // Pre-departure states - UPDATED to match actual DB values
-      booking_received: countByState('booking_confirmation_received'),
-      booking_confirmed: countByState('booking_confirmed'),
-      packing_received: countByState('packing_received'),
-      vgm_confirmed: countByState('vgm_confirmed'),
+      // Pre-departure states - ACTUAL DB values
+      booking_confirmation_received: countByState('booking_confirmation_received'),
+      booking_confirmation_shared: countByState('booking_confirmation_shared'),
       si_draft_received: countByState('si_draft_received'),
+      si_draft_sent: countByState('si_draft_sent'),
       si_confirmed: countByState('si_confirmed'),
-      // In-transit states - UPDATED to match actual DB values
-      hbl_draft_sent: countByState('hbl_draft_sent'),
-      invoice_received: countByState('invoice_received'),
+      mbl_draft_received: countByState('mbl_draft_received'),
+      sob_received: countByState('sob_received'),
+      // In-transit states - ACTUAL DB values
+      invoice_sent: countByState('invoice_sent'),
       hbl_released: countByState('hbl_released'),
-      // Arrival states - UPDATED to match actual DB values
-      arrival_notice: countByState('arrival_notice_received'),
-      customs_received: countByState('customs_received'),
-      delivery_ordered: countByState('delivery_ordered'),
+      // Arrival states - ACTUAL DB values
+      arrival_notice_received: countByState('arrival_notice_received'),
+      arrival_notice_shared: countByState('arrival_notice_shared'),
+      duty_summary_shared: countByState('duty_summary_shared'),
+      duty_invoice_received: countByState('duty_invoice_received'),
+      cargo_released: countByState('cargo_released'),
+      // Other states
+      booking_cancelled: countByState('booking_cancelled'),
       // No workflow
       no_workflow: shipments.filter(s => !s.workflow_state).length,
     };
@@ -310,7 +314,7 @@ export default function ShipmentsDashboardPage() {
               </Link>
             </div>
 
-            {/* Phases with All Document Milestones */}
+            {/* Phases with All Document Milestones - UPDATED to match actual DB states */}
             <div className="grid grid-cols-4 gap-4">
               {/* Pre-Departure */}
               <div className="bg-blue-50 rounded-lg p-3">
@@ -322,12 +326,13 @@ export default function ShipmentsDashboardPage() {
                   <span className="text-lg font-bold text-blue-700">{workflowStats.pre_departure}</span>
                 </Link>
                 <div className="space-y-0.5 text-xs">
-                  <WorkflowStatRow label="Booking (Rcvd)" value={workflowStats.booking_received} color="blue" state="booking_confirmation_received" />
-                  <WorkflowStatRow label="Booking (OK)" value={workflowStats.booking_confirmed} color="blue" state="booking_confirmed" />
-                  <WorkflowStatRow label="Packing (Rcvd)" value={workflowStats.packing_received} color="blue" state="packing_received" />
-                  <WorkflowStatRow label="VGM (OK)" value={workflowStats.vgm_confirmed} color="blue" state="vgm_confirmed" />
-                  <WorkflowStatRow label="SI Draft (Rcvd)" value={workflowStats.si_draft_received} color="blue" state="si_draft_received" />
-                  <WorkflowStatRow label="SI (Confirmed)" value={workflowStats.si_confirmed} color="blue" state="si_confirmed" />
+                  <WorkflowStatRow label="Booking Rcvd" value={workflowStats.booking_confirmation_received} color="blue" state="booking_confirmation_received" />
+                  <WorkflowStatRow label="Booking Shared" value={workflowStats.booking_confirmation_shared} color="blue" state="booking_confirmation_shared" />
+                  <WorkflowStatRow label="SI Draft Rcvd" value={workflowStats.si_draft_received} color="blue" state="si_draft_received" />
+                  <WorkflowStatRow label="SI Draft Sent" value={workflowStats.si_draft_sent} color="blue" state="si_draft_sent" />
+                  <WorkflowStatRow label="SI Confirmed" value={workflowStats.si_confirmed} color="blue" state="si_confirmed" />
+                  <WorkflowStatRow label="MBL Draft Rcvd" value={workflowStats.mbl_draft_received} color="blue" state="mbl_draft_received" />
+                  <WorkflowStatRow label="SOB Received" value={workflowStats.sob_received} color="blue" state="sob_received" />
                 </div>
               </div>
 
@@ -341,9 +346,8 @@ export default function ShipmentsDashboardPage() {
                   <span className="text-lg font-bold text-yellow-700">{workflowStats.in_transit}</span>
                 </Link>
                 <div className="space-y-0.5 text-xs">
-                  <WorkflowStatRow label="HBL Draft (Sent)" value={workflowStats.hbl_draft_sent} color="yellow" state="hbl_draft_sent" />
-                  <WorkflowStatRow label="Invoice (Rcvd)" value={workflowStats.invoice_received} color="yellow" state="invoice_received" />
-                  <WorkflowStatRow label="HBL (Released)" value={workflowStats.hbl_released} color="yellow" state="hbl_released" />
+                  <WorkflowStatRow label="Invoice Sent" value={workflowStats.invoice_sent} color="yellow" state="invoice_sent" />
+                  <WorkflowStatRow label="HBL Released" value={workflowStats.hbl_released} color="yellow" state="hbl_released" />
                 </div>
               </div>
 
@@ -357,24 +361,35 @@ export default function ShipmentsDashboardPage() {
                   <span className="text-lg font-bold text-purple-700">{workflowStats.arrival}</span>
                 </Link>
                 <div className="space-y-0.5 text-xs">
-                  <WorkflowStatRow label="Arrival (Rcvd)" value={workflowStats.arrival_notice} color="purple" state="arrival_notice_received" />
-                  <WorkflowStatRow label="Customs (Rcvd)" value={workflowStats.customs_received} color="purple" state="customs_received" />
-                  <WorkflowStatRow label="Delivery Order" value={workflowStats.delivery_ordered} color="purple" state="delivery_ordered" />
+                  <WorkflowStatRow label="Arrival Rcvd" value={workflowStats.arrival_notice_received} color="purple" state="arrival_notice_received" />
+                  <WorkflowStatRow label="Arrival Shared" value={workflowStats.arrival_notice_shared} color="purple" state="arrival_notice_shared" />
+                  <WorkflowStatRow label="Duty Summary" value={workflowStats.duty_summary_shared} color="purple" state="duty_summary_shared" />
+                  <WorkflowStatRow label="Duty Invoice" value={workflowStats.duty_invoice_received} color="purple" state="duty_invoice_received" />
+                  <WorkflowStatRow label="Cargo Released" value={workflowStats.cargo_released} color="purple" state="cargo_released" />
                 </div>
               </div>
 
-              {/* Delivered */}
+              {/* Delivered / Other */}
               <div className="bg-green-50 rounded-lg p-3">
                 <Link href="/shipments?workflow_phase=delivery" className="flex items-center justify-between mb-2 hover:opacity-80">
                   <div className="flex items-center gap-1.5">
                     <CircleCheckBig className="h-4 w-4 text-green-600" />
-                    <span className="text-xs font-semibold text-green-700 uppercase">Delivered</span>
+                    <span className="text-xs font-semibold text-green-700 uppercase">Delivery</span>
                   </div>
                   <span className="text-lg font-bold text-green-700">{workflowStats.delivery}</span>
                 </Link>
-                <div className="space-y-0.5 text-xs text-gray-400 text-center py-2">
-                  No deliveries yet
+                <div className="space-y-0.5 text-xs">
+                  {workflowStats.delivery > 0 ? (
+                    <div className="text-gray-600 text-center py-1">POD received</div>
+                  ) : (
+                    <div className="text-gray-400 text-center py-1">No deliveries yet</div>
+                  )}
                 </div>
+                {workflowStats.booking_cancelled > 0 && (
+                  <div className="mt-2 pt-2 border-t border-green-200">
+                    <WorkflowStatRow label="Cancelled" value={workflowStats.booking_cancelled} color="gray" state="booking_cancelled" />
+                  </div>
+                )}
               </div>
             </div>
 
