@@ -377,6 +377,28 @@ export default function ShipmentDetailPage() {
                     Created {new Date(shipment.created_at).toLocaleDateString()}
                   </span>
                 </div>
+
+                {/* Shipper → Consignee */}
+                {(stakeholders.shipper || stakeholders.consignee) && (
+                  <div className="flex items-center gap-2 mt-2 text-sm">
+                    <Users className="h-3.5 w-3.5 text-terminal-muted" />
+                    {stakeholders.shipper && (
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-terminal-blue" />
+                        <span className="font-mono text-xs text-terminal-text">{stakeholders.shipper.party_name}</span>
+                      </span>
+                    )}
+                    {stakeholders.shipper && stakeholders.consignee && (
+                      <ArrowRight className="h-3 w-3 text-terminal-muted" />
+                    )}
+                    {stakeholders.consignee && (
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-1.5 w-1.5 rounded-full bg-terminal-green" />
+                        <span className="font-mono text-xs text-terminal-text">{stakeholders.consignee.party_name}</span>
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

@@ -354,6 +354,7 @@ function ShipmentsPageContent() {
               <thead>
                 <tr className="bg-terminal-elevated border-b border-terminal-border">
                   <th className="text-left px-4 py-3 text-xs font-mono font-medium text-terminal-muted uppercase tracking-wider">Shipment</th>
+                  <th className="text-left px-4 py-3 text-xs font-mono font-medium text-terminal-muted uppercase tracking-wider">Parties</th>
                   <th className="text-left px-4 py-3 text-xs font-mono font-medium text-terminal-muted uppercase tracking-wider">Route</th>
                   <th className="text-left px-4 py-3 text-xs font-mono font-medium text-terminal-muted uppercase tracking-wider">Dates</th>
                   <th className="text-left px-4 py-3 text-xs font-mono font-medium text-terminal-muted uppercase tracking-wider">Status</th>
@@ -377,6 +378,25 @@ function ShipmentsPageContent() {
                           {shipment.vessel_name} {shipment.voyage_number && `/ ${shipment.voyage_number}`}
                         </div>
                       )}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="text-xs font-mono">
+                        {shipment.shipper_name && (
+                          <div className="flex items-center gap-1.5 text-terminal-text" title={shipment.shipper_name}>
+                            <span className="h-1.5 w-1.5 rounded-full bg-terminal-blue flex-shrink-0" />
+                            <span className="truncate max-w-28">{shipment.shipper_name}</span>
+                          </div>
+                        )}
+                        {shipment.consignee_name && (
+                          <div className="flex items-center gap-1.5 text-terminal-text mt-0.5" title={shipment.consignee_name}>
+                            <span className="h-1.5 w-1.5 rounded-full bg-terminal-green flex-shrink-0" />
+                            <span className="truncate max-w-28">{shipment.consignee_name}</span>
+                          </div>
+                        )}
+                        {!shipment.shipper_name && !shipment.consignee_name && (
+                          <span className="text-terminal-muted">--</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex flex-col gap-1 text-sm font-mono">

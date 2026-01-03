@@ -610,13 +610,19 @@ export class EmailProcessingOrchestrator {
     }
 
     // Stakeholders (shipper/consignee/notify) - extracted from HBL/SI documents
-    if (data.shipper_name) {
+    // Skip Intoglo (our own company) - we want real customer stakeholders
+    const isIntogloName = (name: string | null | undefined): boolean => {
+      if (!name) return false;
+      return name.toLowerCase().includes('intoglo');
+    };
+
+    if (data.shipper_name && !isIntogloName(data.shipper_name)) {
       entities.push({ email_id: emailId, entity_type: 'shipper_name', entity_value: data.shipper_name, confidence_score: 85, extraction_method: 'ai' });
     }
-    if (data.consignee_name) {
+    if (data.consignee_name && !isIntogloName(data.consignee_name)) {
       entities.push({ email_id: emailId, entity_type: 'consignee_name', entity_value: data.consignee_name, confidence_score: 85, extraction_method: 'ai' });
     }
-    if (data.notify_party_name) {
+    if (data.notify_party_name && !isIntogloName(data.notify_party_name)) {
       entities.push({ email_id: emailId, entity_type: 'notify_party', entity_value: data.notify_party_name, confidence_score: 85, extraction_method: 'ai' });
     }
 
@@ -1090,22 +1096,29 @@ export class EmailProcessingOrchestrator {
       if (documentType && stakeholderDocTypes.includes(documentType)) {
         const updateData: Record<string, string> = {};
 
-        if (data.shipper_name) {
+        // Helper to check if value is Intoglo (our own company, not a real customer)
+        const isIntoglo = (name: string | null | undefined): boolean => {
+          if (!name) return false;
+          const lower = name.toLowerCase();
+          return lower.includes('intoglo');
+        };
+
+        if (data.shipper_name && !isIntoglo(data.shipper_name)) {
           updateData.shipper_name = data.shipper_name;
         }
-        if (data.consignee_name) {
+        if (data.consignee_name && !isIntoglo(data.consignee_name)) {
           updateData.consignee_name = data.consignee_name;
         }
-        if (data.shipper_address) {
+        if (data.shipper_address && !isIntoglo(data.shipper_name)) {
           updateData.shipper_address = data.shipper_address;
         }
-        if (data.consignee_address) {
+        if (data.consignee_address && !isIntoglo(data.consignee_name)) {
           updateData.consignee_address = data.consignee_address;
         }
-        if (data.notify_party_name) {
+        if (data.notify_party_name && !isIntoglo(data.notify_party_name)) {
           updateData.notify_party_name = data.notify_party_name;
         }
-        if (data.notify_party_address) {
+        if (data.notify_party_address && !isIntoglo(data.notify_party_name)) {
           updateData.notify_party_address = data.notify_party_address;
         }
 

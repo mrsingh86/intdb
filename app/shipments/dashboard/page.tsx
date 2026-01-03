@@ -636,7 +636,8 @@ export default function ShipmentsDashboardPage() {
                 <thead>
                   <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     <th className="pb-3">Booking #</th>
-                    <th className="pb-3 w-16">Vessel</th>
+                    <th className="pb-3">Shipper</th>
+                    <th className="pb-3">Consignee</th>
                     <th className="pb-3">Route</th>
                     <th className="pb-3">ETD</th>
                     <th className="pb-3">Status</th>
@@ -649,8 +650,11 @@ export default function ShipmentsDashboardPage() {
                       <td className="py-3 font-medium text-gray-900">
                         {s.booking_number || '-'}
                       </td>
-                      <td className="py-3 text-gray-600 w-16 max-w-16 truncate" title={s.vessel_name || ''}>
-                        {s.vessel_name || '-'}
+                      <td className="py-3 text-gray-600 max-w-32 truncate" title={(s as any).shipper_name || ''}>
+                        {(s as any).shipper_name || '-'}
+                      </td>
+                      <td className="py-3 text-gray-600 max-w-32 truncate" title={(s as any).consignee_name || ''}>
+                        {(s as any).consignee_name || '-'}
                       </td>
                       <td className="py-3 text-gray-600">
                         {s.port_of_loading && s.port_of_discharge
