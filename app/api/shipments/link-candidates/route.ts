@@ -4,6 +4,7 @@ import { ShipmentLinkCandidateRepository } from '@/lib/repositories/shipment-lin
 import { ShipmentDocumentRepository } from '@/lib/repositories/shipment-document-repository';
 import { ShipmentRepository } from '@/lib/repositories/shipment-repository';
 import { ClassificationRepository } from '@/lib/repositories/classification-repository';
+import { WorkflowStateService } from '@/lib/services/workflow-state-service';
 import { withAuth } from '@/lib/auth/server-auth';
 import { ShipmentStatus } from '@/types/shipment';
 import { DocumentType } from '@/types/email-intelligence';
@@ -34,6 +35,8 @@ export const GET = withAuth(async (request, { user }) => {
 
 /**
  * Determine shipment status from document type and dates
+ * IMPORTANT: Requires ETA to have passed before marking as "arrived"
+ * This prevents misclassified documents from incorrectly updating status
  */
 function determineStatusFromDocument(
   documentType: string,
@@ -45,19 +48,23 @@ function determineStatusFromDocument(
   const etdDate = etd ? new Date(etd) : null;
   const etaDate = eta ? new Date(eta) : null;
 
+  // Helper: Check if vessel has likely arrived (ETA passed)
+  const hasEtaPassed = etaDate ? etaDate < now : false;
+
   // Document-based status
   switch (documentType) {
     case 'proof_of_delivery':
     case 'pod_confirmation':
-      // Only actual POD confirms delivery
+      // POD is definitive proof - trust regardless of dates
       return 'delivered';
     case 'delivery_order':
-      // DO authorizes release but doesn't confirm delivery
-      return 'arrived';
     case 'arrival_notice':
     case 'container_release':
-      if (etaDate && etaDate < now) return 'arrived';
-      return 'in_transit';
+      // Only mark arrived if ETA has passed or no ETA set
+      // Prevents misclassified documents from incorrectly marking arrived
+      if (hasEtaPassed) return 'arrived';
+      if (!etaDate) return 'arrived'; // No ETA to validate against
+      return 'in_transit'; // ETA in future, stay in_transit
     case 'bill_of_lading':
     case 'cargo_manifest':
       if (etdDate && etdDate < now) return 'in_transit';
@@ -144,7 +151,22 @@ export const POST = withAuth(async (request, { user }) => {
       console.log(`[LinkConfirm] Updated shipment ${candidate.shipment_id} status: ${shipment.status} -> ${newStatus}`);
     }
 
-    // 5. Mark candidate as confirmed
+    // 5. Auto-transition workflow state based on document type
+    const workflowService = new WorkflowStateService(supabase);
+    try {
+      const workflowResult = await workflowService.autoTransitionFromDocument(
+        candidate.shipment_id,
+        documentType,
+        candidate.email_id
+      );
+      if (workflowResult?.success) {
+        console.log(`[LinkConfirm] Workflow: ${workflowResult.from_state || 'none'} -> ${workflowResult.to_state}`);
+      }
+    } catch (err) {
+      console.warn(`[LinkConfirm] Workflow transition failed:`, err);
+    }
+
+    // 6. Mark candidate as confirmed
     const result = await candidateRepo.confirm(candidate_id, user_id);
 
     return NextResponse.json({

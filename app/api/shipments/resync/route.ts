@@ -6,6 +6,7 @@ import { ShipmentLinkCandidateRepository } from '@/lib/repositories/shipment-lin
 import { EntityRepository } from '@/lib/repositories/entity-repository';
 import { ClassificationRepository } from '@/lib/repositories/classification-repository';
 import { ShipmentLinkingService } from '@/lib/services/shipment-linking-service';
+import { WorkflowStateService } from '@/lib/services/workflow-state-service';
 import { withAuth } from '@/lib/auth/server-auth';
 
 /**
@@ -35,6 +36,10 @@ export const POST = withAuth(async (request, { user }) => {
       entityRepo,
       classificationRepo
     );
+
+    // Wire up workflow state service for auto-transitioning
+    const workflowService = new WorkflowStateService(supabase);
+    linkingService.setWorkflowService(workflowService);
 
     const body = await request.json().catch(() => ({}));
     const { shipment_id } = body;

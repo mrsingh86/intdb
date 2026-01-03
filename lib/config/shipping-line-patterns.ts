@@ -21,7 +21,10 @@ export type DocumentType =
   | 'arrival_notice'
   | 'shipment_notice'
   | 'bill_of_lading'
+  | 'hbl_draft'          // House BL draft for review
+  | 'mbl_draft'          // Master BL draft / Proforma BL
   | 'shipping_instruction'
+  | 'si_confirmation'    // SI submitted/confirmed
   | 'invoice'
   | 'vgm_confirmation'
   | 'vgm_reminder'
@@ -128,10 +131,10 @@ export const MAERSK_CONFIG: CarrierConfig = {
       priority: 40,
       notes: 'Customer support case emails - tracked but not shipment documents.',
     },
-    // Shipping Instruction - Maersk
+    // SI Confirmation - Maersk
     // Pattern: "SI submitted 262874542-27Dec2025 20:48:34 UTC"
     {
-      documentType: 'shipping_instruction',
+      documentType: 'si_confirmation',
       subjectPatterns: [
         /^SI submitted\s+\d+/i,
       ],
@@ -139,18 +142,30 @@ export const MAERSK_CONFIG: CarrierConfig = {
       priority: 90,
       notes: 'Maersk SI submitted confirmation.',
     },
-    // Bill of Lading / Sea Waybill - Maersk (with PDF)
+    // HBL Draft - Maersk
+    {
+      documentType: 'hbl_draft',
+      subjectPatterns: [
+        /Draft BL/i,
+        /Draft House B\/L/i,
+        /HBL Draft/i,
+      ],
+      senderPatterns: [/maersk\.com/i],
+      requiresPdf: true,
+      priority: 82,
+      notes: 'Draft BL for review.',
+    },
+    // Bill of Lading - Final - Maersk (with PDF)
     {
       documentType: 'bill_of_lading',
       subjectPatterns: [
         /Bill of Lading/i,
         /^B\/L\s+/i,
-        /Draft BL/i,
       ],
       senderPatterns: [/maersk\.com/i],
       requiresPdf: true,
       priority: 80,
-      notes: 'Draft or final BL (requires PDF).',
+      notes: 'Final BL (requires PDF).',
     },
     // Sea Waybill Notifications - Maersk (PDF optional)
     // Pattern 1: "maersk TPDoc, sea waybill, shipped on board 263522003"
@@ -319,10 +334,10 @@ export const HAPAG_LLOYD_CONFIG: CarrierConfig = {
       priority: 95,
       notes: 'Booking update notification (change of pickup date, etc).',
     },
-    // Shipping Instruction
+    // SI Confirmation
     // Pattern: "Shipping Instruction Submitted Sh#19207547"
     {
-      documentType: 'shipping_instruction',
+      documentType: 'si_confirmation',
       subjectPatterns: [
         /^Shipping Instruction Submitted\s*Sh#\d+/i,  // No space before Sh#
       ],
@@ -469,10 +484,10 @@ export const CMA_CGM_CONFIG: CarrierConfig = {
       priority: 100,
       notes: 'BC with BKGCONF PDF. PDF must contain "BOOKING CONFIRMATION" heading.',
     },
-    // Shipping Instruction
+    // SI Confirmation
     // Pattern: "CMA CGM - Shipping instruction submitted - AMC2475643"
     {
-      documentType: 'shipping_instruction',
+      documentType: 'si_confirmation',
       subjectPatterns: [
         /^CMA CGM - Shipping instruction submitted/i,
       ],
@@ -515,18 +530,19 @@ export const CMA_CGM_CONFIG: CarrierConfig = {
       priority: 80,
       notes: 'Freight or export invoice.',
     },
-    // Bill of Lading Draft
+    // HBL Draft
     // Pattern 1: "Modification requested on draft BL EID0918049"
     // Pattern 2: "B/L Draft: EID0918049 - Booking: EID0918049"
     {
-      documentType: 'bill_of_lading',
+      documentType: 'hbl_draft',
       subjectPatterns: [
         /^Modification requested on draft BL/i,
         /^B\/L Draft:/i,
+        /Draft BL/i,
       ],
       senderPatterns: [/cma-cgm\.com/i],
       priority: 84,
-      notes: 'BL draft modification/notification.',
+      notes: 'Draft BL for review/modification.',
     },
     // VGM Notification
     // Pattern: "VGM declaration Missing"
@@ -591,19 +607,31 @@ export const COSCO_CONFIG: CarrierConfig = {
       priority: 95,
       notes: 'Arrival notification with freight details.',
     },
-    // Bill of Lading - Proforma and Copy
-    // Pattern 1: "COSCON - Proforma Bill of Lading for COSU6436834960/Vessel: CMA CGM PHOENIX"
-    // Pattern 2: "COSCON - Copy Bill of Lading for COSU6434944110"
+    // MBL Draft - Proforma Bill of Lading
+    // Pattern: "COSCON - Proforma Bill of Lading for COSU6436834960/Vessel: CMA CGM PHOENIX"
     {
-      documentType: 'bill_of_lading',
+      documentType: 'mbl_draft',
       subjectPatterns: [
-        /^COSCON\s*-\s*(Proforma |Copy )?Bill of Lading/i,
+        /^COSCON\s*-\s*Proforma Bill of Lading/i,
       ],
       senderPatterns: [/coscon\.com/i],
       requiresPdf: true,
       attachmentPatterns: [/^\d+-\d+\.PDF$/i],  // 6436834960-20251205095515.PDF
+      priority: 86,
+      notes: 'Proforma/Draft MBL for review.',
+    },
+    // Bill of Lading - Copy/Final
+    // Pattern: "COSCON - Copy Bill of Lading for COSU6434944110"
+    {
+      documentType: 'bill_of_lading',
+      subjectPatterns: [
+        /^COSCON\s*-\s*Copy Bill of Lading/i,
+      ],
+      senderPatterns: [/coscon\.com/i],
+      requiresPdf: true,
+      attachmentPatterns: [/^\d+-\d+\.PDF$/i],
       priority: 85,
-      notes: 'Proforma or Copy BL.',
+      notes: 'Copy/Final BL.',
     },
     // Invoice
     // Pattern: "PROD_Invoice INTOGLO PRIVATE LIMITED SAP 7085061000 B/L COSU6439083510"
@@ -618,10 +646,10 @@ export const COSCO_CONFIG: CarrierConfig = {
       priority: 80,
       notes: 'Invoice with PROD_Invoice prefix.',
     },
-    // Shipping Instruction
+    // SI Confirmation
     // Pattern: "COSCO SHIPPING LINES - 6439083510 - Document Shipping Instruction"
     {
-      documentType: 'shipping_instruction',
+      documentType: 'si_confirmation',
       subjectPatterns: [
         /^COSCO SHIPPING LINES\s*-\s*\d+\s*-\s*Document Shipping Instruction/i,
       ],

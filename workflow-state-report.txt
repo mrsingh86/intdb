@@ -1,0 +1,291 @@
+========================================================================
+                 WORKFLOW STATE DISTRIBUTION REPORT                     
+========================================================================
+
+Total Shipments: 128 
+
+State                                Current   Cumulative   % Reached
+------------------------------------------------------------------------
+
+--- PRE-DEPARTURE ---
+booking_confirmation_received            18         128     100.0%
+booking_confirmation_shared              44         110      85.9%
+commercial_invoice_received               0          66      51.6%
+packing_list_received                     0          66      51.6%
+si_draft_received                         6          66      51.6%
+si_draft_sent                             0          60      46.9%
+si_confirmed                              0          60      46.9%
+vgm_submitted                             0          60      46.9%
+vgm_confirmed                             0          60      46.9%
+container_gated_in                        0          60      46.9%
+sob_received                              4          60      46.9%
+vessel_departed                           0          56      43.8%
+isf_filed                                 0          56      43.8%
+isf_confirmed                             0          56      43.8%
+
+--- IN-TRANSIT ---
+mbl_draft_received                        2          56      43.8%
+hbl_draft_sent                            0          54      42.2%
+hbl_released                             12          54      42.2%
+invoice_sent                             27          42      32.8%
+invoice_paid                              0          15      11.7%
+
+--- ARRIVAL ---
+arrival_notice_received                   1          15      11.7%
+arrival_notice_shared                     9          14      10.9%
+entry_draft_received                      0           5       3.9%
+entry_filed                               0           5       3.9%
+duty_invoice_received                     3           5       3.9%
+duty_summary_shared                       0           2       1.6%
+customs_cleared                           0           2       1.6%
+delivery_order_received                   0           2       1.6%
+cargo_released                            2           2       1.6%
+
+========================================================================
+                          SHIPMENT FUNNEL                               
+========================================================================
+
+Booking Received (from carrier)  ######################################## 128 (100%)
+Booking Shared (to client)       ##################################       110 (86%)
+SI Confirmed                     ###################                      60 (47%)
+Shipped on Board                 ###################                      60 (47%)
+HBL Released                     #################                        54 (42%)
+Invoice Sent                     #############                            42 (33%)
+Arrival Notice Shared            ####                                     14 (11%)
+Cargo Released                   #                                        2 (2%)
+POD Received                                                              0 (0%)
+
+========================================================================
+                     CURRENT STATE BREAKDOWN                            
+========================================================================
+
+booking_confirmation_shared: 44 shipments
+  - COSU6440918980
+  - 263042012
+  - 263094006
+  ... and 41 more
+
+invoice_sent: 27 shipments
+  - 263629283
+  - AMC2475813
+  - COSU6436834960
+  ... and 24 more
+
+booking_confirmation_received: 18 shipments
+  - INCMA0358187
+  - 263812267
+  - QCAD051513
+  ... and 15 more
+
+hbl_released: 12 shipments
+  - COSU6439083630
+  - 30260275
+  - 94480005
+  ... and 9 more
+
+arrival_notice_shared: 9 shipments
+  - CEI0329370
+  - 263638404
+  - 22781146
+  ... and 6 more
+
+si_draft_received: 6 shipments
+  - 263485278
+  - 31232060
+  - 263522003
+  ... and 3 more
+
+sob_received: 4 shipments
+  - 263187790
+  - 263453241
+  - 263522096
+  ... and 1 more
+
+duty_invoice_received: 3 shipments
+  - 19207547
+  - 262822342
+  - 263142099
+
+cargo_released: 2 shipments
+  - 20262609
+  - 20154815
+
+mbl_draft_received: 2 shipments
+  - 34864426
+  - 29982815
+
+arrival_notice_received: 1 shipments
+  - 21635244
+
+========================================================================
+              EMAIL SAMPLES BY WORKFLOW STATE                           
+========================================================================
+
+========================================================================
+STATE: BOOKING_CONFIRMATION_RECEIVED
+Shipments: 18
+========================================================================
+
+--- Shipment: INCMA0358187 ---
+Document Type: booking_confirmation
+Direction: inbound
+Sender: "'CMA CGM Website' via pricing" <pricing@intoglo.com>
+True Sender: N/A
+Subject: CMA CGM - Export Invoice available - INEPBC26016106 -  CEI0329370 -  INCW1 to US
+Body Preview: CMA CGM Notifications CMA CGM - Export Invoice available - INEPBC26016106 Dear Valued Customer, Please find enclosed your invoice issued by an entity ...
+
+--- Shipment: 263812267 ---
+Document Type: booking_confirmation
+Direction: inbound
+Sender: "in.export via Operations Intoglo" <ops@intoglo.com>
+True Sender: N/A
+Subject: Booking Confirmation : 263812267
+Body Preview: ...
+
+========================================================================
+STATE: BOOKING_CONFIRMATION_SHARED
+Shipments: 44
+========================================================================
+
+--- Shipment: COSU6440918980 ---
+Document Type: booking_confirmation
+Direction: inbound
+Sender: PLEASE-No-Reply-IRIS-4 via Operations Intoglo <ops@intoglo.com>
+True Sender: N/A
+Subject: Cosco Shipping Line Booking Confirmation - COSU6440918980 / Booking Office: NDE 
+Body Preview: Dear valued customer, We hereby notify with honor that your booking request is confirmed. Please refer to attached booking confirmation for details. I...
+
+--- Shipment: 263042012 ---
+Document Type: booking_confirmation
+Direction: outbound
+Sender: ops@intoglo.com
+True Sender: in.export@maersk.com
+Subject: Booking Confirmation : 263042012
+Body Preview: ...
+
+========================================================================
+STATE: SI_DRAFT_RECEIVED
+Shipments: 6
+========================================================================
+
+--- Shipment: 263485278 ---
+Document Type: booking_confirmation
+Direction: outbound
+Sender: ops@intoglo.com
+True Sender: in.export@maersk.com
+Subject: Booking Confirmation : 263485278
+Body Preview: ...
+
+--- Shipment: 31232060 ---
+Document Type: booking_confirmation
+Direction: inbound
+Sender: India@service.hlag.com
+True Sender: india@service.hlag.com
+Subject: HL-31232060 USNYC NORTHP
+Body Preview: ...
+
+========================================================================
+STATE: SOB_RECEIVED
+Shipments: 4
+========================================================================
+
+--- Shipment: 263187790 ---
+Document Type: booking_confirmation
+Direction: outbound
+Sender: ops@intoglo.com
+True Sender: in.export@maersk.com
+Subject: Booking Confirmation : 263187790
+Body Preview: ...
+
+--- Shipment: 263453241 ---
+Document Type: general_correspondence
+Direction: outbound
+Sender: Aditya Mandar <aditya.mandar@intoglo.com>
+True Sender: N/A
+Subject: Re: REIMBURSEMENT FOR DECEMBER | 263453241
+Body Preview: @Parveen Rawat <parveen.rawat@intoglo.com> @Prabhat Uniyal <prabhat.uniyal@intoglo.com> Dear Parveen, Please find the attached reimbursement form, kin...
+
+========================================================================
+STATE: HBL_RELEASED
+Shipments: 12
+========================================================================
+
+--- Shipment: COSU6439083630 ---
+Document Type: booking_confirmation
+Direction: outbound
+Sender: ops@intoglo.com
+True Sender: please-no-reply-iris-4@coscon.com
+Subject: Cosco Shipping Line Booking Confirmation - COSU6439083630 / Booking Office: MRA 
+Body Preview: ...
+
+--- Shipment: 30260275 ---
+Document Type: booking_confirmation
+Direction: inbound
+Sender: India@service.hlag.com
+True Sender: india@service.hlag.com
+Subject: HL-30260275 USNYC PEARL
+Body Preview: ...
+
+========================================================================
+STATE: INVOICE_SENT
+Shipments: 27
+========================================================================
+
+--- Shipment: 263629283 ---
+Document Type: booking_confirmation
+Direction: outbound
+Sender: ops@intoglo.com
+True Sender: in.export@maersk.com
+Subject: Booking Confirmation : 263629283
+Body Preview: ...
+
+--- Shipment: AMC2475813 ---
+Document Type: booking_confirmation
+Direction: outbound
+Sender: pricing@intoglo.com
+True Sender: website-noreply@cma-cgm.com
+Subject: CMA CGM - Booking confirmation available – AMC2475813 -  - 0INLJW1MA  - INNSA to
+Body Preview: === link-32-facebook.png === f === link-32-instagram.png === © === link-40-x.png === X === logo-CMA.png === — CMA CGM -— === dialog-illu.png === (@ e ...
+
+========================================================================
+STATE: ARRIVAL_NOTICE_SHARED
+Shipments: 9
+========================================================================
+
+--- Shipment: CEI0329370 ---
+Document Type: booking_confirmation
+Direction: outbound
+Sender: pricing@intoglo.com
+True Sender: website-noreply@cma-cgm.com
+Subject: CMA CGM - Booking confirmation available – CEI0329370 -  - 0INLLW1MA  - INDA1 to
+Body Preview: === link-32-facebook.png === f === link-32-instagram.png === © === link-40-x.png === X === logo-CMA.png === — CMA CGM -— === dialog-illu.png === (@ e ...
+
+--- Shipment: 263638404 ---
+Document Type: booking_confirmation
+Direction: outbound
+Sender: ops@intoglo.com
+True Sender: in.export@maersk.com
+Subject: Booking Confirmation : 263638404
+Body Preview: ...
+
+========================================================================
+STATE: CARGO_RELEASED
+Shipments: 2
+========================================================================
+
+--- Shipment: 20262609 ---
+Document Type: booking_confirmation
+Direction: inbound
+Sender: India@service.hlag.com
+True Sender: india@service.hlag.com
+Subject: HL-20262609 USORF UFLEX
+Body Preview: === HL-20262609 USORF UFLEX BC 2ND UPDATE.PDF === Page 1 of 3 BOBC0201-060TB Hapag-Lloyd Aktiengesellschaft Our Reference:20262609 Your Reference:UFLE...
+
+--- Shipment: 20154815 ---
+Document Type: booking_confirmation
+Direction: inbound
+Sender: India@service.hlag.com
+True Sender: india@service.hlag.com
+Subject: HL-20154815 USNYC PEARL
+Body Preview: ...
+

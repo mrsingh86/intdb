@@ -20,6 +20,7 @@ export interface RawEmail {
   is_duplicate?: boolean
   thread_position?: number
   processing_status?: string
+  email_direction?: 'inbound' | 'outbound'
   created_at?: string
   updated_at?: string
 }

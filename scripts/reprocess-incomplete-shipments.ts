@@ -78,12 +78,13 @@ async function reprocessIncompleteShipments() {
     }
 
     // Get attachments
-    const { data: attachments } = await supabase
+    const { data: attachments, error: attError } = await supabase
       .from('raw_attachments')
-      .select('id, filename, mime_type, extracted_text, file_data')
+      .select('id, filename, mime_type, extracted_text')
       .eq('email_id', emailId);
 
     console.log(`  Email subject: ${email.subject?.substring(0, 50)}...`);
+    if (attError) console.log(`  Attachment error: ${attError.message}`);
     console.log(`  Attachments: ${attachments?.length || 0}`);
 
     // Build content for extraction
@@ -94,14 +95,15 @@ Email Body:
 ${email.body_text || email.snippet || ''}
 `;
 
-    // Check for PDF text
+    // Check for PDF text (check both mime_type and filename extension)
     let hasPdfText = false;
     for (const att of attachments || []) {
-      if (att.extracted_text) {
+      const isPdf = att.mime_type?.includes('pdf') || att.filename?.toLowerCase().endsWith('.pdf');
+      if (att.extracted_text && isPdf) {
         combinedContent += `\n\n--- PDF: ${att.filename} ---\n${att.extracted_text}`;
         hasPdfText = true;
         console.log(`  ✓ Found extracted PDF text: ${att.filename}`);
-      } else if (att.mime_type?.includes('pdf')) {
+      } else if (isPdf && !att.extracted_text) {
         console.log(`  ⚠️ PDF exists but no extracted_text: ${att.filename}`);
       }
     }
@@ -197,7 +199,8 @@ Extract these fields (return null if not found, don't guess):
 IMPORTANT:
 - Only extract if you're confident the data is correct
 - Dates should be in YYYY-MM-DD format
-- Port names should be clean (e.g., "CHENNAI" not "CHENNAI, INDIA (INMAA)")
+- Port names format: "City, Terminal" (e.g., "Mundra, Adani CMA Terminal", "New York, Port Liberty")
+- If terminal name is available, include it after city with comma separator
 - Return null for fields you can't find
 
 Return JSON only:

@@ -17,6 +17,7 @@ import { ShipmentLinkCandidateRepository } from '../repositories/shipment-link-c
 import { EntityRepository } from '../repositories/entity-repository';
 import { ClassificationRepository } from '../repositories/classification-repository';
 import { MilestoneTrackingService } from './milestone-tracking-service';
+import { WorkflowStateService } from './workflow-state-service';
 import { CONFIDENCE_THRESHOLDS } from '../constants/confidence-levels';
 import { EntityExtraction, EntityType, DocumentType } from '@/types/email-intelligence';
 import { Shipment, LinkingKeys, LinkingResult, LinkType, ShipmentStatus } from '@/types/shipment';
@@ -59,21 +60,26 @@ function determineShipmentStatus(
   const etdDate = etd ? new Date(etd) : null;
   const etaDate = eta ? new Date(eta) : null;
 
+  // Helper: Check if vessel has likely arrived (ETA passed or no ETA set)
+  const hasEtaPassed = etaDate ? etaDate < now : false;
+
   // Document type based status (from highest to lowest priority)
   if (documentType) {
     switch (documentType) {
       case 'proof_of_delivery':
       case 'pod_confirmation':
-        // Only actual POD confirms delivery
+        // POD is definitive proof of delivery - trust it regardless of dates
         return 'delivered';
       case 'delivery_order':
-        // DO authorizes release but doesn't confirm delivery
-        // Vessel must have arrived for DO to be issued
-        return 'arrived';
       case 'arrival_notice':
       case 'container_release':
-        // If ETA has passed, likely arrived
-        if (etaDate && etaDate < now) return 'arrived';
+        // These documents indicate arrival, but ONLY trust them if:
+        // 1. ETA has passed, OR
+        // 2. No ETA set (can't validate)
+        // This prevents misclassified documents from incorrectly marking as arrived
+        if (hasEtaPassed) return 'arrived';
+        if (!etaDate) return 'arrived'; // No ETA to validate against
+        // ETA is in future - document might be misclassified, stay in_transit
         return 'in_transit';
       case 'bill_of_lading':
       case 'cargo_manifest':
@@ -132,6 +138,7 @@ const DEFAULT_LINKING_CONFIG: LinkingConfig = {
 
 export class ShipmentLinkingService {
   private milestoneService?: MilestoneTrackingService;
+  private workflowService?: WorkflowStateService;
 
   constructor(
     private readonly shipmentRepo: ShipmentRepository,
@@ -147,6 +154,14 @@ export class ShipmentLinkingService {
    */
   setMilestoneService(service: MilestoneTrackingService): void {
     this.milestoneService = service;
+  }
+
+  /**
+   * Set workflow state service for auto-transitioning (optional dependency)
+   * When documents are linked, this service auto-updates workflow_state
+   */
+  setWorkflowService(service: WorkflowStateService): void {
+    this.workflowService = service;
   }
 
   /**
@@ -582,6 +597,10 @@ export class ShipmentLinkingService {
       // Auto-update shipment status based on document type
       await this.updateShipmentStatusFromDocument(shipmentId, documentType);
 
+      // Auto-transition workflow state based on document type
+      // This updates shipments.workflow_state and creates audit trail
+      await this.autoTransitionWorkflowState(shipmentId, documentType, emailId);
+
       return {
         matched: true,
         shipment_id: shipmentId,
@@ -1011,6 +1030,35 @@ export class ShipmentLinkingService {
     } catch (error) {
       // Log but don't fail - milestones are supplementary
       console.warn(`Failed to record milestone for shipment ${shipmentId}:`, error);
+    }
+  }
+
+  /**
+   * Auto-transition workflow state based on received document type
+   * Uses WorkflowStateService to update shipments.workflow_state and create audit trail
+   */
+  private async autoTransitionWorkflowState(
+    shipmentId: string,
+    documentType: string,
+    emailId: string
+  ): Promise<void> {
+    if (!this.workflowService) return;
+
+    try {
+      const result = await this.workflowService.autoTransitionFromDocument(
+        shipmentId,
+        documentType,
+        emailId
+      );
+
+      if (result?.success) {
+        console.log(
+          `[Workflow] Shipment ${shipmentId}: ${result.from_state || 'none'} -> ${result.to_state} (from ${documentType})`
+        );
+      }
+    } catch (error) {
+      // Log but don't fail - workflow updates are supplementary to core linking
+      console.warn(`[Workflow] Failed to transition state for shipment ${shipmentId}:`, error);
     }
   }
 

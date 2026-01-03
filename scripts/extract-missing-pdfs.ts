@@ -21,6 +21,38 @@ const oauth2Client = new OAuth2Client(
 oauth2Client.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN });
 const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
+// Find attachment ID by filename from Gmail message
+async function findAttachmentId(messageId: string, filename: string): Promise<string | null> {
+  try {
+    const message = await gmail.users.messages.get({
+      userId: 'me',
+      id: messageId,
+      format: 'full'
+    });
+
+    const parts = message.data.payload?.parts || [];
+
+    // Recursively search for attachment
+    function searchParts(parts: any[]): string | null {
+      for (const part of parts) {
+        if (part.filename === filename && part.body?.attachmentId) {
+          return part.body.attachmentId;
+        }
+        if (part.parts) {
+          const found = searchParts(part.parts);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+
+    return searchParts(parts);
+  } catch (error: any) {
+    console.log(`    Error finding attachment: ${error.message?.substring(0, 60)}`);
+    return null;
+  }
+}
+
 async function downloadAndExtractPdf(messageId: string, attachmentId: string): Promise<string | null> {
   try {
     const response = await gmail.users.messages.attachments.get({
@@ -59,17 +91,28 @@ async function main() {
     return;
   }
 
-  // Get all attachments without extracted text
-  const { data: attachments } = await supabase
+  // Get PDF attachments without extracted text (server-side filtering)
+  // Using OR filter for mime_type containing 'pdf' OR filename ending with '.pdf'
+  const { data: pdfByMime } = await supabase
     .from('raw_attachments')
     .select('id, email_id, filename, mime_type, storage_path')
-    .is('extracted_text', null);
+    .is('extracted_text', null)
+    .ilike('mime_type', '%pdf%');
 
-  // Filter to PDFs (by mime type OR filename)
-  const pdfAttachments = (attachments || []).filter(a =>
-    a.mime_type?.toLowerCase().includes('pdf') ||
-    a.filename?.toLowerCase().endsWith('.pdf')
-  );
+  const { data: pdfByFilename } = await supabase
+    .from('raw_attachments')
+    .select('id, email_id, filename, mime_type, storage_path')
+    .is('extracted_text', null)
+    .ilike('filename', '%.pdf');
+
+  // Combine and deduplicate by id
+  const allPdfs = [...(pdfByMime || []), ...(pdfByFilename || [])];
+  const seenIds = new Set<string>();
+  const pdfAttachments = allPdfs.filter(a => {
+    if (seenIds.has(a.id)) return false;
+    seenIds.add(a.id);
+    return true;
+  });
 
   console.log(`\nPDFs without extracted text: ${pdfAttachments.length}`);
 
@@ -103,10 +146,10 @@ async function main() {
     console.log(`\n─── ${att.filename} ───`);
     console.log(`  Email: ${email.subject?.substring(0, 50)}...`);
 
-    // Extract attachment ID from storage_path (format: gmail://ATTACHMENT_ID)
-    const attachmentId = att.storage_path?.replace('gmail://', '');
+    // Find attachment ID by searching the Gmail message (stored IDs may be expired)
+    const attachmentId = await findAttachmentId(email.gmail_message_id, att.filename);
     if (!attachmentId) {
-      console.log('  ⚠️ No attachment ID in storage_path');
+      console.log('  ⚠️ Attachment not found in Gmail message');
       failCount++;
       continue;
     }
@@ -123,7 +166,11 @@ async function main() {
     // Update database
     const { error } = await supabase
       .from('raw_attachments')
-      .update({ extracted_text: text })
+      .update({
+        extracted_text: text,
+        extraction_status: 'completed',
+        extracted_at: new Date().toISOString()
+      })
       .eq('id', att.id);
 
     if (error) {

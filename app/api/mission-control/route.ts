@@ -260,6 +260,8 @@ export async function GET(request: Request) {
         awaitingResponse: awaitingResponseResult.count || 0,
         shipmentsNeedingAttention,
       },
+      // Workflow state funnel data
+      workflowFunnel: calculateWorkflowFunnel(allShipments),
     })
   } catch (error) {
     console.error('Mission Control API error:', error)
@@ -326,6 +328,101 @@ function calculateJourneyProgress(phase: string | null, state: string | null, st
   }
 
   return statusProgress[statusStr] || 5
+}
+
+/**
+ * Calculate workflow state funnel - shows how many shipments have passed through each state
+ */
+function calculateWorkflowFunnel(shipments: any[]) {
+  // State order - higher number = later in journey
+  const STATE_ORDER: Record<string, number> = {
+    'booking_confirmation_received': 10,
+    'booking_confirmation_shared': 15,
+    'commercial_invoice_received': 20,
+    'packing_list_received': 25,
+    'si_draft_received': 30,
+    'si_draft_sent': 35,
+    'si_confirmed': 40,
+    'vgm_submitted': 50,
+    'vgm_confirmed': 55,
+    'container_gated_in': 58,
+    'sob_received': 60,
+    'vessel_departed': 65,
+    'isf_filed': 70,
+    'isf_confirmed': 75,
+    'mbl_draft_received': 80,
+    'hbl_draft_sent': 85,
+    'hbl_released': 90,
+    'invoice_sent': 95,
+    'invoice_paid': 100,
+    'arrival_notice_received': 110,
+    'arrival_notice_shared': 115,
+    'entry_draft_received': 120,
+    'entry_filed': 125,
+    'duty_invoice_received': 130,
+    'duty_summary_shared': 135,
+    'customs_cleared': 140,
+    'delivery_order_received': 150,
+    'cargo_released': 160,
+    'out_for_delivery': 180,
+    'delivered': 190,
+    'pod_received': 200,
+  }
+
+  // Key states to show in funnel
+  const KEY_STATES = [
+    { state: 'booking_confirmation_received', label: 'Booking Received' },
+    { state: 'booking_confirmation_shared', label: 'Booking Shared' },
+    { state: 'si_confirmed', label: 'SI Confirmed' },
+    { state: 'sob_received', label: 'Shipped on Board' },
+    { state: 'hbl_released', label: 'HBL Released' },
+    { state: 'invoice_sent', label: 'Invoice Sent' },
+    { state: 'arrival_notice_shared', label: 'Arrival Shared' },
+    { state: 'cargo_released', label: 'Cargo Released' },
+    { state: 'pod_received', label: 'POD Received' },
+  ]
+
+  const totalShipments = shipments.length
+
+  // Calculate cumulative counts - for each state, count shipments AT or PAST that state
+  const funnel = KEY_STATES.map(({ state, label }) => {
+    const stateOrder = STATE_ORDER[state] || 0
+    let count = 0
+
+    for (const ship of shipments) {
+      const shipState = ship.workflow_state || ''
+      const shipOrder = STATE_ORDER[shipState] || 0
+
+      // Count if shipment is at or past this state
+      if (shipOrder >= stateOrder) {
+        count++
+      }
+    }
+
+    const percentage = totalShipments > 0 ? Math.round((count / totalShipments) * 100) : 0
+
+    return {
+      state,
+      label,
+      count,
+      percentage,
+    }
+  })
+
+  // Current state distribution
+  const currentCounts: Record<string, number> = {}
+  shipments.forEach(s => {
+    const state = s.workflow_state || 'null'
+    currentCounts[state] = (currentCounts[state] || 0) + 1
+  })
+
+  return {
+    total: totalShipments,
+    funnel,
+    currentDistribution: Object.entries(currentCounts)
+      .map(([state, count]) => ({ state, count }))
+      .sort((a, b) => b.count - a.count),
+  }
 }
 
 async function getAttentionItems(supabase: any, todayStr: string) {

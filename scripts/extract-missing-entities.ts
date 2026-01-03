@@ -16,9 +16,12 @@
 import { createClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
 
+import * as dotenv from 'dotenv';
+dotenv.config({ path: '.env' });
+
 const supabase = createClient(
   process.env.SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_KEY || ''
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
 const anthropic = new Anthropic({
@@ -70,12 +73,26 @@ interface Stats {
 async function getEmailsWithoutEntities(): Promise<string[]> {
   console.log('Finding emails without entity extractions...');
 
-  // Get all email IDs that have entities
-  const { data: emailsWithEntities } = await supabase
-    .from('entity_extractions')
-    .select('email_id');
+  // Get all email IDs that have entities (with pagination due to 85k+ rows)
+  const emailsWithEntitiesSet = new Set<string>();
+  let entityPage = 0;
+  let hasMoreEntities = true;
 
-  const emailsWithEntitiesSet = new Set(emailsWithEntities?.map(e => e.email_id) || []);
+  while (hasMoreEntities) {
+    const { data: entityBatch } = await supabase
+      .from('entity_extractions')
+      .select('email_id')
+      .range(entityPage * 1000, (entityPage + 1) * 1000 - 1);
+
+    if (entityBatch && entityBatch.length > 0) {
+      entityBatch.forEach(e => emailsWithEntitiesSet.add(e.email_id));
+      hasMoreEntities = entityBatch.length === 1000;
+      entityPage++;
+    } else {
+      hasMoreEntities = false;
+    }
+  }
+
   console.log(`Emails WITH entities: ${emailsWithEntitiesSet.size}`);
 
   // Get emails with linkable classifications that DON'T have entities
@@ -246,46 +263,74 @@ async function linkToShipment(
   entities: Array<{type: string, value: string}>,
   docType: string
 ): Promise<boolean> {
-  // Find booking or BL number
+  // Extract identifiers
   const bookingNumber = entities.find(e => e.type === 'booking_number')?.value;
   const blNumber = entities.find(e => e.type === 'bl_number')?.value;
+  const mblNumber = entities.find(e => e.type === 'mbl_number')?.value;
+  const hblNumber = entities.find(e => e.type === 'hbl_number')?.value;
+  const containerNumber = entities.find(e => e.type === 'container_number')?.value;
 
-  if (!bookingNumber && !blNumber) return false;
+  // Need at least one identifier
+  if (!bookingNumber && !blNumber && !mblNumber && !hblNumber && !containerNumber) {
+    return false;
+  }
 
-  // Find matching shipment
+  // Find matching shipment (priority: booking > MBL > HBL > container)
   let shipmentId: string | null = null;
 
+  // 1. Try booking number
   if (bookingNumber) {
     const { data } = await supabase
       .from('shipments')
       .select('id')
-      .eq('booking_number', bookingNumber)
+      .eq('booking_number', bookingNumber.toUpperCase())
       .single();
-
     if (data) shipmentId = data.id;
   }
 
-  if (!shipmentId && blNumber) {
+  // 2. Try MBL/BL number
+  if (!shipmentId && (mblNumber || blNumber)) {
+    const bl = (mblNumber || blNumber)?.toUpperCase();
     const { data } = await supabase
       .from('shipments')
       .select('id')
-      .eq('bl_number', blNumber)
+      .eq('mbl_number', bl)
       .single();
-
     if (data) shipmentId = data.id;
+  }
+
+  // 3. Try HBL number
+  if (!shipmentId && hblNumber) {
+    const { data } = await supabase
+      .from('shipments')
+      .select('id')
+      .eq('hbl_number', hblNumber.toUpperCase())
+      .single();
+    if (data) shipmentId = data.id;
+  }
+
+  // 4. Try container number (check array)
+  if (!shipmentId && containerNumber) {
+    const { data } = await supabase
+      .from('shipments')
+      .select('id')
+      .contains('container_numbers', [containerNumber.toUpperCase()])
+      .limit(1);
+    if (data && data.length > 0) shipmentId = data[0].id;
   }
 
   if (!shipmentId) return false;
 
-  // Create link
+  // Create link (upsert to avoid duplicates)
   const { error } = await supabase
     .from('shipment_documents')
-    .insert({
+    .upsert({
       shipment_id: shipmentId,
       email_id: emailId,
       document_type: docType,
-      link_method: 'ai',
       created_at: new Date().toISOString()
+    }, {
+      onConflict: 'email_id,shipment_id'
     });
 
   return !error;

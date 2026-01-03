@@ -85,6 +85,7 @@ const WORKFLOW_STATES: WorkflowStateInfo[] = [
 export function ShipmentWorkflowProgress({ shipmentId, currentState, workflowPhase, compact = false }: WorkflowProgressProps) {
   const [workflowData, setWorkflowData] = useState<WorkflowData | null>(null);
   const [documentsReceived, setDocumentsReceived] = useState<string[]>([]);
+  const [outboundStates, setOutboundStates] = useState<string[]>([]); // States completed by outbound emails
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -105,11 +106,13 @@ export function ShipmentWorkflowProgress({ shipmentId, currentState, workflowPha
         setWorkflowData(data);
       }
 
-      // Get document types actually received
+      // Get document types and outbound states
       if (shipmentRes.ok) {
         const shipmentData = await shipmentRes.json();
         const docTypes = (shipmentData.documents || []).map((d: any) => d.document_type);
         setDocumentsReceived(docTypes);
+        // Set outbound workflow states (from outbound emails like "Booking Shared", "Invoice Sent")
+        setOutboundStates(shipmentData.outboundWorkflowStates || []);
       }
     } catch (err) {
       setError('Failed to load workflow');
@@ -138,21 +141,29 @@ export function ShipmentWorkflowProgress({ shipmentId, currentState, workflowPha
     return state.required_doc_types.some(docType => documentsReceived.includes(docType));
   };
 
+  // Check if state was completed by outbound email (e.g., "Booking Shared", "Invoice Sent")
+  const isCompletedByOutbound = (state: WorkflowStateInfo): boolean => {
+    return outboundStates.includes(state.state_code);
+  };
+
   // Calculate states with proper status
-  // NEW LOGIC: Mark states as completed if:
-  // 1. Required document was received (regardless of workflow_state), OR
-  // 2. State is before current workflow_state (if workflow_state is set)
+  // LOGIC: Mark states as completed if:
+  // 1. Required document was received (for document-based states), OR
+  // 2. Outbound email detected for action states (Booking Shared, Invoice Sent, etc.), OR
+  // 3. State is before current workflow_state (if workflow_state is set)
   const statesWithStatus = WORKFLOW_STATES.map(state => {
     const hasDoc = hasRequiredDocument(state);
+    const hasOutbound = isCompletedByOutbound(state);
     const isBeforeCurrentState = currentOrder > 0 && state.state_order < currentOrder;
 
-    // Completed if: we have the document OR workflow_state says we passed this state
-    const isCompleted = hasDoc || isBeforeCurrentState;
+    // Completed if: we have the document OR outbound email found OR workflow_state says we passed this state
+    const isCompleted = hasDoc || hasOutbound || isBeforeCurrentState;
     const isCurrent = state.state_code === activeState;
 
     // Skipped = state is "completed" by workflow order but required document not received
-    // Only applies when we pass states without receiving documents
-    const isSkipped = isBeforeCurrentState && state.required_doc_types.length > 0 && !hasDoc;
+    // Only applies to document-based states (not action states with outbound detection)
+    const isActionState = state.required_doc_types.length === 0;
+    const isSkipped = isBeforeCurrentState && !isActionState && !hasDoc;
 
     return {
       ...state,
