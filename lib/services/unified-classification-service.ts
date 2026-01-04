@@ -336,12 +336,12 @@ export class UnifiedClassificationService {
     { pattern: /\bcontainer.*loaded/i, type: 'sob_confirmation', confidence: 85 },
     { pattern: /\bon\s*board\s+confirm/i, type: 'sob_confirmation', confidence: 90 },
 
-    // ===== ARRIVAL NOTICE (vessel arriving at destination) =====
+    // ===== ARRIVAL NOTICE (from shipping lines at destination port) =====
+    // STRICT: Only match explicit "Arrival Notice" - not generic arrival mentions
+    // Real arrival notices: from shipping lines (maersk, hapag, cma-cgm), via nam@intoglo.com, have "Arrival Notice" PDF
     { pattern: /\barrival\s+notice\b/i, type: 'arrival_notice', confidence: 95 },
     { pattern: /\bnotice\s+of\s+arrival\b/i, type: 'arrival_notice', confidence: 95 },
-    { pattern: /\bvessel\s+arrival\b/i, type: 'arrival_notice', confidence: 90 },
-    { pattern: /\bcargo\s+arrival\b/i, type: 'arrival_notice', confidence: 90 },
-    { pattern: /\barriving\s+at\s+port/i, type: 'arrival_notice', confidence: 85 },
+    // REMOVED: vessel_arrival, cargo_arrival, arriving_at_port - too broad, matches status updates
 
     // ===== HBL DRAFT (Intoglo shares with shipper for approval - BEFORE general BL) =====
     { pattern: /\bBL\s+DRAFT\s+FOR\b/i, type: 'hbl_draft', confidence: 95 },
@@ -584,8 +584,9 @@ export class UnifiedClassificationService {
     const contentPatterns: Array<{ patterns: RegExp[]; type: string; confidence: number }> = [
       // SOB - look for shipped on board indicators in content
       { patterns: [/shipped\s+on\s+board/i, /on\s*board\s+date/i, /vessel.*sailed/i], type: 'sob_confirmation', confidence: 85 },
-      // Arrival notice - cargo arriving
-      { patterns: [/arrival\s+notice/i, /estimated\s+arrival/i, /vessel.*arriving/i], type: 'arrival_notice', confidence: 85 },
+      // Arrival notice - STRICT: only explicit "arrival notice" in content
+      // REMOVED: estimated_arrival, vessel.*arriving - too broad, matches any shipping email
+      { patterns: [/arrival\s+notice/i, /notice\s+of\s+arrival/i], type: 'arrival_notice', confidence: 85 },
       // Invoice - has amounts, invoice number
       { patterns: [/invoice\s+(no|number|#)/i, /amount\s+due/i, /total.*usd/i], type: 'invoice', confidence: 80 },
       // SI Draft - Shipper sends to Intoglo for review (BEFORE general SI)
@@ -917,12 +918,19 @@ CRITICAL DISTINCTIONS (pay close attention):
    - "Sailed" or "On Board" = SOB (departure), NOT arrival
    - If subject says "SOB" → ALWAYS sob_confirmation
 
-2. **BOOKING vs INVOICE**:
+2. **ARRIVAL NOTICE - STRICT RULES**:
+   - ONLY classify as arrival_notice if email explicitly says "Arrival Notice" or "Notice of Arrival"
+   - Must come from shipping line (maersk.com, hapag-lloyd.com, cma-cgm.com, cosco, etc.)
+   - NOT arrival_notice: RAILMENT STATUS, Forwarding Note, Container gated-in, HB Filing Missing
+   - NOT arrival_notice: Status updates, ETA notifications, tracking updates
+   - If unsure, classify as shipment_notice or general_correspondence
+
+3. **BOOKING vs INVOICE**:
    - booking_confirmation = New booking, has booking number, vessel schedule, cutoffs
    - invoice = Has invoice number, amounts due, payment terms
    - If no invoice number or amounts → NOT an invoice
 
-3. **BOOKING CONFIRMATION vs BOOKING AMENDMENT**:
+4. **BOOKING CONFIRMATION vs BOOKING AMENDMENT**:
    - booking_confirmation = Original booking (often says "1ST COPY" or first issuance)
    - booking_amendment = Changes to existing booking (says "UPDATE", "AMENDMENT", "REVISED", "2ND/3RD COPY")
 
@@ -931,7 +939,7 @@ DOCUMENT TYPES WITH DEFINITIONS:
 - booking_amendment: Updates to existing booking (schedule change, equipment change, routing change)
 - booking_cancellation: Booking cancelled by carrier or shipper
 - sob_confirmation: Shipped on Board - cargo LOADED onto vessel, vessel DEPARTING
-- arrival_notice: Notification that vessel is ARRIVING at destination port
+- arrival_notice: ONLY when email explicitly says "Arrival Notice" - from shipping lines, has AN PDF
 - bill_of_lading: B/L document (draft, final, house, master, sea waybill)
 - shipping_instruction: SI submission or confirmation
 - invoice: Freight invoice with amounts and payment details
@@ -959,12 +967,22 @@ Subject: "Arrival Notice - Container MRSU1234567 arriving Newark"
 Classification: arrival_notice (95% confidence)
 Reasoning: Explicitly mentions "Arrival Notice" and cargo arriving at destination port.
 
-Example 3:
+Example 3 (NEGATIVE - NOT arrival_notice):
+Subject: "RAILMENT STATUS // 94225338"
+Classification: shipment_notice (85% confidence)
+Reasoning: This is a railment/trucking status update, NOT an arrival notice. No "Arrival Notice" text.
+
+Example 4 (NEGATIVE - NOT arrival_notice):
+Subject: "Forwarding Note ///// Container HAMU1190492 Booking No. 94225338"
+Classification: shipment_notice (80% confidence)
+Reasoning: Terminal forwarding note, NOT an arrival notice. No "Arrival Notice" text.
+
+Example 5:
 Subject: "2ND UPDATE Booking Confirmation : 263441600"
 Classification: booking_amendment (95% confidence)
 Reasoning: "2ND UPDATE" indicates this is an amendment to existing booking, not original confirmation.
 
-Example 4:
+Example 6:
 Subject: "Re: Intoglo Quote for ABC Corp | Mumbai to LA"
 Classification: general_correspondence (80% confidence)
 Reasoning: Thread reply (Re:) without specific document type indicator, likely operational discussion.
