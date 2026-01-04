@@ -185,8 +185,9 @@ const WORKFLOW_STATE_MAP: Record<string, string> = {
   // Arrival
   'arrival_notice:inbound': 'arrival_notice_received',
   'arrival_notice:outbound': 'arrival_notice_shared',
-  'shipment_notice:inbound': 'arrival_notice_received',
-  'shipment_notice:outbound': 'arrival_notice_shared',
+  // shipment_notice is FMC filing/status update - NOT arrival notice
+  'shipment_notice:inbound': 'fmc_filing_received',
+  'shipment_notice:outbound': 'fmc_filing_sent',
 
   // Customs - India
   'checklist:inbound': 'checklist_received',

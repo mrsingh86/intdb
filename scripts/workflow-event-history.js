@@ -68,7 +68,9 @@ const WORKFLOW_STATE_MAP = {
   // ARRIVAL
   'arrival_notice:inbound': 'arrival_notice_received',
   'arrival_notice:outbound': 'arrival_notice_shared',
-  'shipment_notice:inbound': 'arrival_notice_received',
+  // shipment_notice is FMC filing - NOT arrival notice
+  'shipment_notice:inbound': 'fmc_filing_received',
+  'shipment_notice:outbound': 'fmc_filing_sent',
   'customs_clearance:inbound': 'customs_cleared',
   'customs_document:inbound': 'duty_invoice_received',
   'customs_document:outbound': 'duty_summary_shared',
