@@ -12,26 +12,11 @@
 export type EmailDirection = 'inbound' | 'outbound';
 
 /**
- * Subject patterns that indicate carrier/inbound emails
- * These override the default Intoglo = outbound logic
+ * Maersk BC subject pattern - ops@intoglo.com forwards with this exact format
+ * IMPORTANT: Only this specific pattern is used to detect forwarded carrier emails
+ * Do NOT add generic patterns like /booking\s*confirm/ - they catch replies too
  */
-const CARRIER_SUBJECT_PATTERNS = [
-  /^booking\s+(confirmation|amendment)\s*:/i,  // Maersk BC via ops@intoglo.com
-  /booking\s*confirm/i,
-  /booking\s*amendment/i,
-  /shipment\s*notice/i,
-];
-
-/**
- * Booking number patterns in subject that indicate carrier emails
- */
-const CARRIER_BOOKING_PATTERNS = [
-  /\b26\d{7}\b/,           // Maersk 9-digit
-  /\bCOSU\d{6,}/i,         // COSCO
-  /\b(AMC|CEI|EID|CAD)\d{6,}/i,  // CMA CGM
-  /\bHL(CU|CL)?\d{6,}/i,   // Hapag-Lloyd
-  /\bODeX:/i,              // ODeX carrier platform
-];
+const MAERSK_BC_PATTERN = /^booking\s+(confirmation|amendment)\s*:/i;
 
 /**
  * Detect email direction based on sender email address and subject
@@ -65,28 +50,29 @@ export function detectDirection(
 
   // For Intoglo senders, check if subject reveals carrier origin
   if (sender.includes('@intoglo.com') || sender.includes('@intoglo.in')) {
+    // IMPORTANT: Replies are OUTBOUND (Intoglo staff replying to customers)
+    // Replies start with "Re:", "RE:", "Fwd:", etc.
+    const isReply = /^(re|fw|fwd):/i.test((subject || '').trim());
+
     // Maersk BC forwarded via ops@intoglo.com (without "via" display name)
     // Subject format: "Booking Confirmation : 263825330"
-    if (sender === 'ops@intoglo.com' && CARRIER_SUBJECT_PATTERNS[0].test(subject || '')) {
+    // Only match if NOT a reply
+    if (!isReply && sender === 'ops@intoglo.com' && MAERSK_BC_PATTERN.test(subject || '')) {
       return 'inbound';
     }
 
-    // Check for carrier subject patterns
-    if (CARRIER_SUBJECT_PATTERNS.some(p => p.test(subj))) {
+    // COSCO IRIS system emails (not replies)
+    if (!isReply && /iris/i.test(sender) && /booking\s*confirm/i.test(subj)) {
       return 'inbound';
     }
 
-    // Check for carrier booking number patterns in subject
-    if (CARRIER_BOOKING_PATTERNS.some(p => p.test(subj))) {
-      return 'inbound';
-    }
-
-    // COSCO IRIS system emails
-    if (/iris/i.test(sender) && /booking\s*confirm/i.test(subj)) {
+    // ODeX carrier platform notifications (not replies)
+    if (!isReply && /\bODeX:/i.test(subject || '')) {
       return 'inbound';
     }
 
     // Default for Intoglo sender = OUTBOUND
+    // This includes all replies and non-carrier-pattern emails
     return 'outbound';
   }
 

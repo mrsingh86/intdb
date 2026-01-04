@@ -314,31 +314,31 @@ function getDirection(email: Email): 'inbound' | 'outbound' {
     }
   }
 
-  // 2. For Intoglo senders, check subject for carrier patterns
+  // 2. For Intoglo senders, check if it's a forwarded carrier email
   if (sender.includes('@intoglo.com') || sender.includes('@intoglo.in')) {
+    // Skip replies - these are Intoglo staff replying to customers (outbound)
+    // Replies start with "Re:", "RE:", "Fwd:", etc.
+    const isReply = /^(re|fw|fwd):/i.test(subject.trim());
+
     // Maersk BC forwarded via ops@intoglo.com (without "via" display name)
     // Subject format: "Booking Confirmation : 263825330" or "Booking Amendment : 263638404"
-    if (sender === 'ops@intoglo.com' && /^booking\s+(confirmation|amendment)\s*:/i.test(subject)) {
+    // Only match if NOT a reply and subject starts with exact carrier format
+    if (!isReply && sender === 'ops@intoglo.com' && /^booking\s+(confirmation|amendment)\s*:/i.test(subject)) {
       return 'inbound';
     }
-    // Subject reveals it's a forwarded carrier email
-    if (CARRIER_SUBJECT_PATTERNS.some(pattern => pattern.test(subject))) {
-      return 'inbound';
-    }
-    // Maersk 9-digit booking number pattern
-    if (/\b26\d{7}\b/.test(subject)) return 'inbound';
-    // COSCO booking pattern
-    if (/\bCOSU\d{6,}/i.test(subject)) return 'inbound';
-    // CMA CGM patterns
-    if (/\b(AMC|CEI|EID|CAD)\d{6,}/i.test(subject)) return 'inbound';
-    // Hapag patterns
-    if (/\bHL(CU|CL)?\d{6,}/i.test(subject)) return 'inbound';
-    // ODeX carrier platform notifications
-    if (/\bODeX:/i.test(subject)) return 'inbound';
-    // COSCO IRIS system
-    if (/IRIS/i.test(sender) && /booking\s*confirm/i.test(subject)) return 'inbound';
 
-    // If email_direction is set and no carrier patterns found, use it
+    // COSCO IRIS system (ops@intoglo.com forwards these)
+    if (!isReply && /IRIS/i.test(sender) && /booking\s*confirm/i.test(subject)) {
+      return 'inbound';
+    }
+
+    // ODeX carrier platform notifications (not replies)
+    if (!isReply && /\bODeX:/i.test(subject)) {
+      return 'inbound';
+    }
+
+    // Trust email_direction from database for all other Intoglo emails
+    // This was set correctly by direction-detector.ts
     if (email.email_direction) {
       return email.email_direction as 'inbound' | 'outbound';
     }
