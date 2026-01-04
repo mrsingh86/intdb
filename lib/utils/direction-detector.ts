@@ -12,11 +12,15 @@
 export type EmailDirection = 'inbound' | 'outbound';
 
 /**
- * Maersk BC subject pattern - ops@intoglo.com forwards with this exact format
- * IMPORTANT: Only this specific pattern is used to detect forwarded carrier emails
- * Do NOT add generic patterns like /booking\s*confirm/ - they catch replies too
+ * Carrier BC subject patterns - specific formats forwarded via Intoglo emails
+ * IMPORTANT: Only exact patterns are used - do NOT add generic patterns
+ * Generic patterns like /booking\s*confirm/ catch replies too
  */
-const MAERSK_BC_PATTERN = /^booking\s+(confirmation|amendment)\s*:/i;
+const CARRIER_BC_PATTERNS = [
+  /^booking\s+(confirmation|amendment)\s*:/i,  // Maersk: "Booking Confirmation : 263..."
+  /^cosco\s+shipping\s+line\s+booking\s+confirmation/i,  // COSCO: "Cosco Shipping Line Booking Confirmation - COSU..."
+  /^cma\s*cgm\s*-\s*booking\s+confirmation\s+available/i,  // CMA CGM: "CMA CGM - Booking confirmation available"
+];
 
 /**
  * Detect email direction based on sender email address and subject
@@ -54,11 +58,13 @@ export function detectDirection(
     // Replies start with "Re:", "RE:", "Fwd:", etc.
     const isReply = /^(re|fw|fwd):/i.test((subject || '').trim());
 
-    // Maersk BC forwarded via ops@intoglo.com (without "via" display name)
-    // Subject format: "Booking Confirmation : 263825330"
+    // Carrier BC forwarded via ops@intoglo.com or pricing@intoglo.com
+    // Matches specific carrier subject patterns (not generic)
     // Only match if NOT a reply
-    if (!isReply && sender === 'ops@intoglo.com' && MAERSK_BC_PATTERN.test(subject || '')) {
-      return 'inbound';
+    if (!isReply && (sender === 'ops@intoglo.com' || sender === 'pricing@intoglo.com')) {
+      if (CARRIER_BC_PATTERNS.some(p => p.test(subject || ''))) {
+        return 'inbound';
+      }
     }
 
     // COSCO IRIS system emails (not replies)

@@ -320,11 +320,15 @@ function getDirection(email: Email): 'inbound' | 'outbound' {
     // Replies start with "Re:", "RE:", "Fwd:", etc.
     const isReply = /^(re|fw|fwd):/i.test(subject.trim());
 
-    // Maersk BC forwarded via ops@intoglo.com (without "via" display name)
-    // Subject format: "Booking Confirmation : 263825330" or "Booking Amendment : 263638404"
-    // Only match if NOT a reply and subject starts with exact carrier format
-    if (!isReply && sender === 'ops@intoglo.com' && /^booking\s+(confirmation|amendment)\s*:/i.test(subject)) {
-      return 'inbound';
+    // Carrier BC forwarded via ops@intoglo.com or pricing@intoglo.com
+    // Only match if NOT a reply and subject matches exact carrier format
+    if (!isReply && (sender === 'ops@intoglo.com' || sender === 'pricing@intoglo.com')) {
+      // Maersk: "Booking Confirmation : 263..."
+      if (/^booking\s+(confirmation|amendment)\s*:/i.test(subject)) return 'inbound';
+      // COSCO: "Cosco Shipping Line Booking Confirmation - COSU..."
+      if (/^cosco\s+shipping\s+line\s+booking\s+confirmation/i.test(subject)) return 'inbound';
+      // CMA CGM: "CMA CGM - Booking confirmation available"
+      if (/^cma\s*cgm\s*-\s*booking\s+confirmation\s+available/i.test(subject)) return 'inbound';
     }
 
     // COSCO IRIS system (ops@intoglo.com forwards these)
