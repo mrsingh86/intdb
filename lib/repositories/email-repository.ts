@@ -136,10 +136,10 @@ export class EmailRepository {
    * @throws Error if insertion fails
    */
   async create(email: Partial<RawEmail>): Promise<RawEmail> {
-    // Auto-detect email direction based on sender
+    // Auto-detect email direction based on sender and subject
     const emailWithDirection = {
       ...email,
-      email_direction: email.email_direction || detectDirection(email.sender_email),
+      email_direction: email.email_direction || detectDirection(email.sender_email, email.subject),
     };
 
     const { data, error } = await this.supabase
