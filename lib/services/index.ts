@@ -99,6 +99,15 @@ export { DocumentAuthorityService } from './document-authority-service';
 export { DocumentRevisionService } from './document-revision-service';
 export { DocumentLifecycleService } from './document-lifecycle-service';
 export { WorkflowStateService } from './workflow-state-service';
+export {
+  WorkflowStateManagementService,
+  WORKFLOW_STATES_CONFIG,
+} from './workflow-state-management-service';
+export type {
+  WorkflowStateDefinition,
+  VerificationReport,
+  BackfillResult,
+} from './workflow-state-management-service';
 export { SIReconciliationService } from './si-reconciliation-service';
 export { MilestoneTrackingService } from './milestone-tracking-service';
 

@@ -65,6 +65,16 @@ const documentTypeConfig = {
     color: 'purple',
     icon: Anchor
   },
+  house_bl: {
+    label: 'House B/L',
+    color: 'purple',
+    icon: Anchor
+  },
+  hbl_draft: {
+    label: 'HBL Draft',
+    color: 'violet',
+    icon: FileEdit
+  },
   shipping_instruction: {
     label: 'Shipping Instruction',
     color: 'indigo',
@@ -139,6 +149,48 @@ const documentTypeConfig = {
     label: 'SI Submission',
     color: 'indigo',
     icon: ClipboardList
+  },
+  si_confirmation: {
+    label: 'SI Confirmation',
+    color: 'green',
+    icon: FileCheck
+  },
+  vgm_confirmation: {
+    label: 'VGM Confirmation',
+    color: 'violet',
+    icon: FileCheck
+  },
+  // India Export - CHA Documents
+  checklist: {
+    label: 'Checklist',
+    color: 'amber',
+    icon: ClipboardList
+  },
+  shipping_bill: {
+    label: 'Shipping Bill',
+    color: 'orange',
+    icon: FileBox
+  },
+  leo_copy: {
+    label: 'LEO Copy',
+    color: 'orange',
+    icon: FileCheck
+  },
+  // US Import - Customs Broker Documents
+  draft_entry: {
+    label: 'Draft Entry',
+    color: 'amber',
+    icon: FileEdit
+  },
+  entry_summary: {
+    label: 'Entry Summary',
+    color: 'orange',
+    icon: FileCheck
+  },
+  duty_invoice: {
+    label: 'Duty Invoice',
+    color: 'rose',
+    icon: CreditCard
   },
   pickup_notification: {
     label: 'Pickup Notice',

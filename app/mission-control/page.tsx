@@ -35,6 +35,7 @@ import {
   TrendingUp,
   Activity,
 } from 'lucide-react';
+import WeeklyCohortTable from '@/components/mission-control/WeeklyCohortTable';
 import {
   TaskStatus,
   TaskCategory,
@@ -107,19 +108,6 @@ interface InsightsData {
   };
 }
 
-interface WorkflowFunnelItem {
-  state: string;
-  label: string;
-  count: number;
-  percentage: number;
-}
-
-interface WorkflowFunnelData {
-  total: number;
-  funnel: WorkflowFunnelItem[];
-  currentDistribution: Array<{ state: string; count: number }>;
-}
-
 interface MissionControlData {
   today: {
     departures: number;
@@ -156,7 +144,6 @@ interface MissionControlData {
       days_to_etd: number | null;
     }>;
   };
-  workflowFunnel?: WorkflowFunnelData;
 }
 
 // ============================================================================
@@ -566,10 +553,8 @@ export default function UnifiedMissionControlPage() {
             </div>
           )}
 
-          {/* Workflow State Funnel - Terminal Style */}
-          {missionData?.workflowFunnel && (
-            <WorkflowFunnel data={missionData.workflowFunnel} />
-          )}
+          {/* Weekly Cohort Analysis */}
+          <WeeklyCohortTable />
 
           {/* Shipment Phases - Terminal Style */}
           <div className="rounded-lg border border-terminal-border bg-terminal-surface p-4">
@@ -1012,123 +997,6 @@ function CutoffProgress({
       {pending > 0 && (
         <p className="text-[10px] font-mono text-terminal-amber mt-1">{pending} pending</p>
       )}
-    </div>
-  );
-}
-
-function WorkflowFunnel({ data }: { data: WorkflowFunnelData }) {
-  // Color scale for the funnel bars
-  const getBarColor = (percentage: number) => {
-    if (percentage >= 80) return 'bg-terminal-green';
-    if (percentage >= 50) return 'bg-terminal-blue';
-    if (percentage >= 25) return 'bg-terminal-amber';
-    return 'bg-terminal-red';
-  };
-
-  // Create a map of current counts by state
-  const currentCountMap = new Map(data.currentDistribution.map(d => [d.state, d.count]));
-
-  return (
-    <div className="rounded-lg border border-terminal-border bg-terminal-surface overflow-hidden">
-      <div className="px-4 py-2.5 bg-terminal-elevated border-b border-terminal-border flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-terminal-purple" />
-          <TrendingUp className="h-4 w-4 text-terminal-purple" />
-          <span className="font-medium text-terminal-text text-sm">Workflow Funnel</span>
-        </div>
-        <span className="text-xs font-mono text-terminal-muted">
-          {data.total} shipments
-        </span>
-      </div>
-
-      <div className="p-4">
-        {/* Header Row */}
-        <div className="flex items-center gap-3 mb-3 pb-2 border-b border-terminal-border">
-          <div className="w-36 flex-shrink-0">
-            <span className="text-[10px] font-mono text-terminal-muted uppercase">State</span>
-          </div>
-          <div className="flex-1">
-            <span className="text-[10px] font-mono text-terminal-muted uppercase">Cumulative (passed through)</span>
-          </div>
-          <div className="w-16 flex-shrink-0 text-center">
-            <span className="text-[10px] font-mono text-terminal-muted uppercase">Current</span>
-          </div>
-          <div className="w-20 flex-shrink-0 text-right">
-            <span className="text-[10px] font-mono text-terminal-muted uppercase">Cumul.</span>
-          </div>
-        </div>
-
-        {/* Funnel Visualization with Current + Cumulative */}
-        <div className="space-y-2">
-          {data.funnel.map((item) => {
-            const currentCount = currentCountMap.get(item.state) || 0;
-
-            return (
-              <div key={item.state} className="group">
-                <div className="flex items-center gap-3">
-                  {/* Label */}
-                  <div className="w-36 flex-shrink-0">
-                    <span className="text-xs font-medium text-terminal-text">{item.label}</span>
-                  </div>
-
-                  {/* Cumulative Bar */}
-                  <div className="flex-1 h-5 bg-terminal-bg rounded overflow-hidden border border-terminal-border">
-                    <div
-                      className={`h-full ${getBarColor(item.percentage)} transition-all duration-300 flex items-center justify-end px-2`}
-                      style={{ width: `${Math.max(item.percentage, 2)}%` }}
-                    >
-                      {item.percentage >= 15 && (
-                        <span className="text-[10px] font-mono font-bold text-white">
-                          {item.percentage}%
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Current Count (highlighted if > 0) */}
-                  <div className="w-16 flex-shrink-0 text-center">
-                    {currentCount > 0 ? (
-                      <span className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 text-xs font-mono font-bold bg-terminal-amber/20 text-terminal-amber border border-terminal-amber/30 rounded">
-                        {currentCount}
-                      </span>
-                    ) : (
-                      <span className="text-xs font-mono text-terminal-muted">-</span>
-                    )}
-                  </div>
-
-                  {/* Cumulative Stats */}
-                  <div className="w-20 flex-shrink-0 text-right">
-                    <span className="text-xs font-mono font-bold text-terminal-text">{item.count}</span>
-                    <span className="text-[10px] font-mono text-terminal-muted ml-1">({item.percentage}%)</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Legend */}
-        <div className="mt-4 pt-3 border-t border-terminal-border flex items-center justify-between text-[10px] font-mono text-terminal-muted">
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-2 rounded bg-terminal-green"></span> 80%+
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-2 rounded bg-terminal-blue"></span> 50-79%
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-2 rounded bg-terminal-amber"></span> 25-49%
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-2 rounded bg-terminal-red"></span> &lt;25%
-            </span>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="inline-flex items-center justify-center px-1.5 py-0.5 bg-terminal-amber/20 text-terminal-amber border border-terminal-amber/30 rounded text-[9px]">N</span>
-            <span>= currently at this state</span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

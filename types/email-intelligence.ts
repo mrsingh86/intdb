@@ -117,9 +117,14 @@ export interface DocumentClassification {
 export type DocumentType =
   | 'booking_confirmation'
   | 'booking_amendment'
+  | 'booking_cancellation'
   | 'arrival_notice'
   | 'bill_of_lading'
+  | 'house_bl'
   | 'shipping_instruction'
+  | 'si_draft'
+  | 'si_submission'
+  | 'si_confirmation'
   | 'invoice'
   | 'delivery_order'
   | 'proof_of_delivery'
@@ -130,6 +135,18 @@ export type DocumentType =
   | 'vessel_schedule'
   | 'container_release'
   | 'freight_invoice'
+  | 'sob_confirmation'
+  | 'vgm_submission'
+  | 'vgm_confirmation'
+  // India Export (CHA documents)
+  | 'checklist'
+  | 'shipping_bill'
+  | 'leo_copy'
+  // US Import (Customs Broker documents)
+  | 'draft_entry'
+  | 'entry_summary'
+  | 'duty_invoice'
+  | 'isf_submission'
   | 'unknown'
   | 'not_shipping'
 

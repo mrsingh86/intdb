@@ -586,6 +586,10 @@ export class ShipmentLinkingService {
         document_type: documentType,
         link_confidence_score: confidence,
         link_method: 'ai',
+        // Store matched identifiers for traceability
+        matched_booking_number: keys.booking_numbers[0] || null,
+        matched_bl_number: keys.bl_numbers[0] || null,
+        matched_container_number: keys.container_numbers[0] || null,
       });
 
       // Propagate cutoff dates from entity_extractions to shipments table

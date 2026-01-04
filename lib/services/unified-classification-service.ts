@@ -92,19 +92,34 @@ const STANDARD_DOCUMENT_TYPES = [
   'arrival_notice',
   'shipment_notice',
   'bill_of_lading',
+  'house_bl',
+  'hbl_draft',
   'shipping_instruction',
+  'si_draft',
+  'si_submission',
   'invoice',
+  'freight_invoice',
   'vgm_confirmation',
   'vgm_reminder',
+  'vgm_submission',
   'vessel_schedule',
   'pickup_notification',
   'cutoff_advisory',
   'delivery_order',
   'customs_clearance',
+  'customs_document',
   'rate_quote',
   'general_correspondence',
   'sob_confirmation',
-  'si_submission',
+  // India Export - CHA
+  'checklist',
+  'shipping_bill',
+  'leo_copy',
+  // US Import - Customs Broker
+  'draft_entry',
+  'entry_summary',
+  'duty_invoice',
+  'isf_submission',
 ] as const;
 
 // Labels for multi-label classification
@@ -376,10 +391,51 @@ export class UnifiedClassificationService {
     { pattern: /\bcommercial\s+invoice/i, type: 'invoice', confidence: 85 },
     { pattern: /\bproforma\s+invoice/i, type: 'invoice', confidence: 85 },
 
-    // ===== CUSTOMS =====
-    { pattern: /\bcustoms\s+(clear|release|entry)/i, type: 'customs_clearance', confidence: 90 },
-    { pattern: /\bduty\s+(invoice|payment|summary)/i, type: 'customs_clearance', confidence: 85 },
-    { pattern: /\bISF\s+(fil|confirm|submit)/i, type: 'customs_clearance', confidence: 85 },
+    // ===== CUSTOMS GENERAL =====
+    { pattern: /\bcustoms\s+clear(ance|ed)?/i, type: 'customs_clearance', confidence: 90 },
+    { pattern: /\bISF\s+(fil|confirm|submit)/i, type: 'isf_submission', confidence: 90 },
+
+    // ===== INDIA EXPORT - CHA DOCUMENTS =====
+    // Checklist (from CHA to Intoglo, or Intoglo to shipper)
+    { pattern: /\bchecklist\s+(attached|for|ready)/i, type: 'checklist', confidence: 95 },
+    { pattern: /\bexport\s+checklist/i, type: 'checklist', confidence: 95 },
+    { pattern: /\bCHA\s+checklist/i, type: 'checklist', confidence: 95 },
+    { pattern: /\bshipment\s+checklist/i, type: 'checklist', confidence: 90 },
+    { pattern: /\bdocument\s+checklist/i, type: 'checklist', confidence: 85 },
+
+    // Shipping Bill / LEO (Let Export Order)
+    { pattern: /\bshipping\s+bill\s+(copy|number|attached)/i, type: 'shipping_bill', confidence: 95 },
+    { pattern: /\bSB\s+(copy|no\.?|number)/i, type: 'shipping_bill', confidence: 90 },
+    { pattern: /\bLEO\s+(copy|attached|received)/i, type: 'leo_copy', confidence: 95 },
+    { pattern: /\blet\s+export\s+order/i, type: 'leo_copy', confidence: 95 },
+    { pattern: /\bexport\s+clearance/i, type: 'shipping_bill', confidence: 85 },
+
+    // ===== US IMPORT - CUSTOMS BROKER DOCUMENTS =====
+    // Draft Entry (7501 draft from broker)
+    { pattern: /\bdraft\s+entry/i, type: 'draft_entry', confidence: 95 },
+    { pattern: /\bentry\s+draft/i, type: 'draft_entry', confidence: 95 },
+    { pattern: /\b7501\s+draft/i, type: 'draft_entry', confidence: 95 },
+    { pattern: /\bcustoms\s+entry\s+(draft|for\s+review)/i, type: 'draft_entry', confidence: 90 },
+    { pattern: /\bentry\s+for\s+(review|approval)/i, type: 'draft_entry', confidence: 90 },
+    { pattern: /\bentry\s+approval\s+required/i, type: 'draft_entry', confidence: 90 },
+    { pattern: /\bentry\s+\d*[A-Z]{2,3}[- ]?\d+.*pre-?alert/i, type: 'draft_entry', confidence: 90 },
+
+    // Entry Summary (7501 filed)
+    { pattern: /\bentry\s+summary/i, type: 'entry_summary', confidence: 95 },
+    { pattern: /\b7501\s+(filed|submitted|summary)/i, type: 'entry_summary', confidence: 95 },
+    { pattern: /\bfiled\s+entry/i, type: 'entry_summary', confidence: 90 },
+    { pattern: /\bcustoms\s+entry\s+(filed|released)/i, type: 'entry_summary', confidence: 90 },
+    { pattern: /\bentry\s+release/i, type: 'entry_summary', confidence: 85 },
+    { pattern: /\d+-\d+-\d+-7501\b/, type: 'entry_summary', confidence: 90 },
+    { pattern: /\b\d{3}-\d{7}-\d-7501\b/, type: 'entry_summary', confidence: 90 },
+
+    // Duty Invoice
+    { pattern: /\bduty\s+invoice/i, type: 'duty_invoice', confidence: 95 },
+    { pattern: /\bduty\s+(payment|statement|summary)/i, type: 'duty_invoice', confidence: 90 },
+    { pattern: /\bduty\s+bill\b/i, type: 'duty_invoice', confidence: 90 },
+    { pattern: /\brequest\s+for\s+duty/i, type: 'duty_invoice', confidence: 90 },
+    { pattern: /\bcustoms\s+duty/i, type: 'duty_invoice', confidence: 85 },
+    { pattern: /\bimport\s+duty/i, type: 'duty_invoice', confidence: 85 },
 
     // ===== RATE QUOTE =====
     { pattern: /\bprice\s+overview\b/i, type: 'rate_quote', confidence: 90 },

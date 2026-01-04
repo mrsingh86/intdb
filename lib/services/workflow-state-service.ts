@@ -104,13 +104,15 @@ const DIRECTION_WORKFLOW_MAPPING: Record<string, string> = {
   'isf_filing:inbound': 'isf_filed',
 
   // MBL Draft (Proforma BL from carrier - INBOUND)
+  // NOTE: bill_of_lading:inbound is handled specially by getBLStateFromSender()
+  // to distinguish carrier (bl_received) vs other (forwarded docs)
   'mbl_draft:inbound': 'mbl_draft_received',
-  'bill_of_lading:inbound': 'mbl_draft_received',
 
   // HBL Draft (Intoglo creates and sends - OUTBOUND)
   'hbl_draft:outbound': 'hbl_draft_sent',
   'hbl_release:outbound': 'hbl_released',
-  'bill_of_lading:outbound': 'hbl_released',
+  // NOTE: bill_of_lading:outbound is handled specially by getBLStateFromSender()
+  // to distinguish hbl_shared (to customer) vs hbl_released (release notification)
   'house_bl:outbound': 'hbl_released',
 
   // Invoice
@@ -122,7 +124,7 @@ const DIRECTION_WORKFLOW_MAPPING: Record<string, string> = {
   // ===== PRE_ARRIVAL (US Customs) =====
   // From Customs Broker (INBOUND)
   'draft_entry:inbound': 'entry_draft_received',       // Broker sends draft for review
-  'entry_summary:inbound': 'entry_filed',              // Broker files 7501
+  'entry_summary:inbound': 'entry_summary_received',   // Broker sends 7501 entry summary
   // Shared with Customer (OUTBOUND)
   'draft_entry:outbound': 'entry_draft_shared',        // Intoglo shares draft with customer
   'entry_summary:outbound': 'entry_summary_shared',    // Intoglo shares 7501 with customer
@@ -467,6 +469,15 @@ export class WorkflowStateService {
       }
     }
 
+    // Special handling for BL documents - check sender type and direction
+    const blDocTypes = ['bill_of_lading', 'house_bl'];
+    if (blDocTypes.includes(documentType)) {
+      const mappedState = this.getBLStateFromSender(documentType, direction, senderEmail);
+      if (mappedState) {
+        return await this.tryTransitionToState(shipmentId, mappedState, emailId, documentType, direction);
+      }
+    }
+
     // Try direction-aware mapping first
     const mappingKey = `${documentType}:${direction}`;
     const mappedState = DIRECTION_WORKFLOW_MAPPING[mappingKey];
@@ -599,6 +610,32 @@ export class WorkflowStateService {
     } else {
       // Shipper/client sending SI draft → si_draft_received
       return 'si_draft_received';
+    }
+  }
+
+  /**
+   * Determine the correct workflow state for BL documents based on direction.
+   *
+   * BL FLOW:
+   * INBOUND:
+   * - All inbound BL → bl_received (BL received from shipping line)
+   *
+   * OUTBOUND:
+   * - HBL draft to shipper → hbl_draft_sent (handled by hbl_draft mapping)
+   * - Final BL to customer → hbl_shared
+   */
+  private getBLStateFromSender(
+    documentType: string,
+    direction: 'inbound' | 'outbound',
+    senderEmail: string | null
+  ): string | null {
+    if (direction === 'inbound') {
+      // All inbound BL is from shipping line
+      return 'bl_received';
+    } else {
+      // OUTBOUND: Intoglo sharing BL with customer
+      // hbl_draft is handled by direct mapping, bill_of_lading outbound = sharing with customer
+      return 'hbl_shared';
     }
   }
 

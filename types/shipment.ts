@@ -148,6 +148,11 @@ export interface ShipmentDocument {
   linked_by?: string;
   linked_at: string;
 
+  // Matched identifiers (for traceability)
+  matched_booking_number?: string | null;
+  matched_bl_number?: string | null;
+  matched_container_number?: string | null;
+
   created_at: string;
 }
 
