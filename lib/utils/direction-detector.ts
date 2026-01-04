@@ -18,9 +18,9 @@ export type EmailDirection = 'inbound' | 'outbound';
  */
 const CARRIER_BC_PATTERNS = [
   /^booking\s+(confirmation|amendment)\s*:/i,  // Maersk: "Booking Confirmation : 263..."
-  /^price\s+overview\s*-\s*booking\s+(confirmation|amendment)\s*:/i,  // Maersk: "Price overview - booking confirmation : 263..."
   /^cosco\s+shipping\s+line\s+booking\s+confirmation/i,  // COSCO: "Cosco Shipping Line Booking Confirmation - COSU..."
   /^cma\s*cgm\s*-\s*booking\s+confirmation\s+available/i,  // CMA CGM: "CMA CGM - Booking confirmation available"
+  // NOTE: "Price overview - booking confirmation" is NOT a BC, it's a rate_quote document
 ];
 
 /**

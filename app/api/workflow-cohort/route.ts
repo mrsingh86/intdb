@@ -325,8 +325,7 @@ function getDirection(email: Email): 'inbound' | 'outbound' {
     if (!isReply && (sender === 'ops@intoglo.com' || sender === 'pricing@intoglo.com')) {
       // Maersk: "Booking Confirmation : 263..."
       if (/^booking\s+(confirmation|amendment)\s*:/i.test(subject)) return 'inbound';
-      // Maersk: "Price overview - booking confirmation : 263..."
-      if (/^price\s+overview\s*-\s*booking\s+(confirmation|amendment)\s*:/i.test(subject)) return 'inbound';
+      // NOTE: "Price overview - booking confirmation" is NOT a BC, it's a rate_quote - don't match
       // COSCO: "Cosco Shipping Line Booking Confirmation - COSU..."
       if (/^cosco\s+shipping\s+line\s+booking\s+confirmation/i.test(subject)) return 'inbound';
       // CMA CGM: "CMA CGM - Booking confirmation available"
