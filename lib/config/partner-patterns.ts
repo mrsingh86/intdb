@@ -156,11 +156,11 @@ export const CLIENT_PATTERNS: PartnerPattern[] = [
 
 // ===== DESTINATION AGENT PATTERNS =====
 export const AGENT_PATTERNS: PartnerPattern[] = [
-  // Arrival Notice
+  // Arrival Notice - STRICT: Only explicit "Arrival Notice" text
   { pattern: /Arrival\s*Notice/i, type: 'arrival_notice', priority: 88, category: 'agent' },
-  { pattern: /Cargo\s*Arrived/i, type: 'arrival_notice', priority: 87, category: 'agent' },
-  { pattern: /Vessel\s*Arrived/i, type: 'arrival_notice', priority: 87, category: 'agent' },
-  { pattern: /Pre-?Alert/i, type: 'arrival_notice', priority: 89, category: 'agent' },
+  // REMOVED: Cargo\s*Arrived - Too broad, matches status updates
+  // REMOVED: Vessel\s*Arrived - Too broad, matches status updates
+  // REMOVED: Pre-?Alert - This is customs broker clearance initiation, NOT arrival notice
 
   // Delivery Order
   { pattern: /DO\s*Release/i, type: 'delivery_order', priority: 90, category: 'agent' },

@@ -88,10 +88,11 @@ export const BODY_INDICATORS: BodyIndicator[] = [
   { pattern: /PFA\s*(the\s*)?booking\s*confirm/i, type: 'booking_confirmation', priority: 88 },
   { pattern: /please\s*find\s*(attached\s*)?(the\s*)?booking\s*confirm/i, type: 'booking_confirmation', priority: 87 },
 
-  // ===== ARRIVAL NOTICE =====
+  // ===== ARRIVAL NOTICE - STRICT =====
+  // Only explicit "Arrival Notice" text indicates an arrival notice document
   { pattern: /PFA\s*(the\s*)?arrival\s*notice/i, type: 'arrival_notice', priority: 88 },
-  { pattern: /vessel\s*(has\s*)?arrived/i, type: 'arrival_notice', priority: 87 },
-  { pattern: /cargo\s*(has\s*)?arrived/i, type: 'arrival_notice', priority: 87 },
+  // REMOVED: vessel\s*(has\s*)?arrived - Too broad, catches status updates
+  // REMOVED: cargo\s*(has\s*)?arrived - Too broad, catches Maersk Last Free Day emails
 
   // ===== GATE IN =====
   { pattern: /container\s*(has\s*)?reached/i, type: 'gate_in_confirmation', priority: 88 },

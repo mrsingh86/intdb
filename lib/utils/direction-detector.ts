@@ -24,6 +24,19 @@ const CARRIER_BC_PATTERNS = [
 ];
 
 /**
+ * Carrier Arrival Notice patterns - forwarded via nam@intoglo.com or ops@intoglo.com
+ * These indicate shipping line origin even when sender is Intoglo
+ */
+const CARRIER_AN_PATTERNS = [
+  /^arrival\s+notice\s+\d{9}/i,  // Maersk: "Arrival notice 262121778" (9-digit booking)
+  /^cosco\s+arrival\s+notice/i,  // COSCO: "COSCO Arrival Notice at Port..."
+  /^cma\s*cgm\s*-\s*arrival\s+notice\s+available/i,  // CMA CGM: "CMA CGM - Arrival notice available"
+  /^oocl\s+arrival\s+notice/i,  // OOCL: "OOCL Arrival Notice..."
+  /^smil\s+arrival\s+notice/i,  // SMIL partner: "SMIL Arrival Notice | ..."
+  /^arrival\s+notice\s*\(bl#:/i,  // ONE Line: "Arrival Notice(BL#: MUMFA0549800)"
+];
+
+/**
  * Detect email direction based on sender email address and subject
  *
  * Rules:
@@ -47,6 +60,12 @@ export function detectDirection(
   const sender = senderEmail.toLowerCase();
   const subj = (subject || '').toLowerCase();
 
+  // FIRST: Check if sender is from carrier domain - ALWAYS inbound
+  // This catches true_sender_email from shipping lines (forwarded via Intoglo)
+  if (isCarrierSender(senderEmail)) {
+    return 'inbound';
+  }
+
   // Check for Google Groups forwards: "Name via GroupName <group@intoglo.com>"
   // These are INBOUND - external parties sending to Intoglo groups
   if (sender.includes(' via ')) {
@@ -59,11 +78,20 @@ export function detectDirection(
     // Replies start with "Re:", "RE:", "Fwd:", etc.
     const isReply = /^(re|fw|fwd):/i.test((subject || '').trim());
 
-    // Carrier BC forwarded via ops@intoglo.com or pricing@intoglo.com
+    // Carrier BC/AN forwarded via ops@intoglo.com, pricing@intoglo.com, or nam@intoglo.com
     // Matches specific carrier subject patterns (not generic)
     // Only match if NOT a reply
-    if (!isReply && (sender === 'ops@intoglo.com' || sender === 'pricing@intoglo.com')) {
+    if (!isReply && (
+      sender === 'ops@intoglo.com' ||
+      sender === 'pricing@intoglo.com' ||
+      sender === 'nam@intoglo.com'
+    )) {
+      // Check for Booking Confirmation patterns
       if (CARRIER_BC_PATTERNS.some(p => p.test(subject || ''))) {
+        return 'inbound';
+      }
+      // Check for Arrival Notice patterns
+      if (CARRIER_AN_PATTERNS.some(p => p.test(subject || ''))) {
         return 'inbound';
       }
     }
@@ -104,11 +132,13 @@ export function isCarrierSender(senderEmail: string | null | undefined): boolean
   const sender = senderEmail.toLowerCase();
 
   const carrierDomains = [
+    // Major shipping lines
     'maersk.com',
     'sealand.com',
     'hapag-lloyd.com',
     'hlag.com',
     'hlag.cloud',
+    'service.hlag.com',
     'cma-cgm.com',
     'apl.com',
     'coscon.com',
@@ -118,6 +148,8 @@ export function isCarrierSender(senderEmail: string | null | undefined): boolean
     'one-line.com',
     'yangming.com',
     'zim.com',
+    // Partner/Agent domains that send arrival notices
+    'smartmode.net',  // SMIL partner
   ];
 
   return carrierDomains.some(domain => sender.includes(domain));

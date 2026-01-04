@@ -55,10 +55,10 @@ export const SI_BL_PATTERNS: IntogloPattern[] = [
 
 // ===== ARRIVAL & CUSTOMS PATTERNS =====
 export const ARRIVAL_CUSTOMS_PATTERNS: IntogloPattern[] = [
-  // Arrival Notice Share
+  // Arrival Notice Share - STRICT: Only explicit "Arrival Notice" text
   { pattern: /Arrival\s*Notice/i, type: 'arrival_notice', priority: 88, category: 'delivery' },
-  { pattern: /Pre-?Alert/i, type: 'arrival_notice', priority: 89, category: 'delivery' },
-  { pattern: /Vessel\s*ETA/i, type: 'arrival_notice', priority: 87, category: 'delivery' },
+  // REMOVED: Pre-?Alert - This is customs broker clearance initiation, NOT arrival notice
+  // REMOVED: Vessel\s*ETA - Too broad, matches status updates
 
   // Duty Summary
   { pattern: /Duty\s*Summary/i, type: 'duty_summary', priority: 90, category: 'customs' },

@@ -194,15 +194,17 @@ export const MAERSK_CONFIG: CarrierConfig = {
       notes: 'Last free day for container pickup - demurrage deadline.',
     },
     // Post-Arrival Exception Report
-    // Pattern: "Post-Arrival Maersk Exception Report"
+    // Pattern: "Post-Arrival Maersk Exception Report" or "Pre-Arrival Maersk Exception Report"
+    // NOTE: These are exception reports, NOT arrival notices
     {
-      documentType: 'arrival_notice',
+      documentType: 'shipment_notice',
       subjectPatterns: [
         /Post-Arrival Maersk Exception Report/i,
+        /Pre-Arrival Maersk Exception Report/i,
       ],
       senderPatterns: [/maersk\.com/i],
       priority: 89,
-      notes: 'Post-arrival exception notification.',
+      notes: 'Maersk automated exception reports - container status updates, NOT arrival notice.',
     },
     // VGM Confirmation
     {

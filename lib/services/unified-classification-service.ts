@@ -233,8 +233,6 @@ const WORKFLOW_STATE_MAP: Record<string, string> = {
   'empty_return:outbound': 'empty_returned',
   'gate_in_confirmation:inbound': 'gate_in_confirmed',
   'gate_in_confirmation:outbound': 'gate_in_confirmed',
-  'empty_return:inbound': 'empty_returned',
-  'empty_return:outbound': 'empty_returned',
 
   // VGM
   'vgm_confirmation:inbound': 'vgm_confirmed',
@@ -339,8 +337,24 @@ export class UnifiedClassificationService {
     // ===== ARRIVAL NOTICE (from shipping lines at destination port) =====
     // STRICT: Only match explicit "Arrival Notice" - not generic arrival mentions
     // Real arrival notices: from shipping lines (maersk, hapag, cma-cgm), via nam@intoglo.com, have "Arrival Notice" PDF
+    //
+    // LEARNED PATTERNS FROM REAL EMAILS:
+    // - ONE Line: "Arrival Notice(BL#: MUMFA0549800) Vessel/Voyage: ONE MAXIM 0076E" from shipment.info@one-line.com
+    // - COSCO: "COSCO Arrival Notice at Port & BL Number: COSU6435548630" from coscon.com
+    // - CMA CGM: "CMA CGM - Arrival notice available - AMC2459901" from cma-cgm.com
+    // - OOCL: "OOCL Arrival Notice B/L for IEX2-CND-023" from oocl.com
+    // - Maersk: "Arrival notice 262121878" (just booking number) from maersk.com
+    // - SMIL: "SMIL Arrival Notice | NEO BRAKE SYSTEMS..." (partner format)
+    //
     { pattern: /\barrival\s+notice\b/i, type: 'arrival_notice', confidence: 95 },
     { pattern: /\bnotice\s+of\s+arrival\b/i, type: 'arrival_notice', confidence: 95 },
+    // Carrier-specific patterns (higher confidence - more precise)
+    { pattern: /^Arrival Notice\s*\(BL#:/i, type: 'arrival_notice', confidence: 98 },  // ONE Line format
+    { pattern: /^COSCO Arrival Notice/i, type: 'arrival_notice', confidence: 98 },     // COSCO format
+    { pattern: /^CMA CGM - Arrival notice available/i, type: 'arrival_notice', confidence: 98 },  // CMA CGM format
+    { pattern: /^OOCL Arrival Notice/i, type: 'arrival_notice', confidence: 98 },      // OOCL format
+    { pattern: /^Arrival notice\s+\d{9}/i, type: 'arrival_notice', confidence: 97 },   // Maersk format (9-digit booking)
+    { pattern: /^SMIL Arrival Notice\s*\|/i, type: 'arrival_notice', confidence: 97 }, // SMIL partner format
     // REMOVED: vessel_arrival, cargo_arrival, arriving_at_port - too broad, matches status updates
 
     // ===== HBL DRAFT (Intoglo shares with shipper for approval - BEFORE general BL) =====
@@ -923,6 +937,8 @@ CRITICAL DISTINCTIONS (pay close attention):
    - Must come from shipping line (maersk.com, hapag-lloyd.com, cma-cgm.com, cosco, etc.)
    - NOT arrival_notice: RAILMENT STATUS, Forwarding Note, Container gated-in, HB Filing Missing
    - NOT arrival_notice: Status updates, ETA notifications, tracking updates
+   - NOT arrival_notice: Pre-Arrival/Post-Arrival Maersk Exception Report (these are exception_report, not arrival_notice)
+   - NOT arrival_notice: PRE-ALERT emails (these are customs broker communications)
    - If unsure, classify as shipment_notice or general_correspondence
 
 3. **BOOKING vs INVOICE**:
@@ -977,12 +993,22 @@ Subject: "Forwarding Note ///// Container HAMU1190492 Booking No. 94225338"
 Classification: shipment_notice (80% confidence)
 Reasoning: Terminal forwarding note, NOT an arrival notice. No "Arrival Notice" text.
 
-Example 5:
+Example 5 (NEGATIVE - NOT arrival_notice):
+Subject: "Pre-Arrival Maersk Exception Report : Intoglo Technologies Inc"
+Classification: shipment_notice (90% confidence)
+Reasoning: This is an exception report showing container status issues, NOT an arrival notice. "Pre-Arrival" does not mean arrival notice.
+
+Example 6 (NEGATIVE - NOT arrival_notice):
+Subject: "Post-Arrival Maersk Exception Report : Intoglo Technologies Inc"
+Classification: shipment_notice (90% confidence)
+Reasoning: Automated exception report from Maersk, NOT an arrival notice. "Post-Arrival" indicates status after arrival but this is an exception report, not the arrival notice document.
+
+Example 7:
 Subject: "2ND UPDATE Booking Confirmation : 263441600"
 Classification: booking_amendment (95% confidence)
 Reasoning: "2ND UPDATE" indicates this is an amendment to existing booking, not original confirmation.
 
-Example 6:
+Example 8:
 Subject: "Re: Intoglo Quote for ABC Corp | Mumbai to LA"
 Classification: general_correspondence (80% confidence)
 Reasoning: Thread reply (Re:) without specific document type indicator, likely operational discussion.
