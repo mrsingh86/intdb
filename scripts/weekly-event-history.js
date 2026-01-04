@@ -43,7 +43,7 @@ const STATE_ORDER = {
   'booking_cancelled': 999,
 };
 
-// Extended funnel states - all key milestones
+// Extended funnel states - all key milestones (received + shared)
 const FUNNEL_STATES = [
   'booking_confirmation_received',
   'booking_confirmation_shared',
@@ -54,12 +54,19 @@ const FUNNEL_STATES = [
   'bl_received',
   'hbl_shared',
   'invoice_sent',
+  // US Customs (broker)
   'entry_summary_received',
+  'entry_summary_shared',
+  // Arrival & Delivery
   'arrival_notice_received',
+  'arrival_notice_shared',
   'duty_invoice_received',
+  'duty_summary_shared',
   'delivery_order_received',
+  'delivery_order_shared',
   'container_released',
   'pod_received',
+  'pod_shared',
 ];
 
 // Short names for display
@@ -73,12 +80,19 @@ const STATE_SHORT_NAMES = {
   'bl_received': 'BL_R',
   'hbl_shared': 'HBL_S',
   'invoice_sent': 'INV',
-  'entry_summary_received': 'ENTRY',
+  // US Customs (broker)
+  'entry_summary_received': 'ES_R',
+  'entry_summary_shared': 'ES_S',
+  // Arrival & Delivery
   'arrival_notice_received': 'AN_R',
-  'duty_invoice_received': 'DUTY',
-  'delivery_order_received': 'DO',
+  'arrival_notice_shared': 'AN_S',
+  'duty_invoice_received': 'DI_R',
+  'duty_summary_shared': 'DI_S',
+  'delivery_order_received': 'DO_R',
+  'delivery_order_shared': 'DO_S',
   'container_released': 'REL',
-  'pod_received': 'POD',
+  'pod_received': 'POD_R',
+  'pod_shared': 'POD_S',
 };
 
 async function getAllRows(table, selectCols = '*') {

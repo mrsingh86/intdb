@@ -234,12 +234,19 @@ async function generateReport() {
     'bl_received',
     'hbl_shared',
     'invoice_sent',
+    // US Customs (broker)
+    'entry_summary_received',
+    'entry_summary_shared',
+    // Arrival
     'arrival_notice_received',
     'arrival_notice_shared',
     'duty_invoice_received',
+    'duty_summary_shared',
     'delivery_order_received',
+    'delivery_order_shared',
     'container_released',
     'pod_received',
+    'pod_shared',
   ];
 
   const maxCount = Math.max(...funnelStates.map(s => stateShipmentCount[s] || 0));
@@ -285,7 +292,22 @@ async function generateReport() {
   console.log('  AN Received:'.padEnd(30) + anReceived.toString().padStart(5) + ' shipments');
   console.log('  AN Shared:'.padEnd(30) + anShared.toString().padStart(5) + ' shipments');
 
+  const entryReceived = stateShipmentCount['entry_summary_received'] || 0;
+  const entryShared = stateShipmentCount['entry_summary_shared'] || 0;
+  const dutyReceived = stateShipmentCount['duty_invoice_received'] || 0;
+  const dutyShared = stateShipmentCount['duty_summary_shared'] || 0;
+  const doReceived = stateShipmentCount['delivery_order_received'] || 0;
+  const doShared = stateShipmentCount['delivery_order_shared'] || 0;
+
+  console.log('\nUS Customs Stage:');
+  console.log('  Entry Summary Received:'.padEnd(30) + entryReceived.toString().padStart(5) + ' shipments');
+  console.log('  Entry Summary Shared:'.padEnd(30) + entryShared.toString().padStart(5) + ' shipments');
+  console.log('  Duty Invoice Received:'.padEnd(30) + dutyReceived.toString().padStart(5) + ' shipments');
+  console.log('  Duty Invoice Shared:'.padEnd(30) + dutyShared.toString().padStart(5) + ' shipments');
+
   console.log('\nDelivery Stage:');
+  console.log('  DO Received:'.padEnd(30) + doReceived.toString().padStart(5) + ' shipments');
+  console.log('  DO Shared:'.padEnd(30) + doShared.toString().padStart(5) + ' shipments');
   console.log('  POD Received:'.padEnd(30) + podReceived.toString().padStart(5) + ' shipments');
 
   console.log('\n' + '='.repeat(90));
