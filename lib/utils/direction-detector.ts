@@ -140,6 +140,7 @@ export function isCarrierSender(senderEmail: string | null | undefined): boolean
     'hlag.cloud',
     'service.hlag.com',
     'cma-cgm.com',
+    'cmacgm-group.com',      // CMA CGM customer portal (customer.cmacgm-group.com)
     'apl.com',
     'coscon.com',
     'oocl.com',

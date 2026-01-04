@@ -32,7 +32,7 @@ import {
   DocumentType,
   ClassificationResult as DeterministicResult,
 } from '../config/shipping-line-patterns';
-import { detectDirection, EmailDirection } from '../utils/direction-detector';
+import { detectDirection, EmailDirection, isCarrierSender } from '../utils/direction-detector';
 import { matchAttachmentPatterns } from '../config/attachment-patterns';
 import { matchBodyIndicator } from '../config/body-indicators';
 import { matchPartnerPattern } from '../config/partner-patterns';
@@ -758,8 +758,20 @@ export class UnifiedClassificationService {
     // 3b: Try internal subject patterns
     const subjectPatternResult = this.classifyBySubjectPattern(cleanedSubject, direction);
     if (subjectPatternResult && subjectPatternResult.confidence >= 85) {
-      subjectPatternResult.labels = this.inferLabels(input);
-      return subjectPatternResult;
+      // CRITICAL FIX: Thread replies (RE:/FW:) from non-carriers should NOT be
+      // classified as booking_confirmation based on inherited subject line.
+      // Example: "RE: BOOKING 263375454-LA // 01x40// STUFFING" from customer
+      // is NOT a booking confirmation - it's just a reply to a booking thread.
+      const isFromCarrier = isCarrierSender(sender);
+      const isBookingType = ['booking_confirmation', 'booking_amendment'].includes(subjectPatternResult.documentType);
+
+      if (isReply && !isFromCarrier && isBookingType) {
+        // Skip - this is a customer/partner reply to a booking thread, not a BC document
+        // Will fall through to AI or general_correspondence
+      } else {
+        subjectPatternResult.labels = this.inferLabels(input);
+        return subjectPatternResult;
+      }
     }
 
     // 3c: Carrier-specific patterns
@@ -950,6 +962,14 @@ CRITICAL DISTINCTIONS (pay close attention):
    - booking_confirmation = Original booking (often says "1ST COPY" or first issuance)
    - booking_amendment = Changes to existing booking (says "UPDATE", "AMENDMENT", "REVISED", "2ND/3RD COPY")
 
+5. **THREAD REPLIES (RE:/FW:) - CRITICAL**:
+   - Thread replies from CUSTOMERS/SHIPPERS/PARTNERS should NEVER be booking_confirmation
+   - Only CARRIERS can send booking_confirmation (maersk.com, hapag-lloyd.com, service.hlag.com, cma-cgm.com, etc.)
+   - "RE: BOOKING 263xxx..." from customer → general_correspondence (NOT booking_confirmation)
+   - "RE: BKG #263xxx..." from customer → general_correspondence (NOT booking_confirmation)
+   - The subject line is INHERITED from original thread - it does NOT indicate document type
+   - Look at sender domain AND body content to classify, NOT the subject line for replies
+
 DOCUMENT TYPES WITH DEFINITIONS:
 - booking_confirmation: Original booking from carrier (PDF has "BOOKING CONFIRMATION" heading)
 - booking_amendment: Updates to existing booking (schedule change, equipment change, routing change)
@@ -1012,6 +1032,18 @@ Example 8:
 Subject: "Re: Intoglo Quote for ABC Corp | Mumbai to LA"
 Classification: general_correspondence (80% confidence)
 Reasoning: Thread reply (Re:) without specific document type indicator, likely operational discussion.
+
+Example 9 (CRITICAL - THREAD REPLY from CUSTOMER):
+Subject: "RE: BOOKING 263375454-LA // 01x40// STUFFING ON - 23/11/25"
+From: pradipr@starpipeproducts.com
+Classification: general_correspondence (85% confidence)
+Reasoning: This is a thread reply (RE:) from a CUSTOMER (starpipeproducts.com, NOT a carrier). The subject mentions "BOOKING" but this is the inherited thread subject, NOT a booking confirmation document. Only carriers (maersk.com, hapag-lloyd.com, etc.) can send booking_confirmation.
+
+Example 10 (CRITICAL - THREAD REPLY from CUSTOMER):
+Subject: "RE: BKG #263077338,263077531 | 4X20 GP | HAZIRA TO LA"
+From: exports@avidorganics.net
+Classification: general_correspondence (85% confidence)
+Reasoning: Thread reply from shipper (avidorganics.net). Subject has "BKG #" but sender is NOT a carrier. This is operational email about bookings, NOT a booking_confirmation document.
 
 NOW CLASSIFY THIS EMAIL:
 Subject: ${input.subject}
