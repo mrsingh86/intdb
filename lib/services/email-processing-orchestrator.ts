@@ -498,6 +498,7 @@ export class EmailProcessingOrchestrator {
     bl_number?: string;
     mbl_number?: string;
     hbl_number?: string;
+    entry_number?: string;
   } {
     const result: {
       booking_number?: string;
@@ -505,10 +506,15 @@ export class EmailProcessingOrchestrator {
       bl_number?: string;
       mbl_number?: string;
       hbl_number?: string;
+      entry_number?: string;
     } = {};
 
     // Booking number patterns by carrier
     const bookingPatterns = [
+      // Intoglo Deal ID format: SEINUS26112502782_I, SECNUS08122502815_I
+      /\b([A-Z]{5,7}\d{8,12}_I)\b/,              // Intoglo Deal ID (priority - most specific)
+      // Portside/Broker customer reference: "Cust. Ref. XXXX" or "CR#: XXXX"
+      /(?:Cust\.?\s*Ref\.?|CR#):?\s*([A-Z0-9_]+)/i,
       /\b(26\d{7})\b/,                           // Maersk: 9-digit starting with 26
       /\b(\d{9})\b/,                             // Generic 9-digit
       /\b(HL-?\d{8})\b/i,                        // Hapag: HL-XXXXXXXX
@@ -523,6 +529,8 @@ export class EmailProcessingOrchestrator {
     for (const pattern of bookingPatterns) {
       const match = subject.match(pattern);
       if (match && match[1]) {
+        // Skip if it looks like just a short code (e.g., "16" from "16/2025-26")
+        if (match[1].length < 5) continue;
         result.booking_number = match[1].toUpperCase();
         break;
       }
@@ -533,6 +541,22 @@ export class EmailProcessingOrchestrator {
     const containerMatch = subject.match(/\b([A-Z]{4}\d{7})\b/);
     if (containerMatch && containerMatch[1]) {
       result.container_number = containerMatch[1].toUpperCase();
+    }
+
+    // Entry number patterns (US Customs entry numbers)
+    // Artemus format: "ENTRY 9JW-04219104" or "Entry 9JW- 04219062"
+    // Portside format: "165-0625612-8" (from 165-0625612-8-7501)
+    const entryPatterns = [
+      /ENTRY\s*(\d{1,3}[A-Z]{1,3}[-\s]*\d{8})/i,   // Artemus: 9JW-04219104
+      /\b(\d{3}-\d{7}-\d)(?:-\d{4})?\b/,            // Portside: 165-0625612-8
+    ];
+
+    for (const pattern of entryPatterns) {
+      const entryMatch = subject.match(pattern);
+      if (entryMatch && entryMatch[1]) {
+        result.entry_number = entryMatch[1].replace(/\s+/g, '').toUpperCase();
+        break;
+      }
     }
 
     // BL number patterns
@@ -558,11 +582,24 @@ export class EmailProcessingOrchestrator {
       }
     }
 
-    // HBL patterns (typically shorter, may have different format)
-    // HBLs often have alphanumeric format like INTOGLO-2024-001
-    const hblMatch = subject.match(/\b(INTOGLO[-/]?[A-Z0-9]{4,})\b/i);
-    if (hblMatch && hblMatch[1]) {
-      result.hbl_number = hblMatch[1].toUpperCase();
+    // HBL patterns - Multiple formats from various brokers
+    // Intoglo HBL format: SE1025002852 (SE + MMYY + sequence)
+    // Artemus uses "HBL: SWLLUD000344" or "HBL NO.: MEDUJS569930"
+    // Others use LUDSE0313, etc.
+    const hblPatterns = [
+      /HBL[#:\s]+([A-Z]{2}\d{10,})/i,            // HBL# SE1025002852 (Intoglo format)
+      /\b(SE\d{10,})\b/i,                         // Standalone SE1025002852 (Intoglo HBL)
+      /HBL(?:\s*NO\.?)?:?\s*([A-Z0-9]{6,})/i,    // Explicit HBL: or HBL NO.: prefix (Artemus)
+      /\b(SWLLUD\d{6,})\b/i,                      // SWL HBL format
+      /\b(LUDSE\d{4,})\b/i,                       // LUD HBL format
+    ];
+
+    for (const pattern of hblPatterns) {
+      const hblMatch = subject.match(pattern);
+      if (hblMatch && hblMatch[1]) {
+        result.hbl_number = hblMatch[1].toUpperCase();
+        break;
+      }
     }
 
     return result;
@@ -587,6 +624,7 @@ export class EmailProcessingOrchestrator {
     const blNumber = subjectExtracted.bl_number;  // AI uses different field name
     const mblNumber = subjectExtracted.mbl_number;
     const hblNumber = subjectExtracted.hbl_number;
+    const entryNumber = subjectExtracted.entry_number;  // US Customs entry number
 
     // Determine extraction method for booking number
     const bookingMethod = data.booking_number ? 'ai' : 'regex_subject';
@@ -641,6 +679,10 @@ export class EmailProcessingOrchestrator {
     }
     if (hblNumber) {
       entities.push({ email_id: emailId, entity_type: 'hbl_number', entity_value: hblNumber, confidence_score: 75, extraction_method: 'regex_subject' });
+    }
+    // Entry number (US Customs - from Artemus, Portside)
+    if (entryNumber) {
+      entities.push({ email_id: emailId, entity_type: 'entry_number', entity_value: entryNumber, confidence_score: 80, extraction_method: 'regex_subject' });
     }
 
     // Stakeholders (shipper/consignee/notify) - extracted from HBL/SI documents
@@ -1126,8 +1168,14 @@ export class EmailProcessingOrchestrator {
       }
     }
 
-    // No shipment found
+    // No shipment found - create orphan document for later linking
     if (!shipment) {
+      if (documentType) {
+        // Get the booking number from entities or extracted data for logging
+        const bookingRef = data.booking_number || 'unknown';
+        console.log(`[Orchestrator] No shipment found for ${documentType} (booking: ${bookingRef}) - creating orphan document`);
+        await this.createOrphanDocument(emailId, documentType, data);
+      }
       return {};
     }
 
@@ -1191,6 +1239,56 @@ export class EmailProcessingOrchestrator {
     }
 
     return {};
+  }
+
+  /**
+   * Create orphan document for emails that don't have a matching shipment
+   * These documents can be linked later when the shipment is created via backfill
+   *
+   * Why this matters:
+   * - Broker/trucking emails often arrive before or without direct carrier booking
+   * - Entry summaries, duty invoices, PODs need to be tracked even without shipment link
+   * - Backfill service can later link these when shipment is found/created
+   */
+  private async createOrphanDocument(
+    emailId: string,
+    documentType: string,
+    data: ExtractedBookingData
+  ): Promise<void> {
+    // Get any extracted booking reference for later linking
+    const bookingNumber = data.booking_number;
+
+    // Check if document already exists for this email
+    const { data: existing } = await this.supabase
+      .from('shipment_documents')
+      .select('id')
+      .eq('email_id', emailId)
+      .single();
+
+    if (existing) {
+      console.log(`[Orchestrator] Orphan document already exists for email ${emailId.substring(0, 8)}...`);
+      return;
+    }
+
+    // Insert orphan document (shipment_id = null)
+    const { error } = await this.supabase
+      .from('shipment_documents')
+      .insert({
+        email_id: emailId,
+        shipment_id: null,  // Will be linked later by backfill
+        document_type: documentType,
+        booking_number_extracted: bookingNumber || null,
+        status: 'pending_link',
+        created_at: new Date().toISOString(),
+      });
+
+    if (error) {
+      // Don't fail the process, just log
+      console.error(`[Orchestrator] Failed to create orphan document for ${emailId}:`, error.message);
+      return;
+    }
+
+    console.log(`[Orchestrator] Created orphan document: ${documentType} (booking: ${bookingNumber || 'none'})`);
   }
 
   /**

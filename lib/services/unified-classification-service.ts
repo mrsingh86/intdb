@@ -120,6 +120,13 @@ const STANDARD_DOCUMENT_TYPES = [
   'entry_summary',
   'duty_invoice',
   'isf_submission',
+  // Trucking / Delivery
+  'work_order',
+  'pickup_confirmation',
+  'delivery_appointment',
+  'proof_of_delivery',
+  'empty_return',
+  'container_release',
 ] as const;
 
 // Labels for multi-label classification
@@ -197,7 +204,7 @@ const WORKFLOW_STATE_MAP: Record<string, string> = {
   // Customs - US
   'draft_entry:inbound': 'entry_draft_received',
   'draft_entry:outbound': 'entry_draft_shared',
-  'entry_summary:inbound': 'entry_filed',
+  'entry_summary:inbound': 'entry_summary_received',
   'entry_summary:outbound': 'entry_summary_shared',
   'isf_filing:inbound': 'isf_filed',
   'isf_filing:outbound': 'isf_filed',
@@ -205,16 +212,24 @@ const WORKFLOW_STATE_MAP: Record<string, string> = {
   'isf_submission:outbound': 'isf_filed',
   'exam_notice:inbound': 'customs_hold',
 
-  // Delivery
-  'delivery_order:inbound': 'cargo_released',
-  'delivery_order:outbound': 'cargo_released',
-  'container_release:inbound': 'cargo_released',
-  'container_release:outbound': 'cargo_released',
-  'pickup_notification:inbound': 'cargo_released',
+  // Delivery & Trucking
+  'delivery_order:inbound': 'delivery_order_received',
+  'delivery_order:outbound': 'delivery_order_shared',
+  'container_release:inbound': 'container_released',
+  'container_release:outbound': 'container_released',
+  'pickup_notification:inbound': 'container_released',
+  'pickup_confirmation:inbound': 'container_released',
+  'pickup_confirmation:outbound': 'container_released',
   'proof_of_delivery:inbound': 'pod_received',
-  'proof_of_delivery:outbound': 'pod_received',
+  'proof_of_delivery:outbound': 'pod_shared',
   'delivery_confirmation:inbound': 'pod_received',
-  'delivery_confirmation:outbound': 'pod_received',
+  'delivery_confirmation:outbound': 'pod_shared',
+  'work_order:inbound': 'dispatch_received',
+  'work_order:outbound': 'dispatch_sent',
+  'delivery_appointment:inbound': 'delivery_scheduled',
+  'delivery_appointment:outbound': 'delivery_scheduled',
+  'empty_return:inbound': 'empty_returned',
+  'empty_return:outbound': 'empty_returned',
   'gate_in_confirmation:inbound': 'gate_in_confirmed',
   'gate_in_confirmation:outbound': 'gate_in_confirmed',
   'empty_return:inbound': 'empty_returned',
@@ -419,6 +434,8 @@ export class UnifiedClassificationService {
     { pattern: /\bentry\s+for\s+(review|approval)/i, type: 'draft_entry', confidence: 90 },
     { pattern: /\bentry\s+approval\s+required/i, type: 'draft_entry', confidence: 90 },
     { pattern: /\bentry\s+\d*[A-Z]{2,3}[- ]?\d+.*pre-?alert/i, type: 'draft_entry', confidence: 90 },
+    // Portside 3461 format: 165-0625541-9-3461 (Immediate Delivery / Entry)
+    { pattern: /\d{3}-\d{7}-\d-3461\b/, type: 'draft_entry', confidence: 95 },
 
     // Entry Summary (7501 filed)
     { pattern: /\bentry\s+summary/i, type: 'entry_summary', confidence: 95 },
@@ -427,15 +444,50 @@ export class UnifiedClassificationService {
     { pattern: /\bcustoms\s+entry\s+(filed|released)/i, type: 'entry_summary', confidence: 90 },
     { pattern: /\bentry\s+release/i, type: 'entry_summary', confidence: 85 },
     { pattern: /\d+-\d+-\d+-7501\b/, type: 'entry_summary', confidence: 90 },
-    { pattern: /\b\d{3}-\d{7}-\d-7501\b/, type: 'entry_summary', confidence: 90 },
+    { pattern: /\b\d{3}-\d{7}-\d-7501\b/, type: 'entry_summary', confidence: 95 },
+    // Portside standalone 7501 in subject (when not part of entry number)
+    { pattern: /\b7501\b/, type: 'entry_summary', confidence: 85 },
 
-    // Duty Invoice
+    // Duty Invoice (customs broker format)
     { pattern: /\bduty\s+invoice/i, type: 'duty_invoice', confidence: 95 },
     { pattern: /\bduty\s+(payment|statement|summary)/i, type: 'duty_invoice', confidence: 90 },
     { pattern: /\bduty\s+bill\b/i, type: 'duty_invoice', confidence: 90 },
     { pattern: /\brequest\s+for\s+duty/i, type: 'duty_invoice', confidence: 90 },
     { pattern: /\bcustoms\s+duty/i, type: 'duty_invoice', confidence: 85 },
     { pattern: /\bimport\s+duty/i, type: 'duty_invoice', confidence: 85 },
+    // Portside Invoice format: Invoice-0625541 or Invoice-0625541-A (works with Re: prefix too)
+    { pattern: /\bInvoice-\d{6,}/i, type: 'duty_invoice', confidence: 95 },
+
+    // Cargo/Customs Release (from broker)
+    { pattern: /Cargo\s+Release\s+Update/i, type: 'customs_clearance', confidence: 95 },
+    { pattern: /ACE\s+RELEASE/i, type: 'customs_clearance', confidence: 95 },
+    { pattern: /\bDAD\b.*release/i, type: 'customs_clearance', confidence: 90 },
+
+    // ===== TRUCKING COMPANY DOCUMENTS =====
+    // Work Order (trucking dispatch/status)
+    { pattern: /Work\s+Order\s*:/i, type: 'work_order', confidence: 90 },
+    { pattern: /Dray(age)?\s+Order/i, type: 'work_order', confidence: 90 },
+
+    // Pickup/Container Out
+    { pattern: /Container\s+(is\s+)?out\b/i, type: 'pickup_confirmation', confidence: 95 },
+    { pattern: /\bpicked\s+up\b/i, type: 'pickup_confirmation', confidence: 90 },
+    { pattern: /\bpickup\s+complete/i, type: 'pickup_confirmation', confidence: 95 },
+
+    // Delivery Appointment
+    { pattern: /Appointment\s+(ID|#|confirmed|scheduled)/i, type: 'delivery_appointment', confidence: 90 },
+    { pattern: /delivery\s+appointment/i, type: 'delivery_appointment', confidence: 90 },
+
+    // POD / Proof of Delivery
+    { pattern: /\bPOD\b\s*(attached|confirm|received)?/i, type: 'proof_of_delivery', confidence: 95 },
+    { pattern: /Proof\s+of\s+Delivery/i, type: 'proof_of_delivery', confidence: 95 },
+    { pattern: /Signed\s+(POD|delivery|BOL)/i, type: 'proof_of_delivery', confidence: 95 },
+    { pattern: /Delivery\s+Confirmation/i, type: 'proof_of_delivery', confidence: 90 },
+    { pattern: /Successfully\s+Delivered/i, type: 'proof_of_delivery', confidence: 90 },
+
+    // Empty Return
+    { pattern: /Empty\s+Return/i, type: 'empty_return', confidence: 95 },
+    { pattern: /Container\s+Returned/i, type: 'empty_return', confidence: 90 },
+    { pattern: /MTY\s+Return/i, type: 'empty_return', confidence: 95 },
 
     // ===== RATE QUOTE =====
     { pattern: /\bprice\s+overview\b/i, type: 'rate_quote', confidence: 90 },
@@ -1016,6 +1068,8 @@ Use the classify_shipping_email tool. Be precise and confident in your classific
         model_version: result.method === 'ai' ? 'v1|ai' : 'v2|deterministic',
         classification_reason: result.classificationReason,
         is_manual_review: result.needsManualReview,
+        document_direction: result.direction,
+        workflow_state: result.workflowState,
         classified_at: new Date().toISOString(),
       });
 
