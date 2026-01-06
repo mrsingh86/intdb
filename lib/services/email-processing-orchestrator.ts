@@ -15,7 +15,11 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { StakeholderExtractionService, DocumentEntity, ShipmentDirection } from './stakeholder-extraction-service';
 import { DocumentLifecycleService } from './document-lifecycle-service';
 import { BackfillService } from './shipment-linking/backfill-service';
-import { UnifiedClassificationService, ClassificationResult } from './unified-classification-service';
+import {
+  ClassificationOrchestrator,
+  createClassificationOrchestrator,
+  ClassificationOutput,
+} from './classification';
 import { ShipmentExtractionService, ShipmentData } from './shipment-extraction-service';
 import { WorkflowStateService } from './workflow-state-service';
 
@@ -104,7 +108,7 @@ export class EmailProcessingOrchestrator {
   private stakeholderService: StakeholderExtractionService;
   private lifecycleService: DocumentLifecycleService;
   private backfillService: BackfillService;
-  private classificationService: UnifiedClassificationService;
+  private classificationOrchestrator: ClassificationOrchestrator;
   private extractionService: ShipmentExtractionService;
   private workflowService: WorkflowStateService;
 
@@ -113,10 +117,8 @@ export class EmailProcessingOrchestrator {
     this.stakeholderService = new StakeholderExtractionService(this.supabase);
     this.lifecycleService = new DocumentLifecycleService(this.supabase);
     this.backfillService = new BackfillService(this.supabase);
-    this.classificationService = new UnifiedClassificationService(this.supabase, {
-      useAiFallback: true,
-      aiModel: 'claude-3-5-haiku-20241022',
-    });
+    // New parallel classification orchestrator (document type + email type)
+    this.classificationOrchestrator = createClassificationOrchestrator();
     // Use ShipmentExtractionService with Haiku model for cost-effective cron processing
     this.extractionService = new ShipmentExtractionService(
       this.supabase,
@@ -232,34 +234,38 @@ export class EmailProcessingOrchestrator {
       if (!classification) {
         console.log(`[Orchestrator] No classification for email ${emailId.substring(0, 8)}... - classifying now`);
 
-        // Get attachment filenames for classification
+        // Get attachment filenames and PDF content for classification
         const { data: attachments } = await this.supabase
           .from('raw_attachments')
           .select('filename, extracted_text')
           .eq('email_id', emailId);
 
         const attachmentFilenames = attachments?.map(a => a.filename).filter(Boolean) || [];
-        const attachmentContent = attachments
+        const pdfContentForClassification = attachments
           ?.filter(a => a.extracted_text && a.extracted_text.length > 50)
           .map(a => a.extracted_text)
           .join('\n\n') || '';
 
-        // Classify using UnifiedClassificationService
-        const classificationResult = await this.classificationService.classifyAndSave({
-          emailId: email.id,
+        // Classify using new parallel ClassificationOrchestrator
+        // Returns both document type AND email type in a single pass
+        const classificationResult = this.classificationOrchestrator.classify({
           subject: email.subject || '',
           senderEmail: email.sender_email || '',
-          trueSenderEmail: email.true_sender_email || undefined,
+          senderName: email.sender_name || undefined,
+          trueSenderEmail: email.true_sender_email || null,
           bodyText: email.body_text || '',
-          snippet: email.snippet || '',
-          hasAttachments: email.has_attachments || false,
           attachmentFilenames,
-          attachmentContent,
+          pdfContent: pdfContentForClassification || undefined,
         });
 
         documentType = classificationResult.documentType;
-        classificationConfidence = classificationResult.confidence;
-        console.log(`[Orchestrator] Classified as: ${documentType} (confidence: ${classificationConfidence})`);
+        classificationConfidence = classificationResult.documentConfidence;
+
+        // Log parallel classification results
+        console.log(`[Orchestrator] Classified - Document: ${documentType} (${classificationConfidence}%), Email Type: ${classificationResult.emailType} (${classificationResult.emailTypeConfidence}%), Sentiment: ${classificationResult.sentiment}${classificationResult.isUrgent ? ' [URGENT]' : ''}`);
+
+        // Save classification to database
+        await this.saveClassificationResult(emailId, classificationResult);
 
         // Check minimum confidence for processing
         if (classificationConfidence < MINIMUM_CONFIDENCE_FOR_PROCESSING) {
@@ -1406,6 +1412,57 @@ export class EmailProcessingOrchestrator {
       documentType,
       { extractedFields }
     );
+  }
+
+  /**
+   * Save classification result to database.
+   * Stores both document type and email type classification (parallel system).
+   */
+  private async saveClassificationResult(
+    emailId: string,
+    result: ClassificationOutput
+  ): Promise<void> {
+    // Build metadata for classification record
+    const metadata: Record<string, unknown> = {
+      // Document classification details
+      documentMethod: result.documentMethod,
+      documentSource: result.documentSource,
+      documentMatchedMarkers: result.documentMatchedMarkers,
+      documentMatchedPattern: result.documentMatchedPattern,
+
+      // Email type classification (parallel)
+      emailType: result.emailType,
+      emailCategory: result.emailCategory,
+      emailTypeConfidence: result.emailTypeConfidence,
+      emailMatchedPatterns: result.emailMatchedPatterns,
+
+      // Sender & direction
+      senderCategory: result.senderCategory,
+      direction: result.direction,
+      trueSender: result.trueSender,
+      directionConfidence: result.directionConfidence,
+
+      // Thread context
+      isThreadReply: result.isThreadReply,
+      threadDepth: result.threadContext.threadDepth,
+      isForward: result.threadContext.isForward,
+
+      // Workflow state
+      documentWorkflowState: result.documentWorkflowState,
+    };
+
+    // Upsert classification to avoid duplicates on reprocess
+    await this.supabase
+      .from('document_classifications')
+      .upsert({
+        email_id: emailId,
+        document_type: result.documentType,
+        confidence_score: result.documentConfidence,
+        classification_method: result.documentMethod,
+        classification_metadata: metadata,
+        needs_manual_review: result.needsManualReview,
+        created_at: new Date().toISOString(),
+      }, { onConflict: 'email_id' });
   }
 
   /**

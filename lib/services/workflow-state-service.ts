@@ -43,15 +43,6 @@ const CARRIER_SENDER_PATTERNS = [
   /@service\.hlag/i,
 ];
 
-/**
- * Check if sender email is from a known carrier/shipping line
- */
-function isCarrierSender(senderEmail: string | null | undefined): boolean {
-  if (!senderEmail) return false;
-  const sender = senderEmail.toLowerCase();
-  return CARRIER_SENDER_PATTERNS.some(pattern => pattern.test(sender));
-}
-
 const DIRECTION_WORKFLOW_MAPPING: Record<string, string> = {
   // ===== PRE_DEPARTURE =====
   // Booking stage
@@ -162,6 +153,40 @@ const DIRECTION_WORKFLOW_MAPPING: Record<string, string> = {
   // Certificates (generic document receipt)
   'certificate:inbound': 'documents_received',
 };
+
+// =============================================================================
+// PURE FUNCTIONS (No Database Access)
+// =============================================================================
+
+/**
+ * Get workflow state for a document type and direction.
+ * Pure function - no database access required.
+ *
+ * @param documentType - The document type (e.g., 'booking_confirmation')
+ * @param direction - The email direction ('inbound' or 'outbound')
+ * @returns The workflow state code or null if no mapping
+ */
+export function getWorkflowStateForDocument(
+  documentType: string,
+  direction: 'inbound' | 'outbound'
+): string | null {
+  const mappingKey = `${documentType}:${direction}`;
+  return DIRECTION_WORKFLOW_MAPPING[mappingKey] || null;
+}
+
+/**
+ * Check if sender email is from a known carrier/shipping line.
+ * Pure function - uses pattern matching only.
+ */
+export function isCarrierSender(senderEmail: string | null | undefined): boolean {
+  if (!senderEmail) return false;
+  const sender = senderEmail.toLowerCase();
+  return CARRIER_SENDER_PATTERNS.some(pattern => pattern.test(sender));
+}
+
+// =============================================================================
+// TYPES
+// =============================================================================
 
 export type WorkflowPhase = 'pre_departure' | 'in_transit' | 'pre_arrival' | 'arrival' | 'delivery';
 

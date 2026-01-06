@@ -16,7 +16,34 @@ export type { EmailIntelligenceFilters } from './email-intelligence-service';
 // Layer 2: Classification & Extraction
 // ============================================================================
 
-// Primary classification service (use this for all new code)
+// New Decoupled Classification Services (preferred for new code)
+export {
+  ClassificationOrchestrator,
+  createClassificationOrchestrator,
+  DocumentContentClassificationService,
+  createDocumentContentClassificationService,
+  EmailContentClassificationService,
+  createEmailContentClassificationService,
+  EmailTypeClassificationService,
+  createEmailTypeClassificationService,
+  ThreadContextService,
+  createThreadContextService,
+} from './classification';
+export type {
+  ClassificationInput as OrchestratorInput,
+  ClassificationOutput as OrchestratorOutput,
+  DocumentContentInput,
+  DocumentContentResult,
+  EmailContentInput,
+  EmailContentResult,
+  EmailTypeInput,
+  EmailTypeResult,
+  ThreadContextInput,
+  ThreadContext,
+  ForwardInfo,
+} from './classification';
+
+// Legacy unified classification service (to be deprecated)
 export {
   UnifiedClassificationService,
   createClassificationService,
@@ -98,7 +125,11 @@ export type {
 export { DocumentAuthorityService } from './document-authority-service';
 export { DocumentRevisionService } from './document-revision-service';
 export { DocumentLifecycleService } from './document-lifecycle-service';
-export { WorkflowStateService } from './workflow-state-service';
+export {
+  WorkflowStateService,
+  getWorkflowStateForDocument,
+  isCarrierSender,
+} from './workflow-state-service';
 export {
   WorkflowStateManagementService,
   WORKFLOW_STATES_CONFIG,
