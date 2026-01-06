@@ -43,7 +43,11 @@ export type {
   ForwardInfo,
 } from './classification';
 
-// Legacy unified classification service (to be deprecated)
+/**
+ * @deprecated Use ClassificationOrchestrator from './classification' instead.
+ * UnifiedClassificationService is kept for backward compatibility only.
+ * Will be removed in a future version.
+ */
 export {
   UnifiedClassificationService,
   createClassificationService,
