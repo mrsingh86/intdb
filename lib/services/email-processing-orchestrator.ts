@@ -22,6 +22,11 @@ import {
 } from './classification';
 import { ShipmentExtractionService, ShipmentData } from './shipment-extraction-service';
 import { WorkflowStateService } from './workflow-state-service';
+import {
+  EnhancedWorkflowStateService,
+  WorkflowTransitionInput,
+} from './enhanced-workflow-state-service';
+import { ShipmentRepository } from '@/lib/repositories';
 
 // ============================================================================
 // Configuration
@@ -111,9 +116,12 @@ export class EmailProcessingOrchestrator {
   private classificationOrchestrator: ClassificationOrchestrator;
   private extractionService: ShipmentExtractionService;
   private workflowService: WorkflowStateService;
+  private enhancedWorkflowService: EnhancedWorkflowStateService;
+  private shipmentRepository: ShipmentRepository;
 
   constructor(supabaseUrl: string, supabaseKey: string, anthropicKey: string) {
     this.supabase = createClient(supabaseUrl, supabaseKey);
+    this.shipmentRepository = new ShipmentRepository(this.supabase);
     this.stakeholderService = new StakeholderExtractionService(this.supabase);
     this.lifecycleService = new DocumentLifecycleService(this.supabase);
     this.backfillService = new BackfillService(this.supabase);
@@ -127,6 +135,8 @@ export class EmailProcessingOrchestrator {
     );
     // Initialize workflow service for auto-transitioning states when documents are linked
     this.workflowService = new WorkflowStateService(this.supabase);
+    // Enhanced workflow service with dual-trigger support (document type + email type)
+    this.enhancedWorkflowService = new EnhancedWorkflowStateService(this.supabase);
   }
 
   /**
@@ -230,6 +240,8 @@ export class EmailProcessingOrchestrator {
       let classification = email.document_classifications?.[0];
       let documentType = classification?.document_type;
       let classificationConfidence = classification?.confidence_score || 0;
+      // Hoist classificationResult for use in workflow transitions later
+      let classificationResult: ClassificationOutput | undefined;
 
       if (!classification) {
         console.log(`[Orchestrator] No classification for email ${emailId.substring(0, 8)}... - classifying now`);
@@ -248,7 +260,7 @@ export class EmailProcessingOrchestrator {
 
         // Classify using new parallel ClassificationOrchestrator
         // Returns both document type AND email type in a single pass
-        const classificationResult = this.classificationOrchestrator.classify({
+        classificationResult = this.classificationOrchestrator.classify({
           subject: email.subject || '',
           senderEmail: email.sender_email || '',
           senderName: email.sender_name || undefined,
@@ -340,7 +352,9 @@ export class EmailProcessingOrchestrator {
           carrier,
           email.true_sender_email,  // Actual sender before forwarding
           email.sender_email,
-          isCarrierEmail  // Pass content-based detection result
+          isCarrierEmail,  // Pass content-based detection result
+          classificationResult,
+          email.subject
         );
         shipmentId = result.shipmentId;
         fieldsExtracted = result.fieldsUpdated;
@@ -351,7 +365,14 @@ export class EmailProcessingOrchestrator {
         fieldsExtracted = result.fieldsUpdated;
       } else {
         // LINK to existing shipment and update stakeholders from HBL/SI
-        const result = await this.linkToExistingShipment(emailId, extractedData, documentType);
+        // Pass classificationResult for dual-trigger workflow transitions
+        const result = await this.linkToExistingShipment(
+          emailId,
+          extractedData,
+          documentType,
+          classificationResult,
+          email.subject
+        );
         shipmentId = result.shipmentId;
       }
 
@@ -843,7 +864,9 @@ export class EmailProcessingOrchestrator {
     carrier: string,
     trueSenderEmail: string | null,
     senderEmail: string,
-    isCarrierEmailOverride?: boolean
+    isCarrierEmailOverride?: boolean,
+    classificationResult?: ClassificationOutput,
+    emailSubject?: string
   ): Promise<{ shipmentId?: string; fieldsUpdated: number }> {
     const bookingNumber = data.booking_number;
     if (!bookingNumber) {
@@ -892,39 +915,30 @@ export class EmailProcessingOrchestrator {
 
     if (existing) {
       // UPDATE existing shipment (both direct and forwarded can update)
-      await this.supabase
-        .from('shipments')
-        .update(shipmentData)
-        .eq('id', existing.id);
+      await this.shipmentRepository.update(existing.id, shipmentData);
 
-      // Link email to shipment
-      await this.linkEmailToShipment(emailId, existing.id, 'booking_confirmation');
+      // Link email to shipment with enhanced workflow transition
+      await this.linkEmailToShipment(emailId, existing.id, 'booking_confirmation', classificationResult, emailSubject);
 
       return { shipmentId: existing.id, fieldsUpdated };
     } else if (isDirectCarrier) {
       // CREATE new shipment - from direct carrier emails OR forwarded emails with carrier content
       console.log(`[Orchestrator] Creating new shipment for booking ${bookingNumber} from ${carrier}`);
-      shipmentData.booking_number = bookingNumber;
-      shipmentData.created_from_email_id = emailId;
-      shipmentData.workflow_state = 'booking_confirmation_received';
-      shipmentData.workflow_phase = 'pre_departure';
-      shipmentData.is_direct_carrier_confirmed = true; // Mark as confirmed for dashboard visibility
 
-      const { data: newShipment, error } = await this.supabase
-        .from('shipments')
-        .insert(shipmentData)
-        .select('id')
-        .single();
+      try {
+        const newShipment = await this.shipmentRepository.create({
+          ...shipmentData,
+          booking_number: bookingNumber,
+          created_from_email_id: emailId,
+          workflow_state: 'booking_confirmation_received',
+          workflow_phase: 'pre_departure',
+          is_direct_carrier_confirmed: true, // Mark as confirmed for dashboard visibility
+        });
 
-      if (error) {
-        console.error(`[Orchestrator] Failed to create shipment for ${bookingNumber}:`, error);
-        return { fieldsUpdated: 0 };
-      }
-
-      if (newShipment) {
         console.log(`[Orchestrator] Created shipment ${newShipment.id} for booking ${bookingNumber}`);
-        // Link email to newly created shipment
-        await this.linkEmailToShipment(emailId, newShipment.id, 'booking_confirmation');
+
+        // Link email to newly created shipment with enhanced workflow transition
+        await this.linkEmailToShipment(emailId, newShipment.id, 'booking_confirmation', classificationResult, emailSubject);
 
         // AUTO-BACKFILL: Link any related emails that arrived before this shipment was created
         // This finds forwarded emails with matching booking#, BL#, or container# and links them
@@ -937,9 +951,12 @@ export class EmailProcessingOrchestrator {
           // Don't fail the whole process if backfill fails
           console.error(`[Orchestrator] Auto-backfill failed for shipment ${newShipment.id}:`, backfillError);
         }
-      }
 
-      return { shipmentId: newShipment?.id, fieldsUpdated };
+        return { shipmentId: newShipment.id, fieldsUpdated };
+      } catch (error) {
+        console.error(`[Orchestrator] Failed to create shipment for ${bookingNumber}:`, error);
+        return { fieldsUpdated: 0 };
+      }
     } else {
       // NOT direct carrier and no existing shipment - just store entities, don't create
       // The direct carrier email may arrive later and create the shipment
@@ -951,12 +968,17 @@ export class EmailProcessingOrchestrator {
 
   /**
    * Link email to shipment via shipment_documents table
-   * Also triggers workflow state transition based on document type
+   * Also triggers workflow state transition based on document type + email type
+   *
+   * When classificationResult is provided, uses the enhanced dual-trigger workflow service
+   * that considers both document type AND email type for state transitions.
    */
   private async linkEmailToShipment(
     emailId: string,
     shipmentId: string,
-    documentType: string
+    documentType: string,
+    classificationResult?: ClassificationOutput,
+    emailSubject?: string
   ): Promise<void> {
     // Upsert to avoid duplicates
     await this.supabase
@@ -968,13 +990,36 @@ export class EmailProcessingOrchestrator {
         created_at: new Date().toISOString()
       }, { onConflict: 'email_id,shipment_id' });
 
-    // Auto-transition workflow state based on document type
+    // Auto-transition workflow state
     try {
-      await this.workflowService.autoTransitionFromDocument(
-        shipmentId,
-        documentType,
-        emailId
-      );
+      // Use enhanced workflow service when classification result is available
+      // This enables dual-trigger transitions (document type OR email type)
+      if (classificationResult && emailSubject) {
+        const transitionInput: WorkflowTransitionInput = {
+          shipmentId,
+          documentType: classificationResult.documentType,
+          emailType: classificationResult.emailType,
+          direction: classificationResult.direction,
+          senderCategory: classificationResult.senderCategory,
+          emailId,
+          subject: emailSubject,
+        };
+
+        const result = await this.enhancedWorkflowService.transitionFromClassification(transitionInput);
+
+        if (result.success) {
+          console.log(`[Orchestrator] Enhanced workflow transition: ${result.previousState} → ${result.newState} (triggered by: ${result.triggeredBy})`);
+        } else if (result.skippedReason) {
+          console.log(`[Orchestrator] Workflow transition skipped: ${result.skippedReason}`);
+        }
+      } else {
+        // Fallback to original document-only workflow service
+        await this.workflowService.autoTransitionFromDocument(
+          shipmentId,
+          documentType,
+          emailId
+        );
+      }
     } catch (error) {
       console.error(`[Orchestrator] Failed to transition workflow for ${shipmentId}:`, error);
       // Don't throw - document is still linked, workflow transition is secondary
@@ -1086,11 +1131,14 @@ export class EmailProcessingOrchestrator {
 
   /**
    * Link email to existing shipment (for non-booking documents)
+   * When classificationResult is provided, enables dual-trigger workflow transitions
    */
   private async linkToExistingShipment(
     emailId: string,
     data: ExtractedBookingData,
-    documentType?: string
+    documentType?: string,
+    classificationResult?: ClassificationOutput,
+    emailSubject?: string
   ): Promise<{ shipmentId?: string }> {
     // Try multiple identifier types: booking → MBL → HBL → container
     let shipment: { id: string } | null = null;
@@ -1237,7 +1285,7 @@ export class EmailProcessingOrchestrator {
       // CRITICAL: Link email to shipment in shipment_documents table
       // This was missing - documents were found but not linked!
       if (documentType) {
-        await this.linkEmailToShipment(emailId, existing.id, documentType);
+        await this.linkEmailToShipment(emailId, existing.id, documentType, classificationResult, emailSubject);
         console.log(`[Orchestrator] Linked ${documentType} email to shipment ${existing.id}`);
       }
 

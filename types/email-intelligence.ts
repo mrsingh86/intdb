@@ -112,6 +112,11 @@ export interface DocumentClassification {
   receiver_party_type?: PartyType
   workflow_state?: WorkflowState
   requires_approval_from?: PartyType
+  // Enhanced classification metadata (from ClassificationOrchestrator)
+  // Contains: emailType, emailCategory, senderCategory, direction, trueSender, etc.
+  classification_metadata?: Record<string, unknown>
+  classification_method?: string
+  needs_manual_review?: boolean
 }
 
 export type DocumentType =

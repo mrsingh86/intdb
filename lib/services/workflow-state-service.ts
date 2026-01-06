@@ -473,6 +473,11 @@ export class WorkflowStateService {
    * Special handling for SI documents:
    * - SI from shipper/client → si_draft_received
    * - SI confirmation from carrier → si_confirmed
+   *
+   * @deprecated Use EnhancedWorkflowStateService.transitionFromClassification() instead.
+   * This method only considers document type. The enhanced service considers both
+   * document type AND email type for more accurate state transitions, plus validates
+   * sender authority and tracks richer audit information (email_type, sender_category, trigger_type).
    */
   async autoTransitionFromDocument(
     shipmentId: string,

@@ -18,6 +18,8 @@ import { EntityRepository } from '../repositories/entity-repository';
 import { ClassificationRepository } from '../repositories/classification-repository';
 import { MilestoneTrackingService } from './milestone-tracking-service';
 import { WorkflowStateService } from './workflow-state-service';
+import { EnhancedWorkflowStateService, WorkflowTransitionInput } from './enhanced-workflow-state-service';
+import { EmailType, SenderCategory } from '@/lib/config/email-type-config';
 import { CONFIDENCE_THRESHOLDS } from '../constants/confidence-levels';
 import { EntityExtraction, EntityType, DocumentType } from '@/types/email-intelligence';
 import { Shipment, LinkingKeys, LinkingResult, LinkType, ShipmentStatus } from '@/types/shipment';
@@ -139,6 +141,7 @@ const DEFAULT_LINKING_CONFIG: LinkingConfig = {
 export class ShipmentLinkingService {
   private milestoneService?: MilestoneTrackingService;
   private workflowService?: WorkflowStateService;
+  private enhancedWorkflowService?: EnhancedWorkflowStateService;
 
   constructor(
     private readonly shipmentRepo: ShipmentRepository,
@@ -159,9 +162,18 @@ export class ShipmentLinkingService {
   /**
    * Set workflow state service for auto-transitioning (optional dependency)
    * When documents are linked, this service auto-updates workflow_state
+   * @deprecated Use setEnhancedWorkflowService() for dual-trigger workflow support
    */
   setWorkflowService(service: WorkflowStateService): void {
     this.workflowService = service;
+  }
+
+  /**
+   * Set enhanced workflow service for dual-trigger workflow transitions
+   * Preferred over setWorkflowService() - supports both document type AND email type triggers
+   */
+  setEnhancedWorkflowService(service: EnhancedWorkflowStateService): void {
+    this.enhancedWorkflowService = service;
   }
 
   /**
@@ -1039,13 +1051,52 @@ export class ShipmentLinkingService {
 
   /**
    * Auto-transition workflow state based on received document type
-   * Uses WorkflowStateService to update shipments.workflow_state and create audit trail
+   * Uses EnhancedWorkflowStateService when available (preferred - dual-trigger support)
+   * Falls back to WorkflowStateService for backward compatibility
    */
   private async autoTransitionWorkflowState(
     shipmentId: string,
     documentType: string,
     emailId: string
   ): Promise<void> {
+    // Try enhanced workflow service first (preferred - dual-trigger support)
+    if (this.enhancedWorkflowService && this.classificationRepo) {
+      try {
+        // Get classification with metadata from database
+        const classification = await this.classificationRepo.findByEmailId(emailId);
+
+        if (classification?.classification_metadata) {
+          const metadata = classification.classification_metadata as Record<string, unknown>;
+
+          // Build transition input from stored classification
+          const transitionInput: WorkflowTransitionInput = {
+            shipmentId,
+            documentType: classification.document_type || documentType,
+            emailType: (metadata.emailType as EmailType) || 'general_notification',
+            direction: (metadata.direction as 'inbound' | 'outbound') || 'inbound',
+            senderCategory: (metadata.senderCategory as SenderCategory) || 'unknown',
+            emailId,
+            subject: '', // Not needed for transition logic
+          };
+
+          const result = await this.enhancedWorkflowService.transitionFromClassification(transitionInput);
+
+          if (result.success) {
+            console.log(
+              `[Workflow] Enhanced: ${shipmentId}: ${result.previousState || 'none'} -> ${result.newState} (triggered by: ${result.triggeredBy})`
+            );
+          } else if (result.skippedReason) {
+            console.log(`[Workflow] Skipped for ${shipmentId}: ${result.skippedReason}`);
+          }
+          return;
+        }
+      } catch (error) {
+        // Fall through to legacy service
+        console.warn(`[Workflow] Enhanced service failed, falling back to legacy:`, error);
+      }
+    }
+
+    // Fallback to legacy workflow service (deprecated)
     if (!this.workflowService) return;
 
     try {
@@ -1057,7 +1108,7 @@ export class ShipmentLinkingService {
 
       if (result?.success) {
         console.log(
-          `[Workflow] Shipment ${shipmentId}: ${result.from_state || 'none'} -> ${result.to_state} (from ${documentType})`
+          `[Workflow] Legacy: ${shipmentId}: ${result.from_state || 'none'} -> ${result.to_state} (from ${documentType})`
         );
       }
     } catch (error) {

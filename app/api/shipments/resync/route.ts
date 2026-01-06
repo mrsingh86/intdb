@@ -7,6 +7,7 @@ import { EntityRepository } from '@/lib/repositories/entity-repository';
 import { ClassificationRepository } from '@/lib/repositories/classification-repository';
 import { ShipmentLinkingService } from '@/lib/services/shipment-linking-service';
 import { WorkflowStateService } from '@/lib/services/workflow-state-service';
+import { EnhancedWorkflowStateService } from '@/lib/services/enhanced-workflow-state-service';
 import { withAuth } from '@/lib/auth/server-auth';
 
 /**
@@ -37,7 +38,11 @@ export const POST = withAuth(async (request, { user }) => {
       classificationRepo
     );
 
-    // Wire up workflow state service for auto-transitioning
+    // Wire up enhanced workflow service for dual-trigger transitions (document type + email type)
+    const enhancedWorkflowService = new EnhancedWorkflowStateService(supabase);
+    linkingService.setEnhancedWorkflowService(enhancedWorkflowService);
+
+    // Legacy workflow service as fallback (deprecated)
     const workflowService = new WorkflowStateService(supabase);
     linkingService.setWorkflowService(workflowService);
 
