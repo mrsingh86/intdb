@@ -570,6 +570,9 @@ export const EMAIL_TYPE_CONFIGS: EmailTypeConfig[] = [
       { required: ['DELIVERY', 'SCHEDULE'], confidence: 92 },
       { required: ['DELIVERY', 'PLANNING'], confidence: 90 },
       { required: ['APPOINTMENT'], optional: ['CONFIRM', 'SCHEDULED'], confidence: 85 },
+      // Work orders are delivery-related
+      { required: ['WORK', 'ORDER'], confidence: 88 },
+      { required: ['DO', 'RELEASE'], confidence: 85 },
     ],
     description: 'Delivery appointment scheduling',
   },
@@ -580,6 +583,11 @@ export const EMAIL_TYPE_CONFIGS: EmailTypeConfig[] = [
       { required: ['PICKUP'], optional: ['SCHEDULE', 'ARRANGE', 'READY'], confidence: 88 },
       { required: ['DRAYAGE'], confidence: 85 },
       { required: ['CONTAINER', 'OUT'], confidence: 88 },
+      // Additional pickup patterns
+      { required: ['TRANSLOAD'], confidence: 88 },
+      { required: ['FLATBED'], optional: ['PLANNING', 'SCHEDULE'], confidence: 85 },
+      { required: ['CONTAINERS', 'COMING'], confidence: 85 },
+      { required: ['CONTAINER', 'PICKUP'], confidence: 90 },
     ],
     description: 'Pickup/drayage scheduling',
   },
@@ -682,6 +690,14 @@ export const EMAIL_TYPE_CONFIGS: EmailTypeConfig[] = [
       { required: ['QUERY'], confidence: 85 },
       { required: ['CLARIFICATION'], confidence: 85 },
       { required: ['CLARIFY'], confidence: 82 },
+      // RFI (Request for Information)
+      { required: ['RFI'], confidence: 88 },
+      { required: ['REQUEST', 'FOR', 'INFORMATION'], confidence: 90 },
+      { required: ['REQUEST', 'TO', 'ASSIST'], confidence: 88 },
+      { required: ['ASSIST', 'IN'], confidence: 82 },
+      { required: ['NEED', 'HELP'], confidence: 80 },
+      { required: ['PLEASE', 'ADVISE'], confidence: 82 },
+      { required: ['KINDLY', 'CONFIRM'], confidence: 82 },
     ],
     bodyPatterns: [
       { required: ['PLEASE', 'CLARIFY'], confidence: 80 },
@@ -728,6 +744,11 @@ export const EMAIL_TYPE_CONFIGS: EmailTypeConfig[] = [
       { required: ['DETENTION'], confidence: 92 },
       { required: ['AVOIDING', 'DEMURRAGE'], confidence: 95 },
       { required: ['LFD'], confidence: 85 },  // Last Free Day
+      // Last Free Day notifications
+      { required: ['LAST', 'FREE', 'DAY'], confidence: 95 },
+      { required: ['FREE', 'TIME'], confidence: 88 },
+      { required: ['PER', 'DIEM'], confidence: 90 },
+      { required: ['STORAGE'], optional: ['CHARGES', 'FEE'], confidence: 82 },
     ],
     description: 'Demurrage/detention notice',
   },
@@ -745,6 +766,16 @@ export const EMAIL_TYPE_CONFIGS: EmailTypeConfig[] = [
       { required: ['EXPRESS', 'BL'], confidence: 88 },
       { required: ['DRAFT', 'BL'], confidence: 85 },
       { required: ['INSURANCE'], optional: ['POLICY', 'CERTIFICATE'], confidence: 82 },
+      // E-manifest and customs documents
+      { required: ['E-MANIFEST'], confidence: 92 },
+      { required: ['EMANIFEST'], confidence: 92 },
+      { required: ['MANIFEST'], optional: ['ATTACHED', 'COPY'], confidence: 85 },
+      { required: ['ISF', 'FILING'], confidence: 90 },
+      { required: ['ISF'], optional: ['ATTACHED', 'COPY', 'SUBMISSION'], confidence: 85 },
+      { required: ['AMS', 'FILING'], confidence: 90 },
+      { required: ['DOCUMENTS', 'FOR', 'SHIPMENT'], confidence: 88 },
+      { required: ['HBL'], optional: ['ATTACHED', 'COPY', 'DRAFT'], confidence: 85 },
+      { required: ['MBL'], optional: ['ATTACHED', 'COPY'], confidence: 85 },
     ],
     description: 'Document sharing',
   },
@@ -758,6 +789,12 @@ export const EMAIL_TYPE_CONFIGS: EmailTypeConfig[] = [
       { required: ['WILL', 'DO'], confidence: 80 },
       { required: ['WORKING', 'ON', 'IT'], confidence: 82 },
       { required: ['ON', 'IT'], confidence: 78 },
+      // Payment acknowledgement
+      { required: ['PAYMENT', 'ACKNOWLEDGEMENT'], confidence: 95 },
+      { required: ['PAYMENT', 'RECEIVED'], confidence: 90 },
+      { required: ['BOOKING', 'RECEIVED'], confidence: 85 },
+      { required: ['SI', 'RECEIVED'], confidence: 85 },
+      { required: ['DOCUMENTS', 'RECEIVED'], confidence: 85 },
     ],
     bodyPatterns: [
       { required: ['NOTED', 'THANKS'], confidence: 85 },
@@ -777,6 +814,11 @@ export const EMAIL_TYPE_CONFIGS: EmailTypeConfig[] = [
       { required: ['PENDING', 'SINCE'], confidence: 85 },
       { required: ['NO', 'RESPONSE'], confidence: 82 },
       { required: ['FOLLOWING', 'UP', 'AGAIN'], confidence: 80 },
+      // Exception reports from carriers
+      { required: ['EXCEPTION', 'REPORT'], confidence: 92 },
+      { required: ['EXCEPTION'], optional: ['MAERSK', 'HAPAG', 'CMA'], confidence: 88 },
+      { required: ['ERROR'], optional: ['EGM', 'GEGM', 'ISF', 'AMS'], confidence: 85 },
+      { required: ['ISSUE'], optional: ['EGM', 'GEGM', 'ISF', 'AMS'], confidence: 82 },
     ],
     bodyPatterns: [
       { required: ['ESCALATING', 'THIS'], confidence: 92 },

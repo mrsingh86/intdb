@@ -143,6 +143,14 @@ export type {
   VerificationReport,
   BackfillResult,
 } from './workflow-state-management-service';
+// Enhanced Workflow State Service (dual-trigger: document type + email type)
+export {
+  EnhancedWorkflowStateService,
+} from './enhanced-workflow-state-service';
+export type {
+  WorkflowTransitionInput,
+  WorkflowTransitionResult,
+} from './enhanced-workflow-state-service';
 export { SIReconciliationService } from './si-reconciliation-service';
 export { MilestoneTrackingService } from './milestone-tracking-service';
 
