@@ -733,7 +733,8 @@ export class TaskRepository {
   async findExistingTask(
     templateCode: string,
     shipmentId?: string,
-    notificationId?: string
+    notificationId?: string,
+    sourceEmailId?: string
   ): Promise<ActionTask | null> {
     let query = this.supabase
       .from('action_tasks')
@@ -747,6 +748,11 @@ export class TaskRepository {
 
     if (notificationId) {
       query = query.eq('notification_id', notificationId);
+    }
+
+    // Check for task created from specific email (prevents duplicate tasks per email)
+    if (sourceEmailId) {
+      query = query.contains('additional_data', { email_id: sourceEmailId });
     }
 
     const { data, error } = await query.maybeSingle();

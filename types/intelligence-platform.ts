@@ -354,6 +354,7 @@ export type TaskTriggerType =
   | 'document_received'
   | 'document_missing'
   | 'notification_received'
+  | 'email_received'  // Task triggered by email classification (email_type + sentiment)
   | 'milestone_reached'
   | 'milestone_missed'
   | 'manual'

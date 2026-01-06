@@ -53,6 +53,12 @@ export interface ConfidenceParams {
   email_authority: EmailAuthority;
   document_type?: string;
   time_proximity_days?: number;
+  /** Email type from classification (e.g., 'departure_update', 'approval_granted') */
+  email_type?: string;
+  /** Sender category from classification (e.g., 'carrier', 'cha_india') */
+  sender_category?: string;
+  /** Classification confidence from AI/pattern matching */
+  classification_confidence?: number;
 }
 
 export interface ConfidenceBreakdown {
@@ -60,6 +66,10 @@ export interface ConfidenceBreakdown {
   authority_score: number;
   document_type_score: number;
   time_proximity_score: number;
+  /** Score based on email type (status updates, confirmations score higher) */
+  email_type_score: number;
+  /** Score based on sender category (carrier, cha_india score higher) */
+  sender_category_score: number;
 }
 
 export interface ConfidenceResult {

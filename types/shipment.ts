@@ -113,6 +113,33 @@ export interface Shipment {
   workflow_phase?: string;
   si_reconciliation_status?: string;
 
+  // Confirmation flags
+  is_direct_carrier_confirmed?: boolean;
+
+  // Additional fields
+  doc_cutoff?: string;
+  final_destination?: string;
+  container_numbers?: string[];
+  shipper_name?: string;
+  consignee_name?: string;
+
+  // SI Reconciliation
+  si_can_submit?: boolean;
+  si_block_reason?: string | null;
+
+  // Document tracking
+  last_document_update?: string;
+  booking_revision_count?: number;
+  si_revision_count?: number;
+  hbl_revision_count?: number;
+
+  // Milestone tracking
+  milestones_total?: number;
+  milestones_achieved?: number;
+  milestones_missed?: number;
+  next_milestone?: string | null;
+  next_milestone_date?: string | null;
+
   // Metadata
   created_from_email_id?: string;
   created_at: string;

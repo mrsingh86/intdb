@@ -56,6 +56,64 @@ const HIGH_VALUE_DOC_TYPES = [
 ];
 
 /**
+ * Email type confidence modifiers
+ * Status updates and confirmations are highly relevant to shipments
+ */
+const EMAIL_TYPE_SCORES: Record<string, number> = {
+  // High value - directly shipment related
+  departure_update: 5,
+  arrival_update: 5,
+  stuffing_update: 5,
+  gate_in_update: 5,
+  handover_update: 4,
+  transit_update: 4,
+  delivery_complete: 5,
+  clearance_complete: 4,
+
+  // Confirmations and approvals
+  approval_granted: 4,
+  approval_request: 3,
+  payment_confirmation: 3,
+
+  // Document shares
+  document_share: 3,
+  pre_alert: 3,
+
+  // Scheduling
+  delivery_scheduling: 3,
+  pickup_scheduling: 3,
+
+  // Neutral
+  acknowledgement: 1,
+  query: 0,
+  reminder: 0,
+
+  // Lower value - less shipment specific
+  quote_request: -2,
+  quote_response: -2,
+  general_correspondence: -3,
+  unknown: -5,
+};
+
+/**
+ * Sender category confidence modifiers
+ * Carriers and known stakeholders are more trustworthy
+ */
+const SENDER_CATEGORY_SCORES: Record<string, number> = {
+  carrier: 5,           // Direct from shipping line
+  cha_india: 3,         // Known customs agent
+  customs_broker_us: 3, // Known US broker
+  trucker: 2,           // Known trucking company
+  warehouse: 2,         // Known warehouse
+  partner: 2,           // Known logistics partner
+  shipper: 1,           // Known shipper
+  consignee: 1,         // Known consignee
+  intoglo: 0,           // Internal - neutral
+  platform: 0,          // Platform notifications
+  unknown: -3,          // Unknown sender
+};
+
+/**
  * Thresholds
  */
 const AUTO_LINK_THRESHOLD = 85;
@@ -90,6 +148,8 @@ export class LinkConfidenceCalculator {
       email_authority,
       document_type,
       time_proximity_days,
+      email_type,
+      sender_category,
     } = params;
 
     // Base score from identifier type
@@ -104,11 +164,19 @@ export class LinkConfidenceCalculator {
     // Time proximity modifier (older = lower confidence)
     const time_proximity_score = this.calculateTimeProximityScore(time_proximity_days);
 
+    // Email type modifier (status updates score higher)
+    const email_type_score = this.calculateEmailTypeScore(email_type);
+
+    // Sender category modifier (known stakeholders score higher)
+    const sender_category_score = this.calculateSenderCategoryScore(sender_category);
+
     return {
       identifier_score,
       authority_score,
       document_type_score,
       time_proximity_score,
+      email_type_score,
+      sender_category_score,
     };
   }
 
@@ -138,6 +206,24 @@ export class LinkConfidenceCalculator {
   }
 
   /**
+   * Calculate email type score
+   * Status updates and confirmations are highly relevant to shipments
+   */
+  private calculateEmailTypeScore(emailType?: string): number {
+    if (!emailType) return 0;
+    return EMAIL_TYPE_SCORES[emailType] ?? 0;
+  }
+
+  /**
+   * Calculate sender category score
+   * Known stakeholders (carriers, CHAs) are more trustworthy
+   */
+  private calculateSenderCategoryScore(senderCategory?: string): number {
+    if (!senderCategory) return 0;
+    return SENDER_CATEGORY_SCORES[senderCategory] ?? 0;
+  }
+
+  /**
    * Sum all scores, clamped to 0-100
    */
   private calculateTotalScore(breakdown: ConfidenceBreakdown): number {
@@ -145,7 +231,9 @@ export class LinkConfidenceCalculator {
       breakdown.identifier_score +
       breakdown.authority_score +
       breakdown.document_type_score +
-      breakdown.time_proximity_score;
+      breakdown.time_proximity_score +
+      breakdown.email_type_score +
+      breakdown.sender_category_score;
 
     return Math.max(0, Math.min(100, total));
   }

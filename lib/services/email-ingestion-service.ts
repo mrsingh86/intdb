@@ -32,6 +32,7 @@ import {
   createClassificationOrchestrator,
   ClassificationOutput,
 } from './classification';
+import { ShipmentRepository } from '@/lib/repositories';
 
 // ============================================================================
 // Types
@@ -128,6 +129,7 @@ export class EmailIngestionService {
   private documentLifecycleService: DocumentLifecycleService;
   private stakeholderService: StakeholderExtractionService;
   private classificationOrchestrator: ClassificationOrchestrator;
+  private shipmentRepository: ShipmentRepository;
 
   constructor(
     supabase: SupabaseClient,
@@ -136,6 +138,7 @@ export class EmailIngestionService {
   ) {
     this.supabase = supabase;
     this.anthropic = new Anthropic({ apiKey: anthropicApiKey });
+    this.shipmentRepository = new ShipmentRepository(supabase);
     this.extractionService = new ShipmentExtractionService(
       supabase,
       anthropicApiKey,
@@ -444,34 +447,19 @@ export class EmailIngestionService {
       return { action: 'none' };
     }
 
-    // Try to find existing shipment
-    let existingShipment: any = null;
+    // Try to find existing shipment using repository
+    let existingShipment = null;
 
     if (data.booking_number) {
-      const { data: shipment } = await this.supabase
-        .from('shipments')
-        .select('*')
-        .eq('booking_number', data.booking_number)
-        .single();
-      existingShipment = shipment;
+      existingShipment = await this.shipmentRepository.findByBookingNumber(data.booking_number);
     }
 
     if (!existingShipment && data.bl_number) {
-      const { data: shipment } = await this.supabase
-        .from('shipments')
-        .select('*')
-        .eq('bl_number', data.bl_number)
-        .single();
-      existingShipment = shipment;
+      existingShipment = await this.shipmentRepository.findByBlNumber(data.bl_number);
     }
 
     if (!existingShipment && data.container_numbers.length > 0) {
-      const { data: shipment } = await this.supabase
-        .from('shipments')
-        .select('*')
-        .eq('container_number_primary', data.container_numbers[0])
-        .single();
-      existingShipment = shipment;
+      existingShipment = await this.shipmentRepository.findByContainerNumber(data.container_numbers[0]);
     }
 
     const shipmentRecord = this.extractionService.toShipmentRecord(data);
@@ -481,10 +469,10 @@ export class EmailIngestionService {
       const updates = this.buildShipmentUpdates(existingShipment, shipmentRecord, documentType);
 
       if (Object.keys(updates).length > 0) {
-        await this.supabase
-          .from('shipments')
-          .update({ ...updates, updated_at: new Date().toISOString() })
-          .eq('id', existingShipment.id);
+        await this.shipmentRepository.update(existingShipment.id, {
+          ...updates,
+          updated_at: new Date().toISOString(),
+        });
 
         // Link email to shipment
         await this.linkEmailToShipment(emailId, existingShipment.id, documentType);
@@ -500,21 +488,17 @@ export class EmailIngestionService {
     // Create new shipment ONLY from booking confirmations
     // Other document types (BL, arrival notice, etc.) can only link to existing shipments
     if (documentType === 'booking_confirmation') {
-      const { data: newShipment, error } = await this.supabase
-        .from('shipments')
-        .insert({
+      try {
+        const newShipment = await this.shipmentRepository.create({
           ...shipmentRecord,
           status: 'booked',
           created_from_email_id: emailId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select('id')
-        .single();
+        });
 
-      if (newShipment && !error) {
         await this.linkEmailToShipment(emailId, newShipment.id, documentType);
         return { shipmentId: newShipment.id, action: 'created' };
+      } catch (error) {
+        console.error('[EmailIngestionService] Failed to create shipment:', error);
       }
     }
 
@@ -1003,10 +987,10 @@ export class EmailIngestionService {
     }
 
     if (Object.keys(updates).length > 0) {
-      await this.supabase
-        .from('shipments')
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', shipmentId);
+      await this.shipmentRepository.update(shipmentId, {
+        ...updates,
+        updated_at: new Date().toISOString(),
+      });
     }
   }
 

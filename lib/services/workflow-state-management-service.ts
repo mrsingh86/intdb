@@ -36,6 +36,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import { getAllRows } from '../utils/supabase-pagination';
+import { ShipmentRepository } from '@/lib/repositories';
 
 // ============================================================================
 // Types
@@ -407,8 +408,10 @@ const WORKFLOW_STATES: WorkflowStateDefinition[] = [
 export class WorkflowStateManagementService {
   private states: Map<string, WorkflowStateDefinition> = new Map();
   private stateOrder: Map<string, number> = new Map();
+  private shipmentRepository: ShipmentRepository;
 
   constructor(private supabase: SupabaseClient) {
+    this.shipmentRepository = new ShipmentRepository(supabase);
     // Initialize with default states
     for (const state of WORKFLOW_STATES) {
       this.states.set(state.key, state);
@@ -654,14 +657,8 @@ export class WorkflowStateManagementService {
       const newOrder = this.getStateOrder(newState);
 
       if (newOrder > currentOrder) {
-        const { error } = await this.supabase
-          .from('shipments')
-          .update({ workflow_state: newState })
-          .eq('id', shipment.id);
-
-        if (error) {
-          result.errors++;
-        } else {
+        try {
+          await this.shipmentRepository.update(shipment.id, { workflow_state: newState });
           result.updated++;
           result.changes.push({
             shipmentId: shipment.id,
@@ -669,6 +666,8 @@ export class WorkflowStateManagementService {
             oldState: shipment.workflow_state || 'NULL',
             newState,
           });
+        } catch {
+          result.errors++;
         }
       } else {
         result.skipped++;

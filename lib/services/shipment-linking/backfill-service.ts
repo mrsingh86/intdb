@@ -75,18 +75,23 @@ export class BackfillService {
     // 2. Get shipment identifiers
     const identifiers = this.extractIdentifiers(shipment);
 
-    // 3. Find unlinked emails with matching identifiers
+    // 3. Link orphan documents FIRST (documents with shipment_id = null)
+    const orphanResult = await this.linkOrphanDocuments(shipment, identifiers);
+    result.emails_linked += orphanResult.linked;
+    result.emails_skipped += orphanResult.skipped;
+
+    // 4. Find unlinked emails with matching identifiers (from entity_extractions)
     const unlinkedEmails = await this.findUnlinkedEmailsByIdentifiers(
       identifiers,
       shipmentId
     );
-    result.emails_found = unlinkedEmails.length;
+    result.emails_found = unlinkedEmails.length + orphanResult.found;
 
     if (unlinkedEmails.length === 0) {
       return result;
     }
 
-    // 4. Process each unlinked email
+    // 5. Process each unlinked email
     for (const emailInfo of unlinkedEmails) {
       const linkResult = await this.attemptLink(emailInfo, shipment, identifiers);
 
@@ -97,6 +102,80 @@ export class BackfillService {
         result.conflicts.push(linkResult.conflict);
       } else {
         result.emails_skipped++;
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Link orphan documents (shipment_id = null) to a shipment
+   * These are documents created before the shipment existed
+   */
+  private async linkOrphanDocuments(
+    shipment: Shipment,
+    identifiers: ShipmentIdentifiers
+  ): Promise<{ found: number; linked: number; skipped: number }> {
+    const result = { found: 0, linked: 0, skipped: 0 };
+
+    // Find orphan documents with matching booking number
+    const conditions: string[] = [];
+
+    if (identifiers.booking_number) {
+      conditions.push(`booking_number_extracted.eq.${identifiers.booking_number}`);
+    }
+
+    if (conditions.length === 0) {
+      return result; // No identifiers to search by
+    }
+
+    const { data: orphans, error } = await this.supabase
+      .from('shipment_documents')
+      .select('id, email_id, document_type, booking_number_extracted')
+      .is('shipment_id', null)
+      .eq('status', 'pending_link')
+      .or(conditions.join(','));
+
+    if (error || !orphans || orphans.length === 0) {
+      return result;
+    }
+
+    result.found = orphans.length;
+    console.log(`[BackfillService] Found ${orphans.length} orphan documents for shipment ${shipment.id}`);
+
+    // Link each orphan to the shipment
+    for (const orphan of orphans) {
+      const { error: updateError } = await this.supabase
+        .from('shipment_documents')
+        .update({
+          shipment_id: shipment.id,
+          status: 'linked',
+          link_source: LinkSource.BACKFILL,
+          link_identifier_type: 'booking_number',
+          link_identifier_value: orphan.booking_number_extracted,
+          link_confidence_score: 90, // High confidence - matched by booking number
+          linked_at: new Date().toISOString(),
+        })
+        .eq('id', orphan.id);
+
+      if (updateError) {
+        console.error(`[BackfillService] Failed to link orphan ${orphan.id}:`, updateError.message);
+        result.skipped++;
+      } else {
+        console.log(`[BackfillService] Linked orphan document ${orphan.document_type} (email: ${orphan.email_id?.substring(0, 8)}...) to shipment ${shipment.id}`);
+        result.linked++;
+
+        // Record in audit log
+        await this.supabase.from('shipment_link_audit').insert({
+          email_id: orphan.email_id,
+          shipment_id: shipment.id,
+          operation: 'link_orphan',
+          link_source: LinkSource.BACKFILL,
+          link_identifier_type: 'booking_number',
+          link_identifier_value: orphan.booking_number_extracted,
+          confidence_score: 90,
+          notes: `Orphan document linked on shipment creation`,
+        });
       }
     }
 

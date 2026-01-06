@@ -13,6 +13,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
+import { ShipmentRepository } from '@/lib/repositories';
 
 // ============================================================================
 // Types
@@ -295,11 +296,13 @@ DOCUMENT:
 export class CutoffExtractionService {
   private supabase: SupabaseClient;
   private extractor: CutoffExtractor;
+  private shipmentRepository: ShipmentRepository;
   private static readonly DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
   constructor(supabase: SupabaseClient, anthropicApiKey: string) {
     this.supabase = supabase;
     this.extractor = new CutoffExtractor(anthropicApiKey);
+    this.shipmentRepository = new ShipmentRepository(supabase);
   }
 
   /**
@@ -333,17 +336,14 @@ export class CutoffExtractionService {
 
       updates.updated_at = new Date().toISOString();
 
-      const { error } = await this.supabase
-        .from('shipments')
-        .update(updates)
-        .eq('id', shipment.id);
-
-      if (error) {
+      try {
+        await this.shipmentRepository.update(shipment.id, updates);
+      } catch (error) {
         return {
           shipmentId: shipment.id,
           success: false,
           updatedFields: [],
-          error: error.message
+          error: error instanceof Error ? error.message : 'Unknown error'
         };
       }
 

@@ -13,6 +13,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import { detectDirection } from '../utils/direction-detector';
+import { ShipmentRepository } from '@/lib/repositories';
 
 /**
  * Direction-aware document type to workflow state mapping.
@@ -239,8 +240,11 @@ export class WorkflowStateService {
   private statesByPhase: Map<WorkflowPhase, WorkflowState[]> = new Map();
   private cacheExpiry: number = 0;
   private readonly CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+  private shipmentRepository: ShipmentRepository;
 
-  constructor(private readonly supabase: SupabaseClient) {}
+  constructor(private readonly supabase: SupabaseClient) {
+    this.shipmentRepository = new ShipmentRepository(supabase);
+  }
 
   /**
    * Get current workflow status for a shipment
@@ -375,17 +379,14 @@ export class WorkflowStateService {
       updateData.status = 'cancelled';
     }
 
-    const { error: updateError } = await this.supabase
-      .from('shipments')
-      .update(updateData)
-      .eq('id', shipmentId);
-
-    if (updateError) {
+    try {
+      await this.shipmentRepository.update(shipmentId, updateData);
+    } catch (updateError) {
       return {
         success: false,
         from_state: currentStateCode,
         to_state: newStateCode,
-        error: `Failed to update shipment: ${updateError.message}`,
+        error: `Failed to update shipment: ${updateError instanceof Error ? updateError.message : 'Unknown error'}`,
       };
     }
 
@@ -445,17 +446,14 @@ export class WorkflowStateService {
       updateData.status = 'cancelled';
     }
 
-    const { error: updateError } = await this.supabase
-      .from('shipments')
-      .update(updateData)
-      .eq('id', shipmentId);
-
-    if (updateError) {
+    try {
+      await this.shipmentRepository.update(shipmentId, updateData);
+    } catch (updateError) {
       return {
         success: false,
         from_state: currentStateCode,
         to_state: newStateCode,
-        error: `Failed to update shipment: ${updateError.message}`,
+        error: `Failed to update shipment: ${updateError instanceof Error ? updateError.message : 'Unknown error'}`,
       };
     }
 

@@ -216,6 +216,137 @@ export class TaskGenerationService {
     };
   }
 
+  /**
+   * Generate task from email classification (email_type + sentiment)
+   * Called when an email is linked to a shipment with actionable email type
+   */
+  async generateFromEmailType(
+    shipmentId: string,
+    emailId: string,
+    emailType: string,
+    sentiment: string,
+    context: TaskGenerationContext & {
+      subject?: string;
+      senderCategory?: string;
+    } = {}
+  ): Promise<TaskGenerationResult> {
+    // Map email types to task templates
+    const templateCode = this.getTemplateForEmailType(emailType);
+
+    if (!templateCode) {
+      return {
+        generated: false,
+        reason: `No task template for email type: ${emailType}`,
+      };
+    }
+
+    // Check for existing task
+    const existingTask = await this.repository.findExistingTask(
+      templateCode,
+      shipmentId,
+      undefined,
+      emailId
+    );
+
+    if (existingTask) {
+      return {
+        generated: false,
+        reason: 'Task already exists for this email',
+        existingTaskId: existingTask.id,
+      };
+    }
+
+    // Determine priority based on sentiment and email type
+    const basePriority = this.getPriorityFromSentiment(sentiment, emailType);
+
+    // Generate task
+    const task = await this.createTaskFromTemplate(
+      templateCode,
+      'email_received',
+      {
+        ...context,
+        shipmentId,
+        additionalData: {
+          email_id: emailId,
+          email_type: emailType,
+          sentiment,
+          sender_category: context.senderCategory,
+          subject: context.subject,
+        },
+      },
+      basePriority
+    );
+
+    return {
+      generated: true,
+      task,
+      reason: `Task generated from email type: ${emailType}`,
+    };
+  }
+
+  /**
+   * Map email types to task template codes
+   */
+  private getTemplateForEmailType(emailType: string): string | null {
+    const mapping: Record<string, string> = {
+      // Approval flow - need action
+      approval_request: 'review_and_approve',
+      approval_rejected: 'address_rejection',
+
+      // Queries - need response
+      query: 'respond_to_query',
+      escalation: 'handle_escalation',
+
+      // Scheduling - need coordination
+      delivery_scheduling: 'confirm_delivery_schedule',
+      pickup_scheduling: 'confirm_pickup_schedule',
+
+      // Demurrage - urgent action
+      demurrage_action: 'address_demurrage',
+
+      // Delays - need communication
+      delay_notice: 'communicate_delay',
+
+      // Urgent - immediate attention
+      urgent_action: 'handle_urgent_request',
+
+      // Amendment - need processing
+      amendment_request: 'process_amendment',
+
+      // Payment - need action
+      payment_request: 'process_payment',
+    };
+
+    return mapping[emailType] || null;
+  }
+
+  /**
+   * Determine task priority from sentiment and email type
+   */
+  private getPriorityFromSentiment(
+    sentiment: string,
+    emailType: string
+  ): NotificationPriority {
+    // Urgent sentiment always gets high priority
+    if (sentiment === 'urgent') return 'high';
+    if (sentiment === 'escalated') return 'high';
+
+    // Certain email types are inherently higher priority
+    const highPriorityTypes = [
+      'urgent_action',
+      'demurrage_action',
+      'escalation',
+      'approval_rejected',
+    ];
+    if (highPriorityTypes.includes(emailType)) return 'high';
+
+    // Negative sentiment bumps priority
+    if (sentiment === 'negative') return 'medium';
+
+    // Everything else is normal
+    return 'medium';
+  }
+
   async generateManualTask(
     title: string,
     description: string,
@@ -397,14 +528,31 @@ export class TaskGenerationService {
     const booking = context.bookingNumber ? `: ${context.bookingNumber}` : '';
 
     const titles: Record<string, string> = {
+      // Deadline tasks
       submit_si: `Submit SI${booking}`,
       submit_vgm: `Submit VGM${booking}`,
       submit_cargo: `Submit Cargo Details${booking}`,
+
+      // Notification response tasks
       respond_rollover: `Respond to Rollover${booking}`,
       address_customs_hold: `Address Customs Hold${booking}`,
       review_si_draft: `Review SI Draft${booking}`,
       share_arrival_notice: `Share Arrival Notice${booking}`,
       follow_up_pod: `Follow Up POD${booking}`,
+
+      // Email type based tasks
+      review_and_approve: `Review & Approve Request${booking}`,
+      address_rejection: `Address Rejected Request${booking}`,
+      respond_to_query: `Respond to Query${booking}`,
+      handle_escalation: `Handle Escalation${booking}`,
+      confirm_delivery_schedule: `Confirm Delivery Schedule${booking}`,
+      confirm_pickup_schedule: `Confirm Pickup Schedule${booking}`,
+      address_demurrage: `Address Demurrage/LFD${booking}`,
+      communicate_delay: `Communicate Delay to Stakeholders${booking}`,
+      handle_urgent_request: `Handle Urgent Request${booking}`,
+      process_amendment: `Process Amendment Request${booking}`,
+      process_payment: `Process Payment Request${booking}`,
+
       manual: 'Manual Task',
     };
 

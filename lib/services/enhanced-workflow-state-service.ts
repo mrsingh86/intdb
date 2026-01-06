@@ -32,6 +32,7 @@ import {
   isSenderAuthorized,
 } from '../config/workflow-transition-rules';
 import { EmailType, SenderCategory } from '../config/email-type-config';
+import { ShipmentRepository } from '@/lib/repositories';
 
 // =============================================================================
 // TYPES
@@ -119,7 +120,11 @@ export interface EnhancedWorkflowHistoryRecord {
 // =============================================================================
 
 export class EnhancedWorkflowStateService {
-  constructor(private readonly supabase: SupabaseClient) {}
+  private shipmentRepository: ShipmentRepository;
+
+  constructor(private readonly supabase: SupabaseClient) {
+    this.shipmentRepository = new ShipmentRepository(supabase);
+  }
 
   /**
    * Primary method: Transition workflow based on ClassificationOutput.
@@ -453,13 +458,10 @@ export class EnhancedWorkflowStateService {
       updateData.status = 'delivered';
     }
 
-    const { error: updateError } = await this.supabase
-      .from('shipments')
-      .update(updateData)
-      .eq('id', shipmentId);
-
-    if (updateError) {
-      return { success: false, error: `Failed to update shipment: ${updateError.message}` };
+    try {
+      await this.shipmentRepository.update(shipmentId, updateData);
+    } catch (updateError) {
+      return { success: false, error: `Failed to update shipment: ${updateError instanceof Error ? updateError.message : 'Unknown error'}` };
     }
 
     return { success: true, transitionId };
@@ -500,10 +502,7 @@ export class EnhancedWorkflowStateService {
     if (Object.keys(updates).length > 0) {
       // Try to update, but don't fail if columns don't exist yet
       try {
-        await this.supabase
-          .from('shipments')
-          .update(updates)
-          .eq('id', shipmentId);
+        await this.shipmentRepository.update(shipmentId, updates);
       } catch {
         // Columns may not exist yet - that's OK
       }

@@ -12,6 +12,7 @@
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';
+import { ShipmentRepository } from '@/lib/repositories';
 
 export type MilestoneStatus =
   | 'pending'
@@ -79,8 +80,11 @@ export class MilestoneTrackingService {
   private definitionsByPhase: Map<MilestonePhase, MilestoneDefinition[]> = new Map();
   private cacheExpiry: number = 0;
   private readonly CACHE_TTL_MS = 10 * 60 * 1000;
+  private shipmentRepository: ShipmentRepository;
 
-  constructor(private readonly supabase: SupabaseClient) {}
+  constructor(private readonly supabase: SupabaseClient) {
+    this.shipmentRepository = new ShipmentRepository(supabase);
+  }
 
   /**
    * Initialize milestones for a new shipment
@@ -544,16 +548,13 @@ export class MilestoneTrackingService {
     }
 
     // Update shipment
-    await this.supabase
-      .from('shipments')
-      .update({
-        milestones_total: total,
-        milestones_achieved: achieved,
-        milestones_missed: missed,
-        next_milestone: nextMilestone,
-        next_milestone_date: nextMilestoneDate,
-      })
-      .eq('id', shipmentId);
+    await this.shipmentRepository.update(shipmentId, {
+      milestones_total: total,
+      milestones_achieved: achieved,
+      milestones_missed: missed,
+      next_milestone: nextMilestone,
+      next_milestone_date: nextMilestoneDate,
+    });
   }
 
   /**

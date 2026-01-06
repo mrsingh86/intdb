@@ -12,6 +12,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { ShipmentRepository } from '@/lib/repositories';
 
 export interface DocumentRevision {
   id: string;
@@ -45,7 +46,11 @@ export interface RevisionCreateResult {
 }
 
 export class DocumentRevisionService {
-  constructor(private readonly supabase: SupabaseClient) {}
+  private shipmentRepository: ShipmentRepository;
+
+  constructor(private readonly supabase: SupabaseClient) {
+    this.shipmentRepository = new ShipmentRepository(supabase);
+  }
 
   /**
    * Register a new document revision for a shipment
@@ -388,12 +393,9 @@ export class DocumentRevisionService {
     const column = columnMap[documentType];
     if (!column) return;
 
-    await this.supabase
-      .from('shipments')
-      .update({
-        [column]: revisionNumber,
-        last_document_update: new Date().toISOString(),
-      })
-      .eq('id', shipmentId);
+    await this.shipmentRepository.update(shipmentId, {
+      [column]: revisionNumber,
+      last_document_update: new Date().toISOString(),
+    });
   }
 }

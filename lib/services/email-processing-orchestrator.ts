@@ -1111,10 +1111,7 @@ export class EmailProcessingOrchestrator {
       updates.booking_revision_count = (existing.booking_revision_count || 0) + 1;
 
       // Update shipment
-      await this.supabase
-        .from('shipments')
-        .update(updates)
-        .eq('id', existing.id);
+      await this.shipmentRepository.update(existing.id, updates);
 
       // Create revision record
       await this.supabase.from('booking_revisions').insert({
@@ -1273,10 +1270,7 @@ export class EmailProcessingOrchestrator {
 
         if (Object.keys(updateData).length > 0) {
           updateData.updated_at = new Date().toISOString();
-          await this.supabase
-            .from('shipments')
-            .update(updateData)
-            .eq('id', existing.id);
+          await this.shipmentRepository.update(existing.id, updateData);
 
           console.log(`[Orchestrator] Updated stakeholders from ${documentType} for shipment ${existing.id}`);
         }
@@ -1394,15 +1388,9 @@ export class EmailProcessingOrchestrator {
     const allParties = [...result.created, ...result.matched];
     for (const party of allParties) {
       if (party.party_type === 'shipper') {
-        await this.supabase
-          .from('shipments')
-          .update({ shipper_id: party.id })
-          .eq('id', shipmentId);
+        await this.shipmentRepository.update(shipmentId, { shipper_id: party.id });
       } else if (party.party_type === 'consignee') {
-        await this.supabase
-          .from('shipments')
-          .update({ consignee_id: party.id })
-          .eq('id', shipmentId);
+        await this.shipmentRepository.update(shipmentId, { consignee_id: party.id });
       }
     }
   }

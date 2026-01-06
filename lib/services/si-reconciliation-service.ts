@@ -13,6 +13,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
+import { ShipmentRepository } from '@/lib/repositories';
 
 export type ReconciliationStatus =
   | 'pending'
@@ -82,9 +83,11 @@ export class SIReconciliationService {
   private cacheExpiry: number = 0;
   private readonly CACHE_TTL_MS = 10 * 60 * 1000;
   private anthropic: Anthropic;
+  private shipmentRepository: ShipmentRepository;
 
   constructor(private readonly supabase: SupabaseClient) {
     this.anthropic = new Anthropic();
+    this.shipmentRepository = new ShipmentRepository(supabase);
   }
 
   /**
@@ -178,14 +181,11 @@ export class SIReconciliationService {
     }
 
     // Update shipment SI status
-    await this.supabase
-      .from('shipments')
-      .update({
-        si_reconciliation_status: status,
-        si_can_submit: canSubmit,
-        si_block_reason: blockReason,
-      })
-      .eq('id', shipmentId);
+    await this.shipmentRepository.update(shipmentId, {
+      si_reconciliation_status: status,
+      si_can_submit: canSubmit,
+      si_block_reason: blockReason,
+    });
 
     return {
       success: true,
@@ -293,14 +293,11 @@ export class SIReconciliationService {
       .single();
 
     if (record) {
-      await this.supabase
-        .from('shipments')
-        .update({
-          si_reconciliation_status: 'resolved',
-          si_can_submit: true,
-          si_block_reason: null,
-        })
-        .eq('id', record.shipment_id);
+      await this.shipmentRepository.update(record.shipment_id, {
+        si_reconciliation_status: 'resolved',
+        si_can_submit: true,
+        si_block_reason: null,
+      });
     }
   }
 
