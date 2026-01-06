@@ -590,7 +590,7 @@ export class UnifiedClassificationService {
    * Content-based classification for thread replies
    * Looks at body and attachment content, NOT subject
    */
-  private classifyByContent(input: ClassificationInput, direction: EmailDirection): ClassificationResult | null {
+  private classifyByContent(input: ClassificationInput, direction: EmailDirection, senderEmail?: string): ClassificationResult | null {
     const content = `${input.bodyText || ''} ${input.attachmentContent || ''}`.toLowerCase();
 
     // Content patterns - what's actually IN this message/attachment?
@@ -651,7 +651,7 @@ export class UnifiedClassificationService {
           needsManualReview: false,
           classificationReason: `Content pattern match for ${type}`,
           direction,
-          workflowState: this.getWorkflowState(type, direction),
+          workflowState: this.getWorkflowState(type, direction, senderEmail),
           classificationSource: 'body',
         };
       }
@@ -660,9 +660,26 @@ export class UnifiedClassificationService {
   }
 
   /**
-   * Get workflow state for document type and direction
+   * Get workflow state for document type, direction, and sender.
+   * Special handling for SI documents: sender type determines workflow state.
+   * - SI from carrier → si_confirmed
+   * - SI from customer/shipper → si_draft_received
    */
-  private getWorkflowState(documentType: string, direction: EmailDirection): string | null {
+  private getWorkflowState(
+    documentType: string,
+    direction: EmailDirection,
+    senderEmail?: string
+  ): string | null {
+    // Special handling for SI documents based on sender
+    const siDocTypes = ['shipping_instruction', 'si_draft', 'si_submission'];
+    if (siDocTypes.includes(documentType) && direction === 'inbound' && senderEmail) {
+      const fromCarrier = isCarrierSender(senderEmail);
+      if (fromCarrier) {
+        return 'si_confirmed';
+      }
+      return 'si_draft_received';
+    }
+
     const key = `${documentType}:${direction}`;
     return WORKFLOW_STATE_MAP[key] || null;
   }
@@ -714,7 +731,7 @@ export class UnifiedClassificationService {
       needsManualReview: confidence < 70,
       classificationReason: `${source} pattern match: ${matchedPattern}`,
       direction,
-      workflowState: this.getWorkflowState(documentType, direction),
+      workflowState: this.getWorkflowState(documentType, direction, sender),
       classificationSource: source,
     });
 
@@ -748,7 +765,7 @@ export class UnifiedClassificationService {
 
     // 3a: For thread replies, try content-based first
     if (isReply) {
-      const contentResult = this.classifyByContent(input, direction);
+      const contentResult = this.classifyByContent(input, direction, sender);
       if (contentResult) {
         contentResult.labels = this.inferLabels(input);
         return contentResult;
@@ -770,6 +787,12 @@ export class UnifiedClassificationService {
         // Will fall through to AI or general_correspondence
       } else {
         subjectPatternResult.labels = this.inferLabels(input);
+        // Recalculate workflowState with sender info (important for SI documents)
+        subjectPatternResult.workflowState = this.getWorkflowState(
+          subjectPatternResult.documentType,
+          direction,
+          sender
+        );
         return subjectPatternResult;
       }
     }
@@ -821,7 +844,7 @@ export class UnifiedClassificationService {
 
     // ===== STEP 4: AI fallback =====
     if (this.useAiFallback && this.anthropic) {
-      return await this.classifyWithAI(input, direction);
+      return await this.classifyWithAI(input, direction, sender);
     }
 
     // ===== STEP 5: Default to unknown =====
@@ -845,7 +868,7 @@ export class UnifiedClassificationService {
   /**
    * AI-based classification using structured tool_use
    */
-  private async classifyWithAI(input: ClassificationInput, direction: EmailDirection): Promise<ClassificationResult> {
+  private async classifyWithAI(input: ClassificationInput, direction: EmailDirection, senderEmail?: string): Promise<ClassificationResult> {
     if (!this.anthropic) {
       throw new Error('Anthropic client not initialized');
     }
@@ -887,7 +910,7 @@ export class UnifiedClassificationService {
           needsManualReview: result.confidence < 70,
           classificationReason: result.reasoning,
           direction,
-          workflowState: this.getWorkflowState(result.document_type, direction),
+          workflowState: this.getWorkflowState(result.document_type, direction, senderEmail),
           classificationSource: 'ai',
         };
       }
