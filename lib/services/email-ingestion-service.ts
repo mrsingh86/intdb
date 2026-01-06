@@ -28,9 +28,10 @@ import { DocumentLifecycleService } from './document-lifecycle-service';
 import { StakeholderExtractionService, DocumentEntity, ShipmentDirection } from './stakeholder-extraction-service';
 import { parseEntityDate } from '../utils/date-parser';
 import {
-  UnifiedClassificationService,
-  ClassificationResult as UnifiedClassificationResult,
-} from './unified-classification-service';
+  ClassificationOrchestrator,
+  createClassificationOrchestrator,
+  ClassificationOutput,
+} from './classification';
 
 // ============================================================================
 // Types
@@ -126,7 +127,7 @@ export class EmailIngestionService {
   private pdfExtractor: PdfExtractorFactory;
   private documentLifecycleService: DocumentLifecycleService;
   private stakeholderService: StakeholderExtractionService;
-  private classificationService: UnifiedClassificationService;
+  private classificationOrchestrator: ClassificationOrchestrator;
 
   constructor(
     supabase: SupabaseClient,
@@ -143,11 +144,8 @@ export class EmailIngestionService {
     this.pdfExtractor = new PdfExtractorFactory();
     this.documentLifecycleService = new DocumentLifecycleService(supabase);
     this.stakeholderService = new StakeholderExtractionService(supabase);
-    // Use unified classification service (single source of truth)
-    this.classificationService = new UnifiedClassificationService(supabase, {
-      useAiFallback: true,
-      aiModel: options.useAdvancedModel ? 'claude-sonnet-4-20250514' : 'claude-3-5-haiku-20241022',
-    });
+    // Use new classification orchestrator (parallel document + email type classification)
+    this.classificationOrchestrator = createClassificationOrchestrator();
   }
 
   /**
@@ -200,9 +198,10 @@ export class EmailIngestionService {
       // 3. Extract PDF text from attachments (CRITICAL - must happen before classification)
       const attachmentContent = await this.ensurePdfExtraction(emailId);
 
-      // 4. Classify document using UnifiedClassificationService
-      // This delegates to the single source of truth for classification
+      // 4. Classify document using ClassificationOrchestrator
+      // Parallel classification: document type + email type + sentiment
       let classification: Classification | undefined;
+      let classificationOutput: ClassificationOutput | undefined;
       if (!options.skipClassification) {
         // Get attachment filenames
         const { data: attachments } = await this.supabase
@@ -211,19 +210,20 @@ export class EmailIngestionService {
           .eq('email_id', emailId);
         const attachmentFilenames = attachments?.map(a => a.filename).filter(Boolean) || [];
 
-        const unifiedResult = await this.classificationService.classifyAndSave({
-          emailId: email.id,
+        // Run classification with AI fallback for low-confidence results
+        classificationOutput = await this.classificationOrchestrator.classifyWithAI({
           subject: email.subject || '',
           senderEmail: email.sender_email || '',
           bodyText: email.body_text || '',
-          snippet: email.snippet || '',
-          hasAttachments: email.has_attachments || false,
           attachmentFilenames,
-          attachmentContent,
+          pdfContent: attachmentContent || undefined,
         });
 
-        // Map unified result to internal Classification type
-        classification = this.mapUnifiedToClassification(unifiedResult);
+        // Save classification to database
+        await this.saveClassification(email.id, classificationOutput);
+
+        // Map to internal Classification type
+        classification = this.mapClassificationOutput(classificationOutput);
       }
 
       // 4. Extract entities (comprehensive)
@@ -306,18 +306,92 @@ export class EmailIngestionService {
   }
 
   /**
-   * Map unified classification result to internal Classification type
+   * Map ClassificationOutput to internal Classification type
    */
-  private mapUnifiedToClassification(result: UnifiedClassificationResult): Classification {
+  private mapClassificationOutput(result: ClassificationOutput): Classification {
+    // Build classification reason from available data
+    const reasons: string[] = [];
+    if (result.documentMatchedMarkers?.length) {
+      reasons.push(`[Content-First] Matched markers: ${result.documentMatchedMarkers.join(', ')}`);
+    }
+    if (result.documentMatchedPattern) {
+      reasons.push(`Pattern: ${result.documentMatchedPattern}`);
+    }
+    if (result.emailMatchedPatterns?.length) {
+      reasons.push(`Email patterns: ${result.emailMatchedPatterns.join(', ')}`);
+    }
+    if (result.usedAIFallback && result.aiReasoning) {
+      reasons.push(`[AI] ${result.aiReasoning}`);
+    }
+
     return {
       document_type: result.documentType as DocumentType,
-      sub_type: result.subType as DocumentSubType,
-      confidence_score: result.confidence,
-      labels: result.labels,
-      carrier_detected: result.carrierId,
+      sub_type: undefined, // New orchestrator doesn't track sub_type yet
+      confidence_score: result.documentConfidence,
+      labels: [result.emailType, result.emailCategory, result.sentiment].filter(Boolean),
+      carrier_detected: result.senderCategory === 'carrier' ? 'detected' : null,
       is_automated: true,
-      classification_reason: result.classificationReason,
+      classification_reason: reasons.join(' | ') || 'Classification completed',
     };
+  }
+
+  /**
+   * Save classification result to database
+   */
+  private async saveClassification(emailId: string, result: ClassificationOutput): Promise<void> {
+    // Delete existing classification if any
+    await this.supabase
+      .from('document_classifications')
+      .delete()
+      .eq('email_id', emailId);
+
+    // Determine model version based on classification method
+    let modelVersion: string;
+    if (result.usedAIFallback) {
+      modelVersion = 'v3|ai-fallback';
+    } else if (result.documentMethod === 'pdf_content') {
+      modelVersion = 'v3|content-first';
+    } else {
+      modelVersion = 'v3|pattern';
+    }
+
+    // Build classification reason
+    const reasons: string[] = [];
+    reasons.push(`Document: ${result.documentType} (${result.documentConfidence}%)`);
+    reasons.push(`Email: ${result.emailType} (${result.emailTypeConfidence}%)`);
+    reasons.push(`Sender: ${result.senderCategory}`);
+    reasons.push(`Sentiment: ${result.sentiment}`);
+    if (result.usedAIFallback) {
+      reasons.push(`AI: ${result.aiReasoning}`);
+    }
+
+    const { error } = await this.supabase
+      .from('document_classifications')
+      .insert({
+        email_id: emailId,
+        document_type: result.documentType,
+        revision_type: null, // Could be derived from email type if needed
+        confidence_score: Math.max(result.documentConfidence, result.emailTypeConfidence),
+        model_name: result.usedAIFallback ? 'ai-fallback' : 'classification-orchestrator',
+        model_version: modelVersion,
+        classification_reason: reasons.join(' | '),
+        is_manual_review: result.needsManualReview,
+        document_direction: result.direction,
+        workflow_state: result.documentWorkflowState,
+        classified_at: new Date().toISOString(),
+        // New fields for enhanced classification
+        email_type: result.emailType,
+        email_category: result.emailCategory,
+        email_type_confidence: result.emailTypeConfidence,
+        sender_category: result.senderCategory,
+        sentiment: result.sentiment,
+        sentiment_score: result.sentimentScore,
+      });
+
+    if (error) {
+      console.warn(`[Classification] Failed to save: ${error.message}`);
+      // Don't throw - classification save failure shouldn't stop the pipeline
+    }
   }
 
   /**
