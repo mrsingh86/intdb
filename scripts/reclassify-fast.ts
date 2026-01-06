@@ -21,7 +21,7 @@ import * as dotenv from 'dotenv';
 dotenv.config({ path: '.env' });
 
 const DRY_RUN = !process.argv.includes('--execute');
-const MIN_CONFIDENCE = 85;
+const MIN_CONFIDENCE = 70;
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -86,6 +86,7 @@ function classifyByFilename(filename: string): { type: string; confidence: numbe
 interface Stats {
   total: number;
   willReclassify: number;
+  verified: number;
   unchanged: number;
   skippedManualReview: number;
   skippedLowConfidence: number;
@@ -106,6 +107,7 @@ async function reclassifyFast() {
   const stats: Stats = {
     total: 0,
     willReclassify: 0,
+    verified: 0,
     unchanged: 0,
     skippedManualReview: 0,
     skippedLowConfidence: 0,
@@ -116,7 +118,7 @@ async function reclassifyFast() {
     sampleChanges: [],
   };
 
-  const updates: Array<{ id: string; document_type: string; confidence_score: number; classification_reason: string }> = [];
+  const updates: Array<{ id: string; document_type: string; confidence_score: number; classification_reason: string; isVerified: boolean }> = [];
   const BATCH_SIZE = 500;
   let offset = 0;
 
@@ -138,7 +140,7 @@ async function reclassifyFast() {
           extracted_text
         )
       `)
-      .eq('raw_attachments.mime_type', 'application/pdf')
+      .ilike('raw_attachments.filename', '%.pdf')
       .not('raw_attachments.extracted_text', 'is', null)
       .range(offset, offset + BATCH_SIZE - 1);
 
@@ -207,6 +209,7 @@ async function reclassifyFast() {
       stats.byNewType[newType] = (stats.byNewType[newType] || 0) + 1;
 
       if (oldType !== newType && newConfidence >= MIN_CONFIDENCE) {
+        // Classification changed - reclassify
         stats.willReclassify++;
         const migKey = `${oldType} -> ${newType}`;
         stats.migrations[migKey] = (stats.migrations[migKey] || 0) + 1;
@@ -221,9 +224,22 @@ async function reclassifyFast() {
             document_type: newType,
             confidence_score: newConfidence,
             classification_reason: `[Content-First] ${reason}`,
+            isVerified: false,
           });
         }
-      } else if (oldType !== newType && newConfidence < MIN_CONFIDENCE) {
+      } else if (oldType === newType && newConfidence >= MIN_CONFIDENCE) {
+        // Classification matches - verify with content-first
+        stats.verified++;
+        if (classification?.id) {
+          updates.push({
+            id: classification.id,
+            document_type: newType,
+            confidence_score: newConfidence,
+            classification_reason: `[Content-First] ${reason}`,
+            isVerified: true,
+          });
+        }
+      } else if (newConfidence < MIN_CONFIDENCE) {
         stats.skippedLowConfidence++;
         stats.unchanged++;
       } else {
@@ -231,14 +247,16 @@ async function reclassifyFast() {
       }
     }
 
-    console.log(`  Processed ${stats.total} (${stats.willReclassify} to change, ${stats.unknowns} unknown)`);
+    console.log(`  Processed ${stats.total} (${stats.willReclassify} changed, ${stats.verified} verified, ${stats.unknowns} unknown)`);
     offset += BATCH_SIZE;
     if (emails.length < BATCH_SIZE) break;
   }
 
   // Execute updates if not dry run
   if (!DRY_RUN && updates.length > 0) {
-    console.log(`\n*** UPDATING ${updates.length} classifications in database... ***`);
+    const reclassified = updates.filter(u => !u.isVerified).length;
+    const verified = updates.filter(u => u.isVerified).length;
+    console.log(`\n*** UPDATING ${updates.length} classifications (${reclassified} changed, ${verified} verified)... ***`);
 
     const UPDATE_BATCH = 50;
     for (let i = 0; i < updates.length; i += UPDATE_BATCH) {
@@ -248,7 +266,7 @@ async function reclassifyFast() {
           document_type: u.document_type,
           confidence_score: u.confidence_score,
           classification_reason: u.classification_reason,
-          model_version: 'content-first|deterministic',
+          model_version: u.isVerified ? 'content-first|verified' : 'content-first|deterministic',
           classified_at: new Date().toISOString(),
         }).eq('id', u.id)
       ));
@@ -267,8 +285,8 @@ async function reclassifyFast() {
   console.log('='.repeat(80));
   console.log(`Time elapsed:           ${elapsed} seconds`);
   console.log(`Total processed:        ${stats.total}`);
-  console.log(`Will reclassify:        ${stats.willReclassify} (${(stats.willReclassify / stats.total * 100).toFixed(1)}%)`);
-  console.log(`Unchanged:              ${stats.unchanged} (${(stats.unchanged / stats.total * 100).toFixed(1)}%)`);
+  console.log(`Reclassified:           ${stats.willReclassify} (${(stats.willReclassify / stats.total * 100).toFixed(1)}%)`);
+  console.log(`Verified (same type):   ${stats.verified} (${(stats.verified / stats.total * 100).toFixed(1)}%)`);
   console.log(`Skipped (manual review):${stats.skippedManualReview}`);
   console.log(`Skipped (low conf):     ${stats.skippedLowConfidence}`);
   console.log(`Unknown (needs AI):     ${stats.unknowns}`);
