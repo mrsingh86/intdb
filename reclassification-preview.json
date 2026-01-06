@@ -1,55 +1,51 @@
 {
   "total": 1309,
-  "willReclassify": 765,
-  "unchanged": 541,
+  "willReclassify": 0,
+  "unchanged": 1306,
   "skippedManualReview": 11,
   "skippedLowConfidence": 75,
   "unknowns": 55,
   "byOldType": {
-    "draft_hbl": 10,
-    "shipping_bill": 45,
-    "booking_confirmation": 121,
-    "sob_confirmation": 134,
-    "bill_of_lading": 155,
-    "arrival_notice": 56,
-    "shipping_instruction": 77,
-    "gate_in_confirmation": 8,
-    "general_correspondence": 73,
-    "invoice": 187,
-    "customs_document": 8,
-    "payment_receipt": 42,
-    "rate_confirmation": 6,
-    "booking_amendment": 35,
-    "hbl_draft": 54,
-    "freight_invoice": 25,
-    "duty_invoice": 55,
-    "packing_list": 19,
-    "si_draft": 32,
-    "hbl": 19,
-    "booking_cancellation": 2,
-    "vessel_schedule": 9,
-    "delivery_order": 19,
-    "work_order": 9,
-    "delay_notice": 4,
-    "vgm_reminder": 10,
+    "draft_hbl": 34,
+    "shipping_bill": 137,
+    "booking_confirmation": 168,
+    "hbl": 119,
+    "arrival_notice": 82,
+    "sob_confirmation": 38,
+    "shipping_instruction": 86,
+    "gate_in_confirmation": 22,
+    "invoice": 93,
     "isf_filing": 7,
-    "draft_entry": 2,
-    "si_submission": 3,
-    "si_confirmation": 11,
-    "entry_summary": 16,
-    "customs_clearance": 10,
+    "payment_receipt": 169,
+    "entry_summary": 62,
+    "packing_list": 45,
+    "mbl": 5,
+    "delivery_order": 75,
+    "booking_cancellation": 6,
+    "delay_notice": 34,
+    "commercial_invoice": 18,
+    "booking_amendment": 2,
+    "duty_invoice": 17,
+    "freight_invoice": 14,
+    "general_correspondence": 15,
+    "vessel_schedule": 8,
+    "work_order": 1,
+    "rate_confirmation": 1,
+    "vgm_confirmation": 3,
     "unknown": 7,
-    "isf_submission": 4,
-    "cargo_manifest": 4,
+    "cargo_manifest": 10,
     "proof_of_delivery": 3,
-    "checklist": 6,
-    "entry_immediate_delivery": 1,
-    "empty_return": 7,
-    "rate_quote": 6,
-    "commercial_invoice": 2,
-    "insurance_certificate": 1,
-    "vgm_confirmation": 1,
-    "leo_copy": 1
+    "entry_immediate_delivery": 3,
+    "hbl_draft": 1,
+    "customs_document": 2,
+    "customs_clearance": 2,
+    "checklist": 1,
+    "bill_of_lading": 7,
+    "draft_entry": 1,
+    "si_draft": 4,
+    "rate_quote": 1,
+    "leo_copy": 2,
+    "empty_return": 1
   },
   "byNewType": {
     "draft_hbl": 34,
@@ -86,467 +82,6 @@
     "si_draft": 1,
     "container_release": 1
   },
-  "migrations": {
-    "sob_confirmation -> hbl": 44,
-    "bill_of_lading -> arrival_notice": 23,
-    "bill_of_lading -> sob_confirmation": 16,
-    "general_correspondence -> shipping_bill": 12,
-    "customs_document -> isf_filing": 1,
-    "bill_of_lading -> hbl": 1,
-    "general_correspondence -> booking_confirmation": 13,
-    "invoice -> entry_summary": 4,
-    "general_correspondence -> packing_list": 6,
-    "rate_confirmation -> booking_confirmation": 3,
-    "bill_of_lading -> mbl": 4,
-    "booking_amendment -> shipping_instruction": 13,
-    "shipping_instruction -> draft_hbl": 1,
-    "bill_of_lading -> delivery_order": 35,
-    "hbl_draft -> draft_hbl": 2,
-    "invoice -> booking_confirmation": 7,
-    "bill_of_lading -> shipping_bill": 14,
-    "freight_invoice -> payment_receipt": 16,
-    "sob_confirmation -> payment_receipt": 13,
-    "duty_invoice -> entry_summary": 21,
-    "shipping_instruction -> shipping_bill": 7,
-    "sob_confirmation -> packing_list": 7,
-    "duty_invoice -> hbl": 13,
-    "general_correspondence -> payment_receipt": 7,
-    "invoice -> shipping_bill": 25,
-    "shipping_instruction -> booking_confirmation": 1,
-    "invoice -> payment_receipt": 43,
-    "booking_amendment -> booking_confirmation": 21,
-    "booking_amendment -> booking_cancellation": 1,
-    "packing_list -> shipping_bill": 2,
-    "hbl_draft -> delay_notice": 10,
-    "bill_of_lading -> payment_receipt": 24,
-    "invoice -> hbl": 11,
-    "shipping_instruction -> hbl": 4,
-    "packing_list -> commercial_invoice": 3,
-    "si_draft -> sob_confirmation": 4,
-    "general_correspondence -> hbl": 2,
-    "invoice -> booking_amendment": 1,
-    "si_draft -> delay_notice": 6,
-    "sob_confirmation -> delivery_order": 16,
-    "shipping_instruction -> freight_invoice": 1,
-    "shipping_bill -> delay_notice": 3,
-    "general_correspondence -> entry_summary": 6,
-    "arrival_notice -> payment_receipt": 3,
-    "si_draft -> arrival_notice": 4,
-    "bill_of_lading -> delay_notice": 7,
-    "customs_document -> gate_in_confirmation": 1,
-    "sob_confirmation -> invoice": 4,
-    "general_correspondence -> delivery_order": 1,
-    "invoice -> booking_cancellation": 1,
-    "sob_confirmation -> draft_hbl": 17,
-    "si_draft -> shipping_bill": 8,
-    "work_order -> arrival_notice": 7,
-    "hbl_draft -> hbl": 8,
-    "sob_confirmation -> shipping_bill": 13,
-    "bill_of_lading -> commercial_invoice": 4,
-    "hbl_draft -> delivery_order": 2,
-    "arrival_notice -> shipping_bill": 3,
-    "shipping_bill -> hbl": 3,
-    "bill_of_lading -> packing_list": 5,
-    "vgm_reminder -> payment_receipt": 10,
-    "draft_entry -> hbl": 1,
-    "si_submission -> shipping_instruction": 3,
-    "si_draft -> payment_receipt": 1,
-    "si_confirmation -> shipping_instruction": 11,
-    "duty_invoice -> vgm_confirmation": 1,
-    "hbl_draft -> shipping_bill": 8,
-    "invoice -> packing_list": 3,
-    "hbl_draft -> arrival_notice": 1,
-    "customs_clearance -> invoice": 3,
-    "shipping_instruction -> entry_summary": 3,
-    "customs_clearance -> shipping_bill": 3,
-    "bill_of_lading -> gate_in_confirmation": 6,
-    "shipping_bill -> invoice": 1,
-    "general_correspondence -> arrival_notice": 5,
-    "isf_submission -> hbl": 4,
-    "draft_entry -> entry_summary": 1,
-    "hbl_draft -> booking_confirmation": 2,
-    "sob_confirmation -> entry_summary": 8,
-    "general_correspondence -> isf_filing": 1,
-    "entry_summary -> cargo_manifest": 1,
-    "checklist -> shipping_bill": 1,
-    "bill_of_lading -> freight_invoice": 1,
-    "duty_invoice -> packing_list": 7,
-    "hbl_draft -> sob_confirmation": 4,
-    "work_order -> payment_receipt": 1,
-    "arrival_notice -> hbl": 4,
-    "invoice -> draft_hbl": 1,
-    "empty_return -> hbl": 3,
-    "invoice -> duty_invoice": 8,
-    "hbl_draft -> payment_receipt": 3,
-    "customs_clearance -> booking_confirmation": 1,
-    "customs_clearance -> payment_receipt": 1,
-    "delivery_order -> shipping_bill": 1,
-    "bill_of_lading -> cargo_manifest": 1,
-    "checklist -> commercial_invoice": 2,
-    "hbl_draft -> gate_in_confirmation": 5,
-    "hbl_draft -> freight_invoice": 5,
-    "booking_confirmation -> delay_notice": 1,
-    "freight_invoice -> invoice": 4,
-    "customs_document -> entry_summary": 3,
-    "rate_quote -> delivery_order": 1,
-    "hbl_draft -> entry_summary": 1,
-    "general_correspondence -> sob_confirmation": 3,
-    "rate_confirmation -> cargo_manifest": 1,
-    "rate_quote -> commercial_invoice": 1,
-    "commercial_invoice -> packing_list": 1,
-    "duty_invoice -> draft_hbl": 1,
-    "shipping_instruction -> delay_notice": 1,
-    "general_correspondence -> booking_amendment": 1,
-    "booking_confirmation -> booking_cancellation": 2,
-    "checklist -> booking_confirmation": 1,
-    "delivery_order -> entry_immediate_delivery": 1,
-    "invoice -> delivery_order": 2,
-    "insurance_certificate -> gate_in_confirmation": 1,
-    "duty_invoice -> draft_entry": 1,
-    "invoice -> commercial_invoice": 3,
-    "rate_quote -> mbl": 1,
-    "si_draft -> vgm_confirmation": 1,
-    "duty_invoice -> shipping_bill": 1,
-    "arrival_notice -> invoice": 2,
-    "si_draft -> gate_in_confirmation": 1,
-    "hbl_draft -> commercial_invoice": 2,
-    "bill_of_lading -> duty_invoice": 1,
-    "delivery_order -> hbl": 1,
-    "bill_of_lading -> isf_filing": 2,
-    "isf_filing -> commercial_invoice": 1,
-    "proof_of_delivery -> payment_receipt": 1,
-    "arrival_notice -> sob_confirmation": 1,
-    "isf_filing -> invoice": 1,
-    "customs_document -> cargo_manifest": 1,
-    "shipping_bill -> packing_list": 2,
-    "empty_return -> payment_receipt": 2,
-    "isf_filing -> payment_receipt": 2,
-    "vessel_schedule -> shipping_bill": 1,
-    "shipping_instruction -> leo_copy": 1,
-    "duty_invoice -> proof_of_delivery": 1,
-    "rate_quote -> shipping_bill": 1,
-    "bill_of_lading -> leo_copy": 1,
-    "sob_confirmation -> duty_invoice": 1,
-    "bill_of_lading -> entry_summary": 1,
-    "rate_quote -> delay_notice": 1,
-    "rate_confirmation -> freight_invoice": 1,
-    "entry_summary -> delay_notice": 1,
-    "shipping_bill -> booking_confirmation": 2,
-    "leo_copy -> shipping_bill": 1,
-    "booking_confirmation -> shipping_bill": 1,
-    "sob_confirmation -> commercial_invoice": 1,
-    "arrival_notice -> cargo_manifest": 2,
-    "duty_invoice -> shipping_instruction": 1,
-    "checklist -> delivery_order": 1,
-    "si_draft -> hbl": 1,
-    "empty_return -> shipping_bill": 1,
-    "duty_invoice -> delivery_order": 1,
-    "general_correspondence -> freight_invoice": 1,
-    "si_draft -> draft_hbl": 2,
-    "bill_of_lading -> entry_immediate_delivery": 1,
-    "invoice -> arrival_notice": 1,
-    "bill_of_lading -> invoice": 1
-  },
-  "sampleChanges": [
-    {
-      "old": "sob_confirmation",
-      "new": "hbl",
-      "confidence": 96,
-      "markers": "HOUSE BILL OF LADING, SHIPPER, CONSIGNEE"
-    },
-    {
-      "old": "bill_of_lading",
-      "new": "arrival_notice",
-      "confidence": 99,
-      "markers": "ARRIVAL NOTICE, ETA, PORT OF DISCHARGE"
-    },
-    {
-      "old": "bill_of_lading",
-      "new": "sob_confirmation",
-      "confidence": 92,
-      "markers": "SHIPPED ON BOARD"
-    },
-    {
-      "old": "bill_of_lading",
-      "new": "sob_confirmation",
-      "confidence": 92,
-      "markers": "SHIPPED ON BOARD"
-    },
-    {
-      "old": "general_correspondence",
-      "new": "shipping_bill",
-      "confidence": 97,
-      "markers": "SHIPPING BILL, CUSTOMS"
-    },
-    {
-      "old": "customs_document",
-      "new": "isf_filing",
-      "confidence": 99,
-      "markers": "IMPORTER SECURITY FILING, ISF, CBP"
-    },
-    {
-      "old": "bill_of_lading",
-      "new": "hbl",
-      "confidence": 88,
-      "markers": "HBL"
-    },
-    {
-      "old": "general_correspondence",
-      "new": "booking_confirmation",
-      "confidence": 99,
-      "markers": "BOOKING CONFIRMATION, VESSEL, ETD"
-    },
-    {
-      "old": "invoice",
-      "new": "entry_summary",
-      "confidence": 99,
-      "markers": "DEPARTMENT OF HOMELAND SECURITY, ENTRY SUMMARY, CBP Form 7501"
-    },
-    {
-      "old": "general_correspondence",
-      "new": "packing_list",
-      "confidence": 98,
-      "markers": "PACKING LIST, PACKAGES, WEIGHT"
-    },
-    {
-      "old": "rate_confirmation",
-      "new": "booking_confirmation",
-      "confidence": 99,
-      "markers": "BOOKING CONFIRMATION, BOOKING NUMBER, VOYAGE"
-    },
-    {
-      "old": "bill_of_lading",
-      "new": "mbl",
-      "confidence": 85,
-      "markers": "BILL OF LADING"
-    },
-    {
-      "old": "booking_amendment",
-      "new": "shipping_instruction",
-      "confidence": 99,
-      "markers": "SHIPPING INSTRUCTION, SI SUB TYPE, TRANSPORT DOCUMENT"
-    },
-    {
-      "old": "shipping_instruction",
-      "new": "draft_hbl",
-      "confidence": 92,
-      "markers": "DRAFT, HOUSE, BILL OF LADING"
-    },
-    {
-      "old": "bill_of_lading",
-      "new": "delivery_order",
-      "confidence": 94,
-      "markers": "DELIVERY ORDER, CONTAINER"
-    },
-    {
-      "old": "hbl_draft",
-      "new": "draft_hbl",
-      "confidence": 92,
-      "markers": "DRAFT, HOUSE, BILL OF LADING"
-    },
-    {
-      "old": "invoice",
-      "new": "booking_confirmation",
-      "confidence": 99,
-      "markers": "BOOKING CONFIRMATION, VESSEL, VOYAGE"
-    },
-    {
-      "old": "bill_of_lading",
-      "new": "shipping_bill",
-      "confidence": 95,
-      "markers": "SHIPPING BILL"
-    },
-    {
-      "old": "bill_of_lading",
-      "new": "delivery_order",
-      "confidence": 94,
-      "markers": "DELIVERY ORDER, CONTAINER"
-    },
-    {
-      "old": "freight_invoice",
-      "new": "payment_receipt",
-      "confidence": 98,
-      "markers": "RECEIPT, PAYMENT, WIRE"
-    },
-    {
-      "old": "sob_confirmation",
-      "new": "hbl",
-      "confidence": 94,
-      "markers": "HOUSE BILL OF LADING, CONSIGNEE"
-    },
-    {
-      "old": "sob_confirmation",
-      "new": "payment_receipt",
-      "confidence": 92,
-      "markers": "RECEIPT, PAYMENT"
-    },
-    {
-      "old": "duty_invoice",
-      "new": "entry_summary",
-      "confidence": 99,
-      "markers": "DEPARTMENT OF HOMELAND SECURITY, ENTRY SUMMARY, CBP Form 7501"
-    },
-    {
-      "old": "shipping_instruction",
-      "new": "shipping_bill",
-      "confidence": 97,
-      "markers": "SHIPPING BILL, SB NO"
-    },
-    {
-      "old": "sob_confirmation",
-      "new": "packing_list",
-      "confidence": 96,
-      "markers": "PACKING LIST, PACKAGES, WEIGHT"
-    },
-    {
-      "old": "duty_invoice",
-      "new": "entry_summary",
-      "confidence": 99,
-      "markers": "DEPARTMENT OF HOMELAND SECURITY, ENTRY SUMMARY, CBP Form 7501"
-    },
-    {
-      "old": "booking_amendment",
-      "new": "shipping_instruction",
-      "confidence": 99,
-      "markers": "SHIPPING INSTRUCTION, SI SUB TYPE, TRANSPORT DOCUMENT"
-    },
-    {
-      "old": "duty_invoice",
-      "new": "hbl",
-      "confidence": 96,
-      "markers": "HOUSE BILL OF LADING, SHIPPER, CONSIGNEE"
-    },
-    {
-      "old": "general_correspondence",
-      "new": "payment_receipt",
-      "confidence": 96,
-      "markers": "RECEIPT, PAYMENT, ACH"
-    },
-    {
-      "old": "invoice",
-      "new": "shipping_bill",
-      "confidence": 95,
-      "markers": "SHIPPING BILL"
-    },
-    {
-      "old": "shipping_instruction",
-      "new": "booking_confirmation",
-      "confidence": 99,
-      "markers": "BOOKING CONFIRMATION, BOOKING NUMBER, VESSEL"
-    },
-    {
-      "old": "invoice",
-      "new": "payment_receipt",
-      "confidence": 94,
-      "markers": "RECEIPT, PAYMENT, PAID"
-    },
-    {
-      "old": "invoice",
-      "new": "shipping_bill",
-      "confidence": 97,
-      "markers": "SHIPPING BILL, CUSTOMS"
-    },
-    {
-      "old": "booking_amendment",
-      "new": "booking_confirmation",
-      "confidence": 99,
-      "markers": "BOOKING CONFIRMATION, VESSEL, VOYAGE"
-    },
-    {
-      "old": "booking_amendment",
-      "new": "booking_cancellation",
-      "confidence": 95,
-      "markers": "BOOKING, CANCEL"
-    },
-    {
-      "old": "packing_list",
-      "new": "shipping_bill",
-      "confidence": 97,
-      "markers": "SHIPPING BILL, CUSTOMS"
-    },
-    {
-      "old": "invoice",
-      "new": "payment_receipt",
-      "confidence": 94,
-      "markers": "RECEIPT, PAYMENT, PAID"
-    },
-    {
-      "old": "general_correspondence",
-      "new": "shipping_bill",
-      "confidence": 95,
-      "markers": "SHIPPING BILL"
-    },
-    {
-      "old": "hbl_draft",
-      "new": "delay_notice",
-      "confidence": 88,
-      "markers": "DELAY"
-    },
-    {
-      "old": "invoice",
-      "new": "shipping_bill",
-      "confidence": 95,
-      "markers": "SHIPPING BILL"
-    },
-    {
-      "old": "invoice",
-      "new": "payment_receipt",
-      "confidence": 96,
-      "markers": "RECEIPT, WIRE, PAID"
-    },
-    {
-      "old": "bill_of_lading",
-      "new": "delivery_order",
-      "confidence": 94,
-      "markers": "DELIVERY ORDER, CONTAINER"
-    },
-    {
-      "old": "invoice",
-      "new": "payment_receipt",
-      "confidence": 96,
-      "markers": "RECEIPT, PAYMENT, ACH"
-    },
-    {
-      "old": "invoice",
-      "new": "payment_receipt",
-      "confidence": 94,
-      "markers": "RECEIPT, PAYMENT, PAID"
-    },
-    {
-      "old": "bill_of_lading",
-      "new": "shipping_bill",
-      "confidence": 95,
-      "markers": "SHIPPING BILL"
-    },
-    {
-      "old": "bill_of_lading",
-      "new": "payment_receipt",
-      "confidence": 92,
-      "markers": "RECEIPT, PAID"
-    },
-    {
-      "old": "bill_of_lading",
-      "new": "arrival_notice",
-      "confidence": 99,
-      "markers": "ARRIVAL NOTICE, ETA, PORT OF DISCHARGE"
-    },
-    {
-      "old": "invoice",
-      "new": "hbl",
-      "confidence": 96,
-      "markers": "HOUSE BILL OF LADING, SHIPPER, CONSIGNEE"
-    },
-    {
-      "old": "shipping_instruction",
-      "new": "hbl",
-      "confidence": 94,
-      "markers": "HOUSE BILL OF LADING, CONSIGNEE"
-    },
-    {
-      "old": "packing_list",
-      "new": "commercial_invoice",
-      "confidence": 92,
-      "markers": "COMMERCIAL INVOICE"
-    }
-  ]
+  "migrations": {},
+  "sampleChanges": []
 }
