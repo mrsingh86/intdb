@@ -14,6 +14,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { StakeholderExtractionService, DocumentEntity, ShipmentDirection } from './stakeholder-extraction-service';
 import { DocumentLifecycleService } from './document-lifecycle-service';
+import { DocumentRevisionService } from './document-revision-service';
 import { BackfillService } from './shipment-linking/backfill-service';
 import {
   ClassificationOrchestrator,
@@ -26,7 +27,14 @@ import {
   EnhancedWorkflowStateService,
   WorkflowTransitionInput,
 } from './enhanced-workflow-state-service';
-import { ShipmentRepository } from '@/lib/repositories';
+import {
+  ShipmentRepository,
+  EntityRepository,
+  ClassificationRepository,
+  ShipmentDocumentRepository,
+} from '@/lib/repositories';
+import { EntityType, ExtractionMethod, DocumentType } from '@/types/email-intelligence';
+import { createUnifiedExtractionService, UnifiedExtractionService } from './extraction';
 
 // ============================================================================
 // Configuration
@@ -112,18 +120,30 @@ export class EmailProcessingOrchestrator {
   private carrierDomains: string[] = []; // Loaded from carrier_configs.email_sender_patterns
   private stakeholderService: StakeholderExtractionService;
   private lifecycleService: DocumentLifecycleService;
+  private documentRevisionService: DocumentRevisionService;
   private backfillService: BackfillService;
   private classificationOrchestrator: ClassificationOrchestrator;
   private extractionService: ShipmentExtractionService;
   private workflowService: WorkflowStateService;
   private enhancedWorkflowService: EnhancedWorkflowStateService;
+  private unifiedExtractionService: UnifiedExtractionService;
+  // Repositories (follow repository pattern)
   private shipmentRepository: ShipmentRepository;
+  private entityRepository: EntityRepository;
+  private classificationRepository: ClassificationRepository;
+  private shipmentDocumentRepository: ShipmentDocumentRepository;
 
   constructor(supabaseUrl: string, supabaseKey: string, anthropicKey: string) {
     this.supabase = createClient(supabaseUrl, supabaseKey);
+    // Initialize repositories
     this.shipmentRepository = new ShipmentRepository(this.supabase);
+    this.entityRepository = new EntityRepository(this.supabase);
+    this.classificationRepository = new ClassificationRepository(this.supabase);
+    this.shipmentDocumentRepository = new ShipmentDocumentRepository(this.supabase);
+    // Initialize services
     this.stakeholderService = new StakeholderExtractionService(this.supabase);
     this.lifecycleService = new DocumentLifecycleService(this.supabase);
+    this.documentRevisionService = new DocumentRevisionService(this.supabase);
     this.backfillService = new BackfillService(this.supabase);
     // New parallel classification orchestrator (document type + email type)
     this.classificationOrchestrator = createClassificationOrchestrator();
@@ -137,6 +157,8 @@ export class EmailProcessingOrchestrator {
     this.workflowService = new WorkflowStateService(this.supabase);
     // Enhanced workflow service with dual-trigger support (document type + email type)
     this.enhancedWorkflowService = new EnhancedWorkflowStateService(this.supabase);
+    // Unified extraction service (schema + regex based) - saves to new tables
+    this.unifiedExtractionService = createUnifiedExtractionService(this.supabase);
   }
 
   /**
@@ -315,6 +337,37 @@ export class EmailProcessingOrchestrator {
 
       // Store extracted entities with subject line fallback for missing identifiers
       await this.storeExtractedEntities(emailId, extractedData, email.subject);
+
+      // 5b. Run schema-based extraction (saves to new tables: email_extractions, document_extractions)
+      // This runs alongside AI extraction to populate structured extraction tables
+      try {
+        // Get first PDF attachment ID for document extraction
+        const { data: pdfAttachments } = await this.supabase
+          .from('raw_attachments')
+          .select('id, extracted_text')
+          .eq('email_id', emailId)
+          .not('extracted_text', 'is', null)
+          .limit(1);
+
+        const pdfAttachment = pdfAttachments?.[0];
+
+        const unifiedResult = await this.unifiedExtractionService.extract({
+          emailId,
+          attachmentId: pdfAttachment?.id,
+          documentType: documentType || 'unknown',
+          emailSubject: email.subject || '',
+          emailBody: email.body_text || '',
+          pdfContent: pdfAttachment?.extracted_text || pdfContent,
+          carrier,
+        });
+
+        if (unifiedResult.documentExtractions > 0 || unifiedResult.emailExtractions > 0) {
+          console.log(`[Orchestrator] Schema extraction: ${unifiedResult.emailExtractions} email, ${unifiedResult.documentExtractions} doc entities (confidence: ${unifiedResult.schemaConfidence})`);
+        }
+      } catch (schemaError) {
+        // Don't fail the pipeline if schema extraction fails
+        console.error(`[Orchestrator] Schema extraction failed for ${emailId.substring(0, 8)}:`, schemaError);
+      }
 
       // 6. Process based on document type
       let shipmentId: string | undefined;
@@ -637,7 +690,7 @@ export class EmailProcessingOrchestrator {
    * Now includes regex fallback for subject line extraction
    */
   private async storeExtractedEntities(emailId: string, data: ExtractedBookingData, subject?: string): Promise<void> {
-    const entities: { email_id: string; entity_type: string; entity_value: string; confidence_score: number; extraction_method: string }[] = [];
+    const entities: { email_id: string; entity_type: EntityType; entity_value: string; confidence_score: number; extraction_method: ExtractionMethod }[] = [];
 
     // REGEX FALLBACK: If AI missed identifiers, extract from subject line
     let subjectExtracted: ReturnType<typeof this.extractIdentifiersFromSubject> = {};
@@ -730,16 +783,8 @@ export class EmailProcessingOrchestrator {
     }
 
     if (entities.length > 0) {
-      // Delete existing entities for this email to avoid duplicates on reprocess
-      await this.supabase
-        .from('entity_extractions')
-        .delete()
-        .eq('email_id', emailId);
-
-      // Insert new entities
-      await this.supabase
-        .from('entity_extractions')
-        .insert(entities);
+      // Use EntityRepository for atomic replace (delete + insert)
+      await this.entityRepository.replaceForEmail(emailId, entities);
 
       console.log(`[Orchestrator] Stored ${entities.length} entities for email ${emailId.substring(0, 8)}...`);
     }
@@ -980,15 +1025,12 @@ export class EmailProcessingOrchestrator {
     classificationResult?: ClassificationOutput,
     emailSubject?: string
   ): Promise<void> {
-    // Upsert to avoid duplicates
-    await this.supabase
-      .from('shipment_documents')
-      .upsert({
-        email_id: emailId,
-        shipment_id: shipmentId,
-        document_type: documentType,
-        created_at: new Date().toISOString()
-      }, { onConflict: 'email_id,shipment_id' });
+    // Use ShipmentDocumentRepository (handles idempotent upsert)
+    await this.shipmentDocumentRepository.create({
+      email_id: emailId,
+      shipment_id: shipmentId,
+      document_type: documentType,
+    });
 
     // Auto-transition workflow state
     try {
@@ -1108,19 +1150,19 @@ export class EmailProcessingOrchestrator {
 
     if (Object.keys(updates).length > 0) {
       updates.updated_at = new Date().toISOString();
-      updates.booking_revision_count = (existing.booking_revision_count || 0) + 1;
 
       // Update shipment
       await this.shipmentRepository.update(existing.id, updates);
 
-      // Create revision record
-      await this.supabase.from('booking_revisions').insert({
-        shipment_id: existing.id,
-        revision_number: updates.booking_revision_count,
-        changed_fields: changedFields,
-        source_email_id: emailId,
-        created_at: new Date().toISOString()
-      });
+      // Register revision using DocumentRevisionService (handles revision tracking)
+      await this.documentRevisionService.registerRevision(
+        existing.id,
+        'booking_confirmation',
+        emailId,
+        {
+          extracted_entities: changedFields as unknown as Record<string, string>,
+        }
+      );
     }
 
     return { shipmentId: existing.id, fieldsUpdated: Object.keys(updates).length };
@@ -1303,40 +1345,19 @@ export class EmailProcessingOrchestrator {
     documentType: string,
     data: ExtractedBookingData
   ): Promise<void> {
-    // Get any extracted booking reference for later linking
-    const bookingNumber = data.booking_number;
-
-    // Check if document already exists for this email
-    const { data: existing } = await this.supabase
-      .from('shipment_documents')
-      .select('id')
-      .eq('email_id', emailId)
-      .single();
-
-    if (existing) {
-      console.log(`[Orchestrator] Orphan document already exists for email ${emailId.substring(0, 8)}...`);
-      return;
-    }
-
-    // Insert orphan document (shipment_id = null)
-    const { error } = await this.supabase
-      .from('shipment_documents')
-      .insert({
-        email_id: emailId,
-        shipment_id: null,  // Will be linked later by backfill
-        document_type: documentType,
-        booking_number_extracted: bookingNumber || null,
-        status: 'pending_link',
-        created_at: new Date().toISOString(),
+    try {
+      // Use ShipmentDocumentRepository for orphan document creation (handles idempotency)
+      await this.shipmentDocumentRepository.createOrphan({
+        emailId,
+        documentType,
+        bookingNumberExtracted: data.booking_number,
       });
 
-    if (error) {
+      console.log(`[Orchestrator] Created orphan document: ${documentType} (booking: ${data.booking_number || 'none'})`);
+    } catch (error) {
       // Don't fail the process, just log
-      console.error(`[Orchestrator] Failed to create orphan document for ${emailId}:`, error.message);
-      return;
+      console.error(`[Orchestrator] Failed to create orphan document for ${emailId}:`, error instanceof Error ? error.message : 'Unknown error');
     }
-
-    console.log(`[Orchestrator] Created orphan document: ${documentType} (booking: ${bookingNumber || 'none'})`);
   }
 
   /**
@@ -1487,18 +1508,16 @@ export class EmailProcessingOrchestrator {
       documentWorkflowState: result.documentWorkflowState,
     };
 
-    // Upsert classification to avoid duplicates on reprocess
-    await this.supabase
-      .from('document_classifications')
-      .upsert({
-        email_id: emailId,
-        document_type: result.documentType,
-        confidence_score: result.documentConfidence,
-        classification_method: result.documentMethod,
-        classification_metadata: metadata,
-        needs_manual_review: result.needsManualReview,
-        created_at: new Date().toISOString(),
-      }, { onConflict: 'email_id' });
+    // Use ClassificationRepository for idempotent upsert
+    await this.classificationRepository.upsert({
+      email_id: emailId,
+      document_type: result.documentType as DocumentType,
+      confidence_score: result.documentConfidence,
+      classification_method: result.documentMethod,
+      classification_metadata: metadata,
+      needs_manual_review: result.needsManualReview,
+      created_at: new Date().toISOString(),
+    });
   }
 
   /**

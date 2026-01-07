@@ -332,7 +332,7 @@ export class UnifiedExtractionService {
           confidenceScore: 85,
           extractionMethod: 'schema',
           documentType,
-          sectionName: partyType,
+          sectionName: 'party_section',
         });
       }
       if (party.addressLine1) {
@@ -344,7 +344,7 @@ export class UnifiedExtractionService {
           confidenceScore: 80,
           extractionMethod: 'schema',
           documentType,
-          sectionName: partyType,
+          sectionName: 'party_section',
         });
       }
       if (party.country) {
@@ -354,7 +354,7 @@ export class UnifiedExtractionService {
           confidenceScore: 85,
           extractionMethod: 'schema',
           documentType,
-          sectionName: partyType,
+          sectionName: 'party_section',
         });
       }
     }

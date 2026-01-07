@@ -66,7 +66,8 @@ export type DocumentExtractionMethod =
   | 'ocr_pattern'
   | 'form_field'
   | 'ai_vision'
-  | 'layout_analysis';
+  | 'layout_analysis'
+  | 'schema';
 
 export interface DocumentExtractionResult {
   success: boolean;
