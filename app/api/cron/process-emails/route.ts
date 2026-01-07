@@ -46,20 +46,18 @@ export async function GET(request: Request) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
-    if (!supabaseUrl || !supabaseKey || !anthropicKey) {
+    if (!supabaseUrl || !supabaseKey) {
       return NextResponse.json(
         { error: 'Missing environment configuration' },
         { status: 500 }
       );
     }
 
-    // Initialize orchestrator
+    // Initialize orchestrator (AI extraction deprecated - now uses schema/regex at $0 cost)
     const orchestrator = new EmailProcessingOrchestrator(
       supabaseUrl,
-      supabaseKey,
-      anthropicKey
+      supabaseKey
     );
     await orchestrator.initialize();
 

@@ -21,7 +21,8 @@ import {
   createClassificationOrchestrator,
   ClassificationOutput,
 } from './classification';
-import { ShipmentExtractionService, ShipmentData } from './shipment-extraction-service';
+// NOTE: ShipmentExtractionService (AI) DEPRECATED - now using UnifiedExtractionService (regex/schema)
+// Cost savings: ~$0.002/email → $0/email
 import { WorkflowStateService } from './workflow-state-service';
 import {
   EnhancedWorkflowStateService,
@@ -88,7 +89,7 @@ interface ExtractedBookingData {
   consignee_name?: string;
   consignee_address?: string;
   notify_party_name?: string;
-  notify_party_address?: string;
+  notify_party_address?: string;  // For unified extraction mapping
   container_number?: string;
 }
 
@@ -123,7 +124,7 @@ export class EmailProcessingOrchestrator {
   private documentRevisionService: DocumentRevisionService;
   private backfillService: BackfillService;
   private classificationOrchestrator: ClassificationOrchestrator;
-  private extractionService: ShipmentExtractionService;
+  // NOTE: extractionService (AI) DEPRECATED - using unifiedExtractionService instead
   private workflowService: WorkflowStateService;
   private enhancedWorkflowService: EnhancedWorkflowStateService;
   private unifiedExtractionService: UnifiedExtractionService;
@@ -133,7 +134,8 @@ export class EmailProcessingOrchestrator {
   private classificationRepository: ClassificationRepository;
   private shipmentDocumentRepository: ShipmentDocumentRepository;
 
-  constructor(supabaseUrl: string, supabaseKey: string, anthropicKey: string) {
+  constructor(supabaseUrl: string, supabaseKey: string, _anthropicKey?: string) {
+    // NOTE: anthropicKey no longer required - AI extraction deprecated in favor of schema/regex
     this.supabase = createClient(supabaseUrl, supabaseKey);
     // Initialize repositories
     this.shipmentRepository = new ShipmentRepository(this.supabase);
@@ -147,17 +149,11 @@ export class EmailProcessingOrchestrator {
     this.backfillService = new BackfillService(this.supabase);
     // New parallel classification orchestrator (document type + email type)
     this.classificationOrchestrator = createClassificationOrchestrator();
-    // Use ShipmentExtractionService with Haiku model for cost-effective cron processing
-    this.extractionService = new ShipmentExtractionService(
-      this.supabase,
-      anthropicKey,
-      { useAdvancedModel: false } // Use Haiku for cron (Sonnet available via API path)
-    );
     // Initialize workflow service for auto-transitioning states when documents are linked
     this.workflowService = new WorkflowStateService(this.supabase);
     // Enhanced workflow service with dual-trigger support (document type + email type)
     this.enhancedWorkflowService = new EnhancedWorkflowStateService(this.supabase);
-    // Unified extraction service (schema + regex based) - saves to new tables
+    // Unified extraction service (schema + regex based) - $0 cost vs AI $0.002/email
     this.unifiedExtractionService = createUnifiedExtractionService(this.supabase);
   }
 
@@ -315,59 +311,38 @@ export class EmailProcessingOrchestrator {
       // 4. Detect carrier from sender/content (prefer true_sender_email for forwarded emails)
       const carrier = this.detectCarrier(email.true_sender_email || email.sender_email, content);
 
-      // 5. Extract data using CONSOLIDATED ShipmentExtractionService
-      // This ensures single extraction path for both cron and API
-      // Pass documentType for document-specific extraction hints (e.g., HBL party extraction)
+      // 5. Extract data using UnifiedExtractionService (schema + regex based, $0 cost)
+      // NOTE: AI extraction (ShipmentExtractionService) DEPRECATED for cost savings
       const pdfContent = await this.getPdfContent(emailId);
-      const extractionResult = await this.extractionService.extractFromContent({
+
+      // Get first PDF attachment ID for document extraction
+      const { data: pdfAttachments } = await this.supabase
+        .from('raw_attachments')
+        .select('id, extracted_text')
+        .eq('email_id', emailId)
+        .not('extracted_text', 'is', null)
+        .limit(1);
+
+      const pdfAttachment = pdfAttachments?.[0];
+
+      const unifiedResult = await this.unifiedExtractionService.extract({
         emailId,
-        subject: email.subject || '',
-        bodyText: email.body_text || '',
-        pdfContent,
+        attachmentId: pdfAttachment?.id,
+        documentType: documentType || 'unknown',
+        emailSubject: email.subject || '',
+        emailBody: email.body_text || '',
+        pdfContent: pdfAttachment?.extracted_text || pdfContent,
         carrier,
-        documentType,  // HBL/SI docs get special prompts to extract shipper/consignee/notify_party
       });
 
-      if (!extractionResult.success || !extractionResult.data) {
-        return { emailId, success: false, stage: 'extraction', error: extractionResult.error || 'AI extraction failed' };
-      }
+      console.log(`[Orchestrator] Unified extraction: ${unifiedResult.emailExtractions} email, ${unifiedResult.documentExtractions} doc entities (confidence: ${unifiedResult.schemaConfidence})`);
 
-      // Map ShipmentData to ExtractedBookingData for downstream processing
-      const extractedData = this.mapToExtractedBookingData(extractionResult.data);
+      // Map unified extraction results to ExtractedBookingData for downstream processing
+      const extractedData = this.mapUnifiedToExtractedBookingData(unifiedResult.entities, carrier);
 
-      // Store extracted entities with subject line fallback for missing identifiers
+      // Store extracted entities to entity_extractions table (for shipment linking)
+      // Uses regex fallback for missing identifiers from subject line
       await this.storeExtractedEntities(emailId, extractedData, email.subject);
-
-      // 5b. Run schema-based extraction (saves to new tables: email_extractions, document_extractions)
-      // This runs alongside AI extraction to populate structured extraction tables
-      try {
-        // Get first PDF attachment ID for document extraction
-        const { data: pdfAttachments } = await this.supabase
-          .from('raw_attachments')
-          .select('id, extracted_text')
-          .eq('email_id', emailId)
-          .not('extracted_text', 'is', null)
-          .limit(1);
-
-        const pdfAttachment = pdfAttachments?.[0];
-
-        const unifiedResult = await this.unifiedExtractionService.extract({
-          emailId,
-          attachmentId: pdfAttachment?.id,
-          documentType: documentType || 'unknown',
-          emailSubject: email.subject || '',
-          emailBody: email.body_text || '',
-          pdfContent: pdfAttachment?.extracted_text || pdfContent,
-          carrier,
-        });
-
-        if (unifiedResult.documentExtractions > 0 || unifiedResult.emailExtractions > 0) {
-          console.log(`[Orchestrator] Schema extraction: ${unifiedResult.emailExtractions} email, ${unifiedResult.documentExtractions} doc entities (confidence: ${unifiedResult.schemaConfidence})`);
-        }
-      } catch (schemaError) {
-        // Don't fail the pipeline if schema extraction fails
-        console.error(`[Orchestrator] Schema extraction failed for ${emailId.substring(0, 8)}:`, schemaError);
-      }
 
       // 6. Process based on document type
       let shipmentId: string | undefined;
@@ -835,33 +810,38 @@ export class EmailProcessingOrchestrator {
   }
 
   /**
-   * Map ShipmentData (from extraction service) to ExtractedBookingData (for orchestrator)
-   * This mapping ensures backward compatibility with existing downstream code
+   * Map unified extraction entities to ExtractedBookingData for downstream processing.
+   * UnifiedExtractionService returns entities as Record<string, string>.
+   * This maps them to the ExtractedBookingData structure used by linking/shipment creation.
    */
-  private mapToExtractedBookingData(data: ShipmentData): ExtractedBookingData {
+  private mapUnifiedToExtractedBookingData(
+    entities: Record<string, string>,
+    detectedCarrier: string
+  ): ExtractedBookingData {
     return {
-      carrier: data.carrier_name ?? undefined,
-      booking_number: data.booking_number ?? undefined,
-      vessel_name: data.vessel_name ?? undefined,
-      voyage_number: data.voyage_number ?? undefined,
-      etd: data.etd ?? undefined,
-      eta: data.eta ?? undefined,
-      port_of_loading: data.port_of_loading ?? undefined,
-      port_of_loading_code: data.port_of_loading_code ?? undefined,
-      port_of_discharge: data.port_of_discharge ?? undefined,
-      port_of_discharge_code: data.port_of_discharge_code ?? undefined,
-      final_destination: data.place_of_delivery ?? undefined,
-      si_cutoff: data.si_cutoff ?? undefined,
-      vgm_cutoff: data.vgm_cutoff ?? undefined,
-      cargo_cutoff: data.cargo_cutoff ?? undefined,
-      gate_cutoff: data.gate_cutoff ?? undefined,
-      doc_cutoff: data.doc_cutoff ?? undefined,
-      shipper_name: data.shipper_name ?? undefined,
-      shipper_address: data.shipper_address ?? undefined,
-      consignee_name: data.consignee_name ?? undefined,
-      consignee_address: data.consignee_address ?? undefined,
-      notify_party_name: data.notify_party ?? undefined,
-      container_number: data.container_numbers?.[0] ?? undefined,
+      carrier: entities.carrier || detectedCarrier || undefined,
+      booking_number: entities.booking_number || undefined,
+      vessel_name: entities.vessel_name || entities.vessel || undefined,
+      voyage_number: entities.voyage_number || entities.voyage || undefined,
+      etd: entities.etd || entities.departure_date || undefined,
+      eta: entities.eta || entities.arrival_date || undefined,
+      port_of_loading: entities.port_of_loading || entities.pol_name || undefined,
+      port_of_loading_code: entities.port_of_loading_code || entities.pol_code || undefined,
+      port_of_discharge: entities.port_of_discharge || entities.pod_name || undefined,
+      port_of_discharge_code: entities.port_of_discharge_code || entities.pod_code || undefined,
+      final_destination: entities.final_destination || entities.place_of_delivery || undefined,
+      si_cutoff: entities.si_cutoff || undefined,
+      vgm_cutoff: entities.vgm_cutoff || undefined,
+      cargo_cutoff: entities.cargo_cutoff || undefined,
+      gate_cutoff: entities.gate_cutoff || undefined,
+      doc_cutoff: entities.doc_cutoff || undefined,
+      shipper_name: entities.shipper_name || undefined,
+      shipper_address: entities.shipper_address || undefined,
+      consignee_name: entities.consignee_name || undefined,
+      consignee_address: entities.consignee_address || undefined,
+      notify_party_name: entities.notify_party_name || entities.notify_party || undefined,
+      notify_party_address: entities.notify_party_address || undefined,
+      container_number: entities.container_number || undefined,
     };
   }
 
