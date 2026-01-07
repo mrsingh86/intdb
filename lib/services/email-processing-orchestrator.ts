@@ -340,9 +340,8 @@ export class EmailProcessingOrchestrator {
       // Map unified extraction results to ExtractedBookingData for downstream processing
       const extractedData = this.mapUnifiedToExtractedBookingData(unifiedResult.entities, carrier);
 
-      // Store extracted entities to entity_extractions table (for shipment linking)
-      // Uses regex fallback for missing identifiers from subject line
-      await this.storeExtractedEntities(emailId, extractedData, email.subject);
+      // NOTE: storeExtractedEntities() REMOVED - UnifiedExtractionService already saves to
+      // email_extractions and document_extractions tables. Linking now uses those tables.
 
       // 6. Process based on document type
       let shipmentId: string | undefined;
@@ -660,110 +659,9 @@ export class EmailProcessingOrchestrator {
     return result;
   }
 
-  /**
-   * Store extracted entities to entity_extractions table
-   * Now includes regex fallback for subject line extraction
-   */
-  private async storeExtractedEntities(emailId: string, data: ExtractedBookingData, subject?: string): Promise<void> {
-    const entities: { email_id: string; entity_type: EntityType; entity_value: string; confidence_score: number; extraction_method: ExtractionMethod }[] = [];
-
-    // REGEX FALLBACK: If AI missed identifiers, extract from subject line
-    let subjectExtracted: ReturnType<typeof this.extractIdentifiersFromSubject> = {};
-    if (subject) {
-      subjectExtracted = this.extractIdentifiersFromSubject(subject);
-    }
-
-    // Use AI extraction first, fallback to regex for missing identifiers
-    const bookingNumber = data.booking_number || subjectExtracted.booking_number;
-    const containerNumber = data.container_number || subjectExtracted.container_number;
-    const blNumber = subjectExtracted.bl_number;  // AI uses different field name
-    const mblNumber = subjectExtracted.mbl_number;
-    const hblNumber = subjectExtracted.hbl_number;
-    const entryNumber = subjectExtracted.entry_number;  // US Customs entry number
-
-    // Determine extraction method for booking number
-    const bookingMethod = data.booking_number ? 'ai' : 'regex_subject';
-
-    if (bookingNumber) {
-      const confidence = data.booking_number ? 90 : 80; // Lower confidence for regex extraction
-      entities.push({ email_id: emailId, entity_type: 'booking_number', entity_value: bookingNumber, confidence_score: confidence, extraction_method: bookingMethod });
-    }
-    if (data.carrier) {
-      entities.push({ email_id: emailId, entity_type: 'carrier', entity_value: data.carrier, confidence_score: 85, extraction_method: 'ai' });
-    }
-    if (data.vessel_name) {
-      entities.push({ email_id: emailId, entity_type: 'vessel_name', entity_value: data.vessel_name, confidence_score: 85, extraction_method: 'ai' });
-    }
-    if (data.voyage_number) {
-      entities.push({ email_id: emailId, entity_type: 'voyage_number', entity_value: data.voyage_number, confidence_score: 85, extraction_method: 'ai' });
-    }
-    if (data.etd) {
-      entities.push({ email_id: emailId, entity_type: 'etd', entity_value: data.etd, confidence_score: 85, extraction_method: 'ai' });
-    }
-    if (data.eta) {
-      entities.push({ email_id: emailId, entity_type: 'eta', entity_value: data.eta, confidence_score: 85, extraction_method: 'ai' });
-    }
-    if (data.port_of_loading) {
-      entities.push({ email_id: emailId, entity_type: 'port_of_loading', entity_value: data.port_of_loading, confidence_score: 85, extraction_method: 'ai' });
-    }
-    if (data.port_of_discharge) {
-      entities.push({ email_id: emailId, entity_type: 'port_of_discharge', entity_value: data.port_of_discharge, confidence_score: 85, extraction_method: 'ai' });
-    }
-    if (data.si_cutoff) {
-      entities.push({ email_id: emailId, entity_type: 'si_cutoff', entity_value: data.si_cutoff, confidence_score: 80, extraction_method: 'ai' });
-    }
-    if (data.vgm_cutoff) {
-      entities.push({ email_id: emailId, entity_type: 'vgm_cutoff', entity_value: data.vgm_cutoff, confidence_score: 80, extraction_method: 'ai' });
-    }
-    if (data.cargo_cutoff) {
-      entities.push({ email_id: emailId, entity_type: 'cargo_cutoff', entity_value: data.cargo_cutoff, confidence_score: 80, extraction_method: 'ai' });
-    }
-    // Container number: AI first, fallback to regex
-    if (containerNumber) {
-      const confidence = data.container_number ? 85 : 75;
-      const method = data.container_number ? 'ai' : 'regex_subject';
-      entities.push({ email_id: emailId, entity_type: 'container_number', entity_value: containerNumber, confidence_score: confidence, extraction_method: method });
-    }
-
-    // BL/MBL/HBL numbers from subject (fallback identifiers for linking)
-    if (blNumber) {
-      entities.push({ email_id: emailId, entity_type: 'bl_number', entity_value: blNumber, confidence_score: 75, extraction_method: 'regex_subject' });
-    }
-    if (mblNumber) {
-      entities.push({ email_id: emailId, entity_type: 'mbl_number', entity_value: mblNumber, confidence_score: 75, extraction_method: 'regex_subject' });
-    }
-    if (hblNumber) {
-      entities.push({ email_id: emailId, entity_type: 'hbl_number', entity_value: hblNumber, confidence_score: 75, extraction_method: 'regex_subject' });
-    }
-    // Entry number (US Customs - from Artemus, Portside)
-    if (entryNumber) {
-      entities.push({ email_id: emailId, entity_type: 'entry_number', entity_value: entryNumber, confidence_score: 80, extraction_method: 'regex_subject' });
-    }
-
-    // Stakeholders (shipper/consignee/notify) - extracted from HBL/SI documents
-    // Skip Intoglo (our own company) - we want real customer stakeholders
-    const isIntogloName = (name: string | null | undefined): boolean => {
-      if (!name) return false;
-      return name.toLowerCase().includes('intoglo');
-    };
-
-    if (data.shipper_name && !isIntogloName(data.shipper_name)) {
-      entities.push({ email_id: emailId, entity_type: 'shipper_name', entity_value: data.shipper_name, confidence_score: 85, extraction_method: 'ai' });
-    }
-    if (data.consignee_name && !isIntogloName(data.consignee_name)) {
-      entities.push({ email_id: emailId, entity_type: 'consignee_name', entity_value: data.consignee_name, confidence_score: 85, extraction_method: 'ai' });
-    }
-    if (data.notify_party_name && !isIntogloName(data.notify_party_name)) {
-      entities.push({ email_id: emailId, entity_type: 'notify_party', entity_value: data.notify_party_name, confidence_score: 85, extraction_method: 'ai' });
-    }
-
-    if (entities.length > 0) {
-      // Use EntityRepository for atomic replace (delete + insert)
-      await this.entityRepository.replaceForEmail(emailId, entities);
-
-      console.log(`[Orchestrator] Stored ${entities.length} entities for email ${emailId.substring(0, 8)}...`);
-    }
-  }
+  // NOTE: storeExtractedEntities() REMOVED - UnifiedExtractionService now handles all extraction
+  // and saves directly to email_extractions and document_extractions tables.
+  // Shipment linking now queries email_extractions instead of entity_extractions.
 
   /**
    * Get full content including email body and PDF attachments
@@ -1051,38 +949,47 @@ export class EmailProcessingOrchestrator {
   /**
    * Store entities for forwarded emails that arrive before direct carrier email
    * These can be linked later when the direct carrier email creates the shipment
+   * NOW USES: email_extractions table (migrated from entity_extractions)
    */
   private async storeEntitiesForLaterLinking(
     emailId: string,
     data: ExtractedBookingData
   ): Promise<void> {
-    const entities: { email_id: string; entity_type: string; entity_value: string; confidence_score: number }[] = [];
+    const entities: {
+      email_id: string;
+      entity_type: string;
+      entity_value: string;
+      confidence_score: number;
+      extraction_method: string;
+      source_field: string;
+    }[] = [];
 
-    if (data.booking_number) {
-      entities.push({ email_id: emailId, entity_type: 'booking_number', entity_value: data.booking_number, confidence_score: 90 });
-    }
-    if (data.vessel_name) {
-      entities.push({ email_id: emailId, entity_type: 'vessel_name', entity_value: data.vessel_name, confidence_score: 85 });
-    }
-    if (data.voyage_number) {
-      entities.push({ email_id: emailId, entity_type: 'voyage_number', entity_value: data.voyage_number, confidence_score: 85 });
-    }
-    if (data.etd) {
-      entities.push({ email_id: emailId, entity_type: 'etd', entity_value: data.etd, confidence_score: 85 });
-    }
-    if (data.eta) {
-      entities.push({ email_id: emailId, entity_type: 'eta', entity_value: data.eta, confidence_score: 85 });
-    }
-    if (data.port_of_loading) {
-      entities.push({ email_id: emailId, entity_type: 'port_of_loading', entity_value: data.port_of_loading, confidence_score: 85 });
-    }
-    if (data.port_of_discharge) {
-      entities.push({ email_id: emailId, entity_type: 'port_of_discharge', entity_value: data.port_of_discharge, confidence_score: 85 });
-    }
+    const addEntity = (type: string, value: string | undefined, confidence: number) => {
+      if (value) {
+        entities.push({
+          email_id: emailId,
+          entity_type: type,
+          entity_value: value,
+          confidence_score: confidence,
+          extraction_method: 'schema',
+          source_field: 'body_text',
+        });
+      }
+    };
+
+    addEntity('booking_number', data.booking_number, 90);
+    addEntity('vessel_name', data.vessel_name, 85);
+    addEntity('voyage_number', data.voyage_number, 85);
+    addEntity('etd', data.etd, 85);
+    addEntity('eta', data.eta, 85);
+    addEntity('port_of_loading', data.port_of_loading, 85);
+    addEntity('port_of_discharge', data.port_of_discharge, 85);
+    addEntity('container_number', data.container_number, 85);
 
     if (entities.length > 0) {
+      // Use email_extractions table (NEW) instead of entity_extractions (OLD)
       await this.supabase
-        .from('entity_extractions')
+        .from('email_extractions')
         .upsert(entities, { onConflict: 'email_id,entity_type' });
     }
   }
@@ -1176,10 +1083,10 @@ export class EmailProcessingOrchestrator {
       }
     }
 
-    // 2. If no match, get entities from database for this email
+    // 2. If no match, get entities from NEW email_extractions table
     if (!shipment) {
       const { data: entities } = await this.supabase
-        .from('entity_extractions')
+        .from('email_extractions')
         .select('entity_type, entity_value')
         .eq('email_id', emailId);
 
