@@ -16,6 +16,7 @@ import { StakeholderExtractionService, DocumentEntity, ShipmentDirection } from 
 import { DocumentLifecycleService } from './document-lifecycle-service';
 import { DocumentRevisionService } from './document-revision-service';
 import { BackfillService } from './shipment-linking/backfill-service';
+import { ThreadSummaryService } from './shipment-linking/thread-summary-service';
 import {
   ClassificationOrchestrator,
   createClassificationOrchestrator,
@@ -30,11 +31,17 @@ import {
 } from './enhanced-workflow-state-service';
 import {
   ShipmentRepository,
-  EntityRepository,
-  ClassificationRepository,
-  ShipmentDocumentRepository,
+  EmailRepository,
+  AttachmentRepository,
+  EmailClassificationRepository,
+  AttachmentClassificationRepository,
+  EmailExtractionRepository,
+  AttachmentExtractionRepository,
+  EmailShipmentLinkRepository,
+  AttachmentShipmentLinkRepository,
 } from '@/lib/repositories';
-import { EntityType, ExtractionMethod, DocumentType } from '@/types/email-intelligence';
+import { v4 as uuidv4 } from 'uuid';
+import { EntityType, ExtractionMethod } from '@/types/email-intelligence';
 import { createUnifiedExtractionService, UnifiedExtractionService } from './extraction';
 
 // ============================================================================
@@ -123,30 +130,49 @@ export class EmailProcessingOrchestrator {
   private lifecycleService: DocumentLifecycleService;
   private documentRevisionService: DocumentRevisionService;
   private backfillService: BackfillService;
+  private threadSummaryService: ThreadSummaryService;
   private classificationOrchestrator: ClassificationOrchestrator;
   // NOTE: extractionService (AI) DEPRECATED - using unifiedExtractionService instead
   private workflowService: WorkflowStateService;
   private enhancedWorkflowService: EnhancedWorkflowStateService;
   private unifiedExtractionService: UnifiedExtractionService;
-  // Repositories (follow repository pattern)
+  // Repositories (follow repository pattern - split architecture)
   private shipmentRepository: ShipmentRepository;
-  private entityRepository: EntityRepository;
-  private classificationRepository: ClassificationRepository;
-  private shipmentDocumentRepository: ShipmentDocumentRepository;
+  private emailRepository: EmailRepository;
+  private attachmentRepository: AttachmentRepository;
+  // Classification repositories (split)
+  private emailClassificationRepository: EmailClassificationRepository;
+  private attachmentClassificationRepository: AttachmentClassificationRepository;
+  // Extraction repositories (split)
+  private emailExtractionRepository: EmailExtractionRepository;
+  private attachmentExtractionRepository: AttachmentExtractionRepository;
+  // Linking repositories (split)
+  private emailShipmentLinkRepository: EmailShipmentLinkRepository;
+  private attachmentShipmentLinkRepository: AttachmentShipmentLinkRepository;
 
   constructor(supabaseUrl: string, supabaseKey: string, _anthropicKey?: string) {
     // NOTE: anthropicKey no longer required - AI extraction deprecated in favor of schema/regex
     this.supabase = createClient(supabaseUrl, supabaseKey);
-    // Initialize repositories
+    // Initialize repositories (split architecture)
     this.shipmentRepository = new ShipmentRepository(this.supabase);
-    this.entityRepository = new EntityRepository(this.supabase);
-    this.classificationRepository = new ClassificationRepository(this.supabase);
-    this.shipmentDocumentRepository = new ShipmentDocumentRepository(this.supabase);
+    this.emailRepository = new EmailRepository(this.supabase);
+    this.attachmentRepository = new AttachmentRepository(this.supabase);
+    // Classification repositories (split)
+    this.emailClassificationRepository = new EmailClassificationRepository(this.supabase);
+    this.attachmentClassificationRepository = new AttachmentClassificationRepository(this.supabase);
+    // Extraction repositories (split)
+    this.emailExtractionRepository = new EmailExtractionRepository(this.supabase);
+    this.attachmentExtractionRepository = new AttachmentExtractionRepository(this.supabase);
+    // Linking repositories (split)
+    this.emailShipmentLinkRepository = new EmailShipmentLinkRepository(this.supabase);
+    this.attachmentShipmentLinkRepository = new AttachmentShipmentLinkRepository(this.supabase);
     // Initialize services
     this.stakeholderService = new StakeholderExtractionService(this.supabase);
     this.lifecycleService = new DocumentLifecycleService(this.supabase);
     this.documentRevisionService = new DocumentRevisionService(this.supabase);
     this.backfillService = new BackfillService(this.supabase);
+    // Thread-aware linking service (handles RE:/FW: cross-linking correctly)
+    this.threadSummaryService = new ThreadSummaryService(this.supabase);
     // New parallel classification orchestrator (document type + email type)
     this.classificationOrchestrator = createClassificationOrchestrator();
     // Initialize workflow service for auto-transitioning states when documents are linked
@@ -239,10 +265,10 @@ export class EmailProcessingOrchestrator {
    */
   async processEmail(emailId: string): Promise<ProcessingResult> {
     try {
-      // 1. Get email with classification
+      // 1. Get email
       const { data: email } = await this.supabase
         .from('raw_emails')
-        .select('*, document_classifications(*)')
+        .select('*')
         .eq('id', emailId)
         .single();
 
@@ -253,21 +279,24 @@ export class EmailProcessingOrchestrator {
       // 2. Get email content including PDF attachments (needed for classification)
       const content = await this.getFullContent(emailId, email);
 
-      // 3. Get or CREATE classification
-      // CRITICAL FIX: If no classification exists, we must classify the email first
-      let classification = email.document_classifications?.[0];
-      let documentType = classification?.document_type;
-      let classificationConfidence = classification?.confidence_score || 0;
+      // 3. Get or CREATE classification (using new parallel tables)
+      // Check email_classifications first, then attachment_classifications for document type
+      const existingEmailClass = await this.emailClassificationRepository.findByEmailId(emailId);
+      const existingAttachClasses = await this.attachmentClassificationRepository.findByEmailId(emailId);
+
+      let documentType = existingAttachClasses?.[0]?.document_type || null;
+      let classificationConfidence = existingAttachClasses?.[0]?.confidence
+        ? existingAttachClasses[0].confidence * 100 : 0;
       // Hoist classificationResult for use in workflow transitions later
       let classificationResult: ClassificationOutput | undefined;
 
-      if (!classification) {
+      if (!existingEmailClass) {
         console.log(`[Orchestrator] No classification for email ${emailId.substring(0, 8)}... - classifying now`);
 
         // Get attachment filenames and PDF content for classification
         const { data: attachments } = await this.supabase
           .from('raw_attachments')
-          .select('filename, extracted_text')
+          .select('id, filename, extracted_text')
           .eq('email_id', emailId);
 
         const attachmentFilenames = attachments?.map(a => a.filename).filter(Boolean) || [];
@@ -294,8 +323,13 @@ export class EmailProcessingOrchestrator {
         // Log parallel classification results
         console.log(`[Orchestrator] Classified - Document: ${documentType} (${classificationConfidence}%), Email Type: ${classificationResult.emailType} (${classificationResult.emailTypeConfidence}%), Sentiment: ${classificationResult.sentiment}${classificationResult.isUrgent ? ' [URGENT]' : ''}`);
 
-        // Save classification to database
-        await this.saveClassificationResult(emailId, classificationResult);
+        // Save classification to database (legacy + new parallel tables)
+        await this.saveClassificationResult(emailId, classificationResult, {
+          threadId: email.thread_id,
+          receivedAt: email.received_at,
+          hasAttachments: email.has_attachments,
+          attachments: attachments?.map(a => ({ id: a.id, filename: a.filename })) || [],
+        });
 
         // Check minimum confidence for processing
         if (classificationConfidence < MINIMUM_CONFIDENCE_FOR_PROCESSING) {
@@ -396,7 +430,7 @@ export class EmailProcessingOrchestrator {
         const result = await this.linkToExistingShipment(
           emailId,
           extractedData,
-          documentType,
+          documentType ?? undefined,
           classificationResult,
           email.subject
         );
@@ -405,7 +439,7 @@ export class EmailProcessingOrchestrator {
 
       // 7. Extract and link stakeholders (shipper_id, consignee_id)
       if (shipmentId && extractedData) {
-        await this.extractAndLinkStakeholders(shipmentId, extractedData, documentType);
+        await this.extractAndLinkStakeholders(shipmentId, extractedData, documentType ?? undefined);
       }
 
       // 8. Create document lifecycle record
@@ -903,11 +937,12 @@ export class EmailProcessingOrchestrator {
     classificationResult?: ClassificationOutput,
     emailSubject?: string
   ): Promise<void> {
-    // Use ShipmentDocumentRepository (handles idempotent upsert)
-    await this.shipmentDocumentRepository.create({
+    // Use EmailShipmentLinkRepository for email-level linking (split architecture)
+    await this.emailShipmentLinkRepository.upsert({
       email_id: emailId,
       shipment_id: shipmentId,
-      document_type: documentType,
+      link_method: 'orchestrator',
+      link_source: 'email_processing',
     });
 
     // Auto-transition workflow state
@@ -1066,11 +1101,12 @@ export class EmailProcessingOrchestrator {
     classificationResult?: ClassificationOutput,
     emailSubject?: string
   ): Promise<{ shipmentId?: string }> {
-    // Try multiple identifier types: booking → MBL → HBL → container
+    // Thread-aware linking: Uses thread authority for RE:/FW: emails
+    // This prevents cross-linking where quoted content has different booking numbers
     let shipment: { id: string } | null = null;
     let matchedBy: string | null = null;
 
-    // 1. Try booking number first (from extraction)
+    // 1. Try direct booking number first (for booking confirmations with extracted data)
     if (data.booking_number) {
       const { data: match } = await this.supabase
         .from('shipments')
@@ -1079,71 +1115,24 @@ export class EmailProcessingOrchestrator {
         .single();
       if (match) {
         shipment = match;
-        matchedBy = `booking:${data.booking_number}`;
+        matchedBy = `direct:booking=${data.booking_number}`;
       }
     }
 
-    // 2. If no match, get entities from NEW email_extractions table
+    // 2. Use thread-aware identifier resolution (handles RE:/FW: correctly)
+    // For reply/forward emails, this uses the thread authority's identifier
+    // For original emails, this uses the email's own extraction
     if (!shipment) {
-      const { data: entities } = await this.supabase
-        .from('email_extractions')
-        .select('entity_type, entity_value')
-        .eq('email_id', emailId);
+      const identifierResult = await this.threadSummaryService.getIdentifierForLinking(emailId);
 
-      if (entities && entities.length > 0) {
-        // Try MBL/BL number
-        const blEntities = entities.filter(e =>
-          e.entity_type === 'mbl_number' || e.entity_type === 'bl_number'
+      if (identifierResult) {
+        const found = await this.findShipmentByIdentifier(
+          identifierResult.identifier_type,
+          identifierResult.identifier_value
         );
-        for (const e of blEntities) {
-          if (!e.entity_value) continue;
-          const { data: match } = await this.supabase
-            .from('shipments')
-            .select('id')
-            .eq('mbl_number', e.entity_value.toUpperCase())
-            .single();
-          if (match) {
-            shipment = match;
-            matchedBy = `mbl:${e.entity_value}`;
-            break;
-          }
-        }
-
-        // Try HBL number
-        if (!shipment) {
-          const hblEntities = entities.filter(e => e.entity_type === 'hbl_number');
-          for (const e of hblEntities) {
-            if (!e.entity_value) continue;
-            const { data: match } = await this.supabase
-              .from('shipments')
-              .select('id')
-              .eq('hbl_number', e.entity_value.toUpperCase())
-              .single();
-            if (match) {
-              shipment = match;
-              matchedBy = `hbl:${e.entity_value}`;
-              break;
-            }
-          }
-        }
-
-        // Try container number
-        if (!shipment) {
-          const containerEntities = entities.filter(e => e.entity_type === 'container_number');
-          for (const e of containerEntities) {
-            if (!e.entity_value) continue;
-            // Check container_numbers array
-            const { data: match } = await this.supabase
-              .from('shipments')
-              .select('id')
-              .contains('container_numbers', [e.entity_value.toUpperCase()])
-              .limit(1);
-            if (match && match.length > 0) {
-              shipment = match[0];
-              matchedBy = `container:${e.entity_value}`;
-              break;
-            }
-          }
+        if (found) {
+          shipment = found;
+          matchedBy = `${identifierResult.source}:${identifierResult.identifier_type}=${identifierResult.identifier_value}`;
         }
       }
     }
@@ -1219,6 +1208,53 @@ export class EmailProcessingOrchestrator {
   }
 
   /**
+   * Find shipment by any identifier type (booking, BL, container)
+   * Used by thread-aware linking to match shipments
+   */
+  private async findShipmentByIdentifier(
+    identifierType: string,
+    identifierValue: string
+  ): Promise<{ id: string } | null> {
+    switch (identifierType) {
+      case 'booking_number': {
+        const { data } = await this.supabase
+          .from('shipments')
+          .select('id')
+          .eq('booking_number', identifierValue)
+          .single();
+        return data;
+      }
+      case 'bl_number':
+      case 'mbl_number': {
+        const { data } = await this.supabase
+          .from('shipments')
+          .select('id')
+          .eq('mbl_number', identifierValue.toUpperCase())
+          .single();
+        return data;
+      }
+      case 'hbl_number': {
+        const { data } = await this.supabase
+          .from('shipments')
+          .select('id')
+          .eq('hbl_number', identifierValue.toUpperCase())
+          .single();
+        return data;
+      }
+      case 'container_number': {
+        const { data } = await this.supabase
+          .from('shipments')
+          .select('id')
+          .contains('container_numbers', [identifierValue.toUpperCase()])
+          .limit(1);
+        return data?.[0] || null;
+      }
+      default:
+        return null;
+    }
+  }
+
+  /**
    * Create orphan document for emails that don't have a matching shipment
    * These documents can be linked later when the shipment is created via backfill
    *
@@ -1233,14 +1269,19 @@ export class EmailProcessingOrchestrator {
     data: ExtractedBookingData
   ): Promise<void> {
     try {
-      // Use ShipmentDocumentRepository for orphan document creation (handles idempotency)
-      await this.shipmentDocumentRepository.createOrphan({
-        emailId,
-        documentType,
-        bookingNumberExtracted: data.booking_number,
+      // Use EmailShipmentLinkRepository for orphan document creation (split architecture)
+      // Orphan = email link with null shipment_id, can be linked later by backfill service
+      await this.emailShipmentLinkRepository.upsert({
+        email_id: emailId,
+        shipment_id: null,
+        link_method: 'orphan',
+        link_source: 'email_processing',
+        link_identifier_type: data.booking_number ? 'booking_number' : undefined,
+        link_identifier_value: data.booking_number,
+        status: 'orphan',
       });
 
-      console.log(`[Orchestrator] Created orphan document: ${documentType} (booking: ${data.booking_number || 'none'})`);
+      console.log(`[Orchestrator] Created orphan email link: ${documentType} (booking: ${data.booking_number || 'none'})`);
     } catch (error) {
       // Don't fail the process, just log
       console.error(`[Orchestrator] Failed to create orphan document for ${emailId}:`, error instanceof Error ? error.message : 'Unknown error');
@@ -1360,51 +1401,112 @@ export class EmailProcessingOrchestrator {
 
   /**
    * Save classification result to database.
-   * Stores both document type and email type classification (parallel system).
+   *
+   * PARALLEL CLASSIFICATION ARCHITECTURE:
+   * - email_classifications: One per email (ALWAYS) - tracks sender intent
+   * - attachment_classifications: One per attachment (when exists) - tracks document type from PDF
+   * - linking_id: Shared UUID when email has attachments
    */
   private async saveClassificationResult(
     emailId: string,
-    result: ClassificationOutput
+    result: ClassificationOutput,
+    emailContext: {
+      threadId: string | null;
+      receivedAt: string;
+      hasAttachments: boolean;
+      attachments: Array<{ id: string; filename: string }>;
+    }
   ): Promise<void> {
-    // Build metadata for classification record
-    const metadata: Record<string, unknown> = {
-      // Document classification details
-      documentMethod: result.documentMethod,
-      documentSource: result.documentSource,
-      documentMatchedMarkers: result.documentMatchedMarkers,
-      documentMatchedPattern: result.documentMatchedPattern,
+    // Generate linking_id only when email has attachments
+    const linkingId = emailContext.hasAttachments ? uuidv4() : null;
 
-      // Email type classification (parallel)
-      emailType: result.emailType,
-      emailCategory: result.emailCategory,
-      emailTypeConfidence: result.emailTypeConfidence,
-      emailMatchedPatterns: result.emailMatchedPatterns,
+    // Determine is_original based on thread context (not just is_response flag)
+    const isOriginal = !result.threadContext.isReply && !result.threadContext.isForward;
 
-      // Sender & direction
-      senderCategory: result.senderCategory,
-      direction: result.direction,
-      trueSender: result.trueSender,
-      directionConfidence: result.directionConfidence,
+    // Determine classification source based on is_original
+    const classificationSource = isOriginal ? 'subject+content' : 'content';
 
-      // Thread context
-      isThreadReply: result.isThreadReply,
-      threadDepth: result.threadContext.threadDepth,
-      isForward: result.threadContext.isForward,
+    // Determine classification status
+    const classificationStatus = result.emailTypeConfidence >= 70 ? 'classified' :
+      result.emailTypeConfidence >= 50 ? 'low_confidence' : 'unclassified';
 
-      // Workflow state
-      documentWorkflowState: result.documentWorkflowState,
-    };
+    // 1. ALWAYS save to email_classifications (one per email)
+    try {
+      await this.emailClassificationRepository.upsert({
+        email_id: emailId,
+        thread_id: emailContext.threadId,
+        linking_id: linkingId,
+        email_type: result.emailType,
+        email_category: result.emailCategory,
+        sender_category: result.senderCategory,
+        sentiment: result.sentiment,
+        is_original: isOriginal,
+        classification_source: classificationSource,
+        classification_status: classificationStatus,
+        confidence: result.emailTypeConfidence / 100, // Convert to 0-1 scale
+        email_workflow_state: result.documentWorkflowState, // TODO: Add separate email workflow state
+        received_at: emailContext.receivedAt,
+      });
+    } catch (error) {
+      console.error(`[Orchestrator] Failed to save email_classification for ${emailId}:`, error);
+    }
 
-    // Use ClassificationRepository for idempotent upsert
-    await this.classificationRepository.upsert({
-      email_id: emailId,
-      document_type: result.documentType as DocumentType,
-      confidence_score: result.documentConfidence,
-      classification_method: result.documentMethod,
-      classification_metadata: metadata,
-      needs_manual_review: result.needsManualReview,
-      created_at: new Date().toISOString(),
-    });
+    // 2. Save to attachment_classifications ONLY when attachments exist AND document classified from PDF
+    if (emailContext.hasAttachments && emailContext.attachments.length > 0) {
+      // Only save if document was classified from PDF content (not fallback)
+      const wasClassifiedFromContent = result.documentMethod === 'pdf_content';
+      const docClassificationStatus = wasClassifiedFromContent ?
+        (result.documentConfidence >= 70 ? 'classified' : 'low_confidence') :
+        'unclassified';
+
+      // Determine document category based on document type
+      const documentCategory = this.getDocumentCategory(result.documentType);
+
+      // Save classification for each attachment (in case of multiple)
+      for (const attachment of emailContext.attachments) {
+        try {
+          await this.attachmentClassificationRepository.upsert({
+            email_id: emailId,
+            attachment_id: attachment.id,
+            thread_id: emailContext.threadId,
+            linking_id: linkingId,
+            document_type: wasClassifiedFromContent ? result.documentType : null,
+            document_category: wasClassifiedFromContent ? documentCategory : null,
+            sender_category: result.senderCategory,
+            classification_method: 'content', // ENFORCED: Only content-based
+            classification_status: docClassificationStatus,
+            confidence: wasClassifiedFromContent ? result.documentConfidence / 100 : null,
+            matched_markers: result.documentMatchedMarkers ?
+              { markers: result.documentMatchedMarkers } : null,
+            document_workflow_state: wasClassifiedFromContent ? result.documentWorkflowState : null,
+            received_at: emailContext.receivedAt,
+          });
+        } catch (error) {
+          console.error(`[Orchestrator] Failed to save attachment_classification for ${attachment.id}:`, error);
+        }
+      }
+    }
+  }
+
+  /**
+   * Get document category based on document type.
+   */
+  private getDocumentCategory(documentType: string): string {
+    const workflowDocs = [
+      'booking_confirmation', 'booking_amendment', 'sob_confirmation',
+      'mbl', 'hbl', 'draft_mbl', 'draft_hbl',
+      'shipping_instruction', 'si_draft', 'si_confirmation',
+      'vgm_confirmation', 'arrival_notice', 'delivery_order',
+    ];
+    const commercialDocs = ['invoice', 'packing_list', 'purchase_order', 'commercial_invoice'];
+    const complianceDocs = ['certificate', 'permit', 'license', 'customs_declaration'];
+    const operationalDocs = ['work_order', 'gate_in_confirmation', 'container_release', 'empty_return'];
+
+    if (workflowDocs.includes(documentType)) return 'workflow';
+    if (commercialDocs.includes(documentType)) return 'commercial';
+    if (complianceDocs.includes(documentType)) return 'compliance';
+    if (operationalDocs.includes(documentType)) return 'operational';
+    return 'general';
   }
 
   /**

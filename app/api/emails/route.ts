@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
-import { EmailRepository } from '@/lib/repositories/email-repository'
-import { ClassificationRepository } from '@/lib/repositories/classification-repository'
-import { EntityRepository } from '@/lib/repositories/entity-repository'
+import {
+  EmailRepository,
+  EmailClassificationRepository,
+  AttachmentClassificationRepository,
+  EmailExtractionRepository,
+  AttachmentExtractionRepository,
+} from '@/lib/repositories'
 import { EmailIntelligenceService } from '@/lib/services/email-intelligence-service'
 import { EmailFilteringService } from '@/lib/services/email-filtering-service'
 import { withAuth } from '@/lib/auth/server-auth'
@@ -18,16 +22,20 @@ export const GET = withAuth(async (request, { user }) => {
   try {
     const supabase = createClient()
 
-    // Initialize repositories
+    // Initialize repositories (split architecture)
     const emailRepo = new EmailRepository(supabase)
-    const classificationRepo = new ClassificationRepository(supabase)
-    const entityRepo = new EntityRepository(supabase)
+    const emailClassificationRepo = new EmailClassificationRepository(supabase)
+    const attachmentClassificationRepo = new AttachmentClassificationRepository(supabase)
+    const emailExtractionRepo = new EmailExtractionRepository(supabase)
+    const attachmentExtractionRepo = new AttachmentExtractionRepository(supabase)
 
     // Initialize services
     const intelligenceService = new EmailIntelligenceService(
       emailRepo,
-      classificationRepo,
-      entityRepo
+      emailClassificationRepo,
+      attachmentClassificationRepo,
+      emailExtractionRepo,
+      attachmentExtractionRepo
     )
     const filteringService = new EmailFilteringService()
 

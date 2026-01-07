@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-import { ShipmentRepository } from '@/lib/repositories/shipment-repository';
-import { ShipmentDocumentRepository } from '@/lib/repositories/shipment-document-repository';
-import { ShipmentLinkCandidateRepository } from '@/lib/repositories/shipment-link-candidate-repository';
-import { EntityRepository } from '@/lib/repositories/entity-repository';
-import { ClassificationRepository } from '@/lib/repositories/classification-repository';
+import {
+  ShipmentRepository,
+  ShipmentLinkCandidateRepository,
+  EmailExtractionRepository,
+  AttachmentExtractionRepository,
+  EmailShipmentLinkRepository,
+  AttachmentShipmentLinkRepository,
+  EmailClassificationRepository,
+  AttachmentClassificationRepository,
+} from '@/lib/repositories';
 import { ShipmentLinkingService } from '@/lib/services/shipment-linking-service';
 import { WorkflowStateService } from '@/lib/services/workflow-state-service';
 import { EnhancedWorkflowStateService } from '@/lib/services/enhanced-workflow-state-service';
@@ -22,20 +27,27 @@ export const POST = withAuth(async (request, { user }) => {
   try {
     const supabase = createClient();
 
-    // Initialize repositories
+    // Initialize repositories (split architecture)
     const shipmentRepo = new ShipmentRepository(supabase);
-    const documentRepo = new ShipmentDocumentRepository(supabase);
     const linkCandidateRepo = new ShipmentLinkCandidateRepository(supabase);
-    const entityRepo = new EntityRepository(supabase);
-    const classificationRepo = new ClassificationRepository(supabase);
+    const emailExtractionRepo = new EmailExtractionRepository(supabase);
+    const attachmentExtractionRepo = new AttachmentExtractionRepository(supabase);
+    const emailLinkRepo = new EmailShipmentLinkRepository(supabase);
+    const attachmentLinkRepo = new AttachmentShipmentLinkRepository(supabase);
+    const emailClassificationRepo = new EmailClassificationRepository(supabase);
+    const attachmentClassificationRepo = new AttachmentClassificationRepository(supabase);
 
-    // Initialize linking service with classification repo for intelligent status
+    // Initialize linking service with split repositories
     const linkingService = new ShipmentLinkingService(
+      supabase,
       shipmentRepo,
-      documentRepo,
       linkCandidateRepo,
-      entityRepo,
-      classificationRepo
+      emailExtractionRepo,
+      attachmentExtractionRepo,
+      emailLinkRepo,
+      attachmentLinkRepo,
+      emailClassificationRepo,
+      attachmentClassificationRepo
     );
 
     // Wire up enhanced workflow service for dual-trigger transitions (document type + email type)

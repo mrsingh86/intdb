@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-import { ShipmentRepository } from '@/lib/repositories/shipment-repository';
-import { ShipmentDocumentRepository } from '@/lib/repositories/shipment-document-repository';
-import { ShipmentLinkCandidateRepository } from '@/lib/repositories/shipment-link-candidate-repository';
-import { EntityRepository } from '@/lib/repositories/entity-repository';
-import { EmailRepository } from '@/lib/repositories/email-repository';
-import { ClassificationRepository } from '@/lib/repositories/classification-repository';
+import {
+  ShipmentRepository,
+  ShipmentLinkCandidateRepository,
+  EmailRepository,
+  EmailExtractionRepository,
+  AttachmentExtractionRepository,
+  EmailShipmentLinkRepository,
+  AttachmentShipmentLinkRepository,
+  EmailClassificationRepository,
+  AttachmentClassificationRepository,
+} from '@/lib/repositories';
 import { ShipmentLinkingService } from '@/lib/services/shipment-linking-service';
 import { WorkflowStateService } from '@/lib/services/workflow-state-service';
 import { EnhancedWorkflowStateService } from '@/lib/services/enhanced-workflow-state-service';
@@ -22,21 +27,28 @@ export const POST = withAuth(async (request, { user }) => {
   try {
     const supabase = createClient();
 
-    // Initialize repositories
+    // Initialize repositories (split architecture)
     const shipmentRepo = new ShipmentRepository(supabase);
-    const documentRepo = new ShipmentDocumentRepository(supabase);
     const linkCandidateRepo = new ShipmentLinkCandidateRepository(supabase);
-    const entityRepo = new EntityRepository(supabase);
     const emailRepo = new EmailRepository(supabase);
-    const classificationRepo = new ClassificationRepository(supabase);
+    const emailExtractionRepo = new EmailExtractionRepository(supabase);
+    const attachmentExtractionRepo = new AttachmentExtractionRepository(supabase);
+    const emailLinkRepo = new EmailShipmentLinkRepository(supabase);
+    const attachmentLinkRepo = new AttachmentShipmentLinkRepository(supabase);
+    const emailClassificationRepo = new EmailClassificationRepository(supabase);
+    const attachmentClassificationRepo = new AttachmentClassificationRepository(supabase);
 
-    // Initialize linking service with classification repo for intelligent status
+    // Initialize linking service with split repositories
     const linkingService = new ShipmentLinkingService(
+      supabase,
       shipmentRepo,
-      documentRepo,
       linkCandidateRepo,
-      entityRepo,
-      classificationRepo
+      emailExtractionRepo,
+      attachmentExtractionRepo,
+      emailLinkRepo,
+      attachmentLinkRepo,
+      emailClassificationRepo,
+      attachmentClassificationRepo
     );
 
     // Wire up enhanced workflow service for dual-trigger transitions (document type + email type)
@@ -61,7 +73,7 @@ export const POST = withAuth(async (request, { user }) => {
     }
 
     // Process all unlinked emails
-    const result = await processAllEmails(linkingService, emailRepo, documentRepo);
+    const result = await processAllEmails(linkingService, emailRepo, emailLinkRepo);
 
     return NextResponse.json({
       success: true,
@@ -82,7 +94,7 @@ export const POST = withAuth(async (request, { user }) => {
 async function processAllEmails(
   linkingService: ShipmentLinkingService,
   emailRepo: EmailRepository,
-  documentRepo: ShipmentDocumentRepository
+  emailLinkRepo: EmailShipmentLinkRepository
 ) {
   // Fetch all emails (increased limit for full backfill)
   const emailResult = await emailRepo.findAll({}, { page: 1, limit: 5000 });
@@ -97,8 +109,8 @@ async function processAllEmails(
     if (!email.id) continue; // Skip emails without id
 
     // Check if already linked
-    const existingLink = await documentRepo.findByEmailId(email.id);
-    if (existingLink) {
+    const isLinked = await emailLinkRepo.isEmailLinked(email.id);
+    if (isLinked) {
       continue; // Skip already linked emails
     }
 

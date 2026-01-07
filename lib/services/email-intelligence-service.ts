@@ -8,11 +8,19 @@
  * - Deep Modules: Simple fetchEmailsWithIntelligence() hides complexity
  * - Separation of Concerns: Business logic separated from API/DB
  * - Single Responsibility: Only email intelligence aggregation
+ *
+ * Uses split architecture:
+ * - EmailClassificationRepository + AttachmentClassificationRepository
+ * - EmailExtractionRepository + AttachmentExtractionRepository
  */
 
 import { EmailRepository, EmailQueryFilters } from '../repositories/email-repository';
-import { ClassificationRepository } from '../repositories/classification-repository';
-import { EntityRepository } from '../repositories/entity-repository';
+import {
+  EmailClassificationRepository,
+  AttachmentClassificationRepository,
+  EmailExtractionRepository,
+  AttachmentExtractionRepository,
+} from '../repositories';
 import { EmailWithIntelligence, DocumentClassification, EntityExtraction } from '@/types/email-intelligence';
 import { PaginationOptions, PaginatedResult } from '../types/repository-filters';
 
@@ -25,8 +33,10 @@ export interface EmailIntelligenceFilters extends EmailQueryFilters {
 export class EmailIntelligenceService {
   constructor(
     private readonly emailRepo: EmailRepository,
-    private readonly classificationRepo: ClassificationRepository,
-    private readonly entityRepo: EntityRepository
+    private readonly emailClassificationRepo: EmailClassificationRepository,
+    private readonly attachmentClassificationRepo: AttachmentClassificationRepository,
+    private readonly emailExtractionRepo: EmailExtractionRepository,
+    private readonly attachmentExtractionRepo: AttachmentExtractionRepository
   ) {}
 
   /**
@@ -55,12 +65,20 @@ export class EmailIntelligenceService {
       };
     }
 
-    // Step 2: Fetch related data in parallel
+    // Step 2: Fetch related data in parallel from split repositories
     const emailIds = emailResult.data.map(e => e.id).filter((id): id is string => !!id);
-    const [classifications, entities] = await Promise.all([
-      this.classificationRepo.findByEmailIds(emailIds),
-      this.entityRepo.findByEmailIds(emailIds),
+    const [emailClassifications, attachmentClassifications, emailExtractions, attachmentExtractions] = await Promise.all([
+      this.emailClassificationRepo.findByEmailIds(emailIds),
+      this.attachmentClassificationRepo.findByEmailIds(emailIds),
+      this.emailExtractionRepo.findByEmailIds(emailIds),
+      this.attachmentExtractionRepo.findByEmailIds(emailIds),
     ]);
+
+    // Merge classifications: prefer email classification, fall back to attachment
+    const classifications: DocumentClassification[] = this.mergeClassifications(emailClassifications, attachmentClassifications);
+
+    // Merge extractions from both sources
+    const entities: EntityExtraction[] = this.mergeExtractions(emailExtractions, attachmentExtractions);
 
     // Step 3: Group by email_id for efficient lookup
     const classificationsByEmail = this.groupClassificationsByEmailId(classifications);
@@ -104,5 +122,78 @@ export class EmailIntelligenceService {
       map.set(e.email_id, existing);
     });
     return map;
+  }
+
+  /**
+   * Merge classifications from email and attachment classification repos
+   * Prefers attachment classification (has document_type); falls back to email classification
+   */
+  private mergeClassifications(
+    emailClassifications: any[],
+    attachmentClassifications: any[]
+  ): DocumentClassification[] {
+    const merged = new Map<string, DocumentClassification>();
+
+    // Add attachment classifications first (they have document_type from PDF content)
+    for (const ac of attachmentClassifications) {
+      merged.set(ac.email_id, {
+        id: ac.id,
+        email_id: ac.email_id,
+        document_type: ac.document_type || 'unknown',
+        confidence_score: ac.confidence || 0,
+        classification_reason: ac.classification_status || '',
+        classified_at: ac.classified_at || ac.created_at,
+        model_name: ac.classification_method || 'content',
+        is_manual_review: false,
+        created_at: ac.created_at || new Date().toISOString(),
+      });
+    }
+
+    // Add email classifications for emails without attachment classification
+    // Email classifications have email_type, not document_type
+    for (const ec of emailClassifications) {
+      if (!merged.has(ec.email_id)) {
+        merged.set(ec.email_id, {
+          id: ec.id,
+          email_id: ec.email_id,
+          // Map email_type to document_type for compatibility
+          document_type: ec.email_type || 'unknown',
+          confidence_score: ec.confidence || 0,
+          classification_reason: ec.classification_status || '',
+          classified_at: ec.classified_at || ec.created_at,
+          model_name: ec.classification_source || 'email',
+          is_manual_review: false,
+          created_at: ec.created_at || new Date().toISOString(),
+        });
+      }
+    }
+
+    return Array.from(merged.values());
+  }
+
+  /**
+   * Merge extractions from email and attachment extraction repos
+   * Combines all extractions into unified EntityExtraction format
+   */
+  private mergeExtractions(
+    emailExtractions: any[],
+    attachmentExtractions: any[]
+  ): EntityExtraction[] {
+    const mapToEntityExtraction = (e: any): EntityExtraction => ({
+      id: e.id,
+      email_id: e.email_id,
+      entity_type: e.entity_type,
+      entity_value: e.entity_value,
+      confidence_score: e.confidence_score || 0,
+      extraction_method: e.extraction_method || 'unknown',
+      is_verified: e.is_correct ?? false,
+      created_at: e.created_at || e.extracted_at || new Date().toISOString(),
+      context_snippet: e.context_snippet,
+    });
+
+    return [
+      ...emailExtractions.map(mapToEntityExtraction),
+      ...attachmentExtractions.map(mapToEntityExtraction),
+    ];
   }
 }

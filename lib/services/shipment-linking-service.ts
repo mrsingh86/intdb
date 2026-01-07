@@ -12,10 +12,17 @@
  */
 
 import { ShipmentRepository } from '../repositories/shipment-repository';
-import { ShipmentDocumentRepository } from '../repositories/shipment-document-repository';
 import { ShipmentLinkCandidateRepository } from '../repositories/shipment-link-candidate-repository';
-import { EntityRepository } from '../repositories/entity-repository';
-import { ClassificationRepository } from '../repositories/classification-repository';
+import {
+  EmailRepository,
+  EmailExtractionRepository,
+  AttachmentExtractionRepository,
+  EmailShipmentLinkRepository,
+  AttachmentShipmentLinkRepository,
+  EmailClassificationRepository,
+  AttachmentClassificationRepository,
+} from '../repositories';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { MilestoneTrackingService } from './milestone-tracking-service';
 import { WorkflowStateService } from './workflow-state-service';
 import { EnhancedWorkflowStateService, WorkflowTransitionInput } from './enhanced-workflow-state-service';
@@ -144,11 +151,15 @@ export class ShipmentLinkingService {
   private enhancedWorkflowService?: EnhancedWorkflowStateService;
 
   constructor(
+    private readonly supabase: SupabaseClient,
     private readonly shipmentRepo: ShipmentRepository,
-    private readonly documentRepo: ShipmentDocumentRepository,
     private readonly linkCandidateRepo: ShipmentLinkCandidateRepository,
-    private readonly entityRepo: EntityRepository,
-    private readonly classificationRepo?: ClassificationRepository,
+    private readonly emailExtractionRepo: EmailExtractionRepository,
+    private readonly attachmentExtractionRepo: AttachmentExtractionRepository,
+    private readonly emailLinkRepo: EmailShipmentLinkRepository,
+    private readonly attachmentLinkRepo: AttachmentShipmentLinkRepository,
+    private readonly emailClassificationRepo?: EmailClassificationRepository,
+    private readonly attachmentClassificationRepo?: AttachmentClassificationRepository,
     private readonly config: LinkingConfig = DEFAULT_LINKING_CONFIG
   ) {}
 
@@ -174,6 +185,129 @@ export class ShipmentLinkingService {
    */
   setEnhancedWorkflowService(service: EnhancedWorkflowStateService): void {
     this.enhancedWorkflowService = service;
+  }
+
+  /**
+   * Helper: Get all extractions for an email (combines email + attachment extractions)
+   * Maps to EntityExtraction interface for backward compatibility
+   */
+  private async getAllExtractionsForEmail(emailId: string): Promise<EntityExtraction[]> {
+    const [emailExtractions, attachmentExtractions] = await Promise.all([
+      this.emailExtractionRepo.findByEmailId(emailId),
+      this.attachmentExtractionRepo.findByEmailId(emailId),
+    ]);
+
+    // Map to EntityExtraction format (use normalized value if available)
+    const mapToEntityExtraction = (e: any): EntityExtraction => ({
+      id: e.id,
+      email_id: e.email_id || emailId,
+      entity_type: e.entity_type as EntityType,
+      entity_value: e.entity_normalized || e.entity_value,
+      confidence_score: e.confidence_score || 0,
+      extraction_method: e.extraction_method || 'unknown',
+      is_verified: e.is_correct ?? false,
+      created_at: e.created_at || e.extracted_at || new Date().toISOString(),
+    });
+
+    return [
+      ...emailExtractions.map(mapToEntityExtraction),
+      ...attachmentExtractions.map(mapToEntityExtraction),
+    ];
+  }
+
+  /**
+   * Helper: Get classification for an email (checks both email and attachment classifications)
+   * Email classifications have email_type, attachment classifications have document_type
+   */
+  private async getClassificationForEmail(emailId: string): Promise<{ document_type?: string } | null> {
+    // Check attachment classifications first (they have actual document_type from PDF)
+    if (this.attachmentClassificationRepo) {
+      const attachClasses = await this.attachmentClassificationRepo.findByEmailId(emailId);
+      if (attachClasses.length > 0 && attachClasses[0].document_type) {
+        return { document_type: attachClasses[0].document_type };
+      }
+    }
+    // Fall back to email classification (use email_type as document_type)
+    if (this.emailClassificationRepo) {
+      const emailClass = await this.emailClassificationRepo.findByEmailId(emailId);
+      if (emailClass?.email_type) {
+        return { document_type: emailClass.email_type };
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Helper: Get email metadata by ID from raw_emails
+   */
+  private async getEmailById(emailId: string): Promise<{
+    sender_email?: string;
+    true_sender_email?: string;
+    received_at?: string;
+  } | null> {
+    const { data } = await this.supabase
+      .from('raw_emails')
+      .select('sender_email, true_sender_email, received_at')
+      .eq('id', emailId)
+      .single();
+    return data;
+  }
+
+  /**
+   * Helper: Find emails that have identifier entities
+   */
+  private async findEmailsWithIdentifiers(limit: number, offset: number): Promise<{ email_id: string }[]> {
+    const identifierTypes = ['booking_number', 'bl_number', 'container_number'];
+
+    const { data } = await this.supabase
+      .from('email_extractions')
+      .select('email_id')
+      .in('entity_type', identifierTypes)
+      .not('entity_value', 'is', null)
+      .range(offset, offset + limit - 1);
+
+    const uniqueEmailIds = [...new Set((data || []).map((e: any) => e.email_id))];
+    return uniqueEmailIds.map(email_id => ({ email_id }));
+  }
+
+  /**
+   * Helper: Create email-shipment link
+   */
+  private async createEmailShipmentLink(params: {
+    shipment_id: string;
+    email_id: string;
+    classification_id?: string;
+    document_type: string;
+    link_confidence_score: number;
+    link_method: string;
+    matched_booking_number?: string | null;
+    matched_bl_number?: string | null;
+    matched_container_number?: string | null;
+  }): Promise<void> {
+    await this.emailLinkRepo.upsert({
+      email_id: params.email_id,
+      shipment_id: params.shipment_id,
+      link_method: params.link_method,
+      link_confidence_score: params.link_confidence_score,
+      link_identifier_type: params.matched_booking_number ? 'booking_number' :
+                           params.matched_bl_number ? 'bl_number' :
+                           params.matched_container_number ? 'container_number' : undefined,
+      link_identifier_value: params.matched_booking_number || params.matched_bl_number || params.matched_container_number || undefined,
+    });
+  }
+
+  /**
+   * Helper: Find documents by shipment ID
+   */
+  private async findDocumentsByShipmentId(shipmentId: string): Promise<any[]> {
+    return this.emailLinkRepo.findByShipmentId(shipmentId);
+  }
+
+  /**
+   * Helper: Check if email is already linked
+   */
+  private async isEmailLinked(emailId: string): Promise<boolean> {
+    return this.emailLinkRepo.isEmailLinked(emailId);
   }
 
   /**
@@ -239,7 +373,7 @@ export class ShipmentLinkingService {
    * Extract linking keys from entity extractions
    */
   private async extractLinkingKeys(emailId: string): Promise<LinkingKeys> {
-    const entities = await this.entityRepo.findByEmailId(emailId);
+    const entities = await this.getAllExtractionsForEmail(emailId);
 
     return {
       booking_numbers: this.extractByType(entities, 'booking_number'),
@@ -267,7 +401,7 @@ export class ShipmentLinkingService {
     emailId: string,
     existingStatus?: ShipmentStatus
   ): Promise<Partial<Shipment>> {
-    const entities = await this.entityRepo.findByEmailId(emailId);
+    const entities = await this.getAllExtractionsForEmail(emailId);
 
     const findEntity = (type: string) => entities.find(e => e.entity_type === type)?.entity_value;
 
@@ -282,9 +416,9 @@ export class ShipmentLinkingService {
 
     // Get document type from classification for status determination
     let documentType: DocumentType | undefined;
-    if (this.classificationRepo) {
-      const classification = await this.classificationRepo.findByEmailId(emailId);
-      documentType = classification?.document_type;
+    const classification = await this.getClassificationForEmail(emailId);
+    if (classification) {
+      documentType = classification.document_type as DocumentType;
     }
 
     // Determine status based on document type and dates
@@ -564,7 +698,7 @@ export class ShipmentLinkingService {
     classificationId?: string
   ): Promise<LinkingResult> {
     // Get email and shipment data for confidence calculation
-    const email = await this.entityRepo.getEmailById(emailId);
+    const email = await this.getEmailById(emailId);
     let shipment: Shipment | null = null;
     try {
       shipment = await this.shipmentRepo.findById(shipmentId);
@@ -574,11 +708,9 @@ export class ShipmentLinkingService {
 
     // Get document type from classification
     let documentType: DocumentType = 'booking_confirmation';
-    if (classificationId && this.classificationRepo) {
-      const classification = await this.classificationRepo.findByEmailId(emailId);
-      if (classification?.document_type) {
-        documentType = classification.document_type;
-      }
+    const classification = await this.getClassificationForEmail(emailId);
+    if (classification?.document_type) {
+      documentType = classification.document_type as DocumentType;
     }
 
     // Calculate confidence with sophisticated calculator
@@ -591,7 +723,7 @@ export class ShipmentLinkingService {
 
     // High confidence: Auto-link
     if (confidence >= this.config.auto_link_threshold) {
-      await this.documentRepo.create({
+      await this.createEmailShipmentLink({
         shipment_id: shipmentId,
         email_id: emailId,
         classification_id: classificationId,
@@ -820,13 +952,13 @@ export class ShipmentLinkingService {
     offset: number
   ): Promise<{ id: string }[]> {
     // Get emails with entity extractions that have identifiers
-    const emails = await this.entityRepo.findEmailsWithIdentifiers(limit, offset);
+    const emails = await this.findEmailsWithIdentifiers(limit, offset);
 
     // Filter out already linked emails
     const unlinked: { id: string }[] = [];
     for (const email of emails) {
-      const existingLink = await this.documentRepo.findByEmailId(email.email_id);
-      if (!existingLink) {
+      const isLinked = await this.isEmailLinked(email.email_id);
+      if (!isLinked) {
         unlinked.push({ id: email.email_id });
       }
     }
@@ -846,7 +978,7 @@ export class ShipmentLinkingService {
     const shipment = await this.shipmentRepo.findById(shipmentId);
 
     // Get all linked documents for this shipment
-    const documents = await this.documentRepo.findByShipmentId(shipmentId);
+    const documents = await this.findDocumentsByShipmentId(shipmentId);
     if (documents.length === 0) {
       return { updated: false, updatedFields: [] };
     }
@@ -856,7 +988,7 @@ export class ShipmentLinkingService {
     const updatedFields: string[] = [];
 
     for (const doc of documents) {
-      const entities = await this.entityRepo.findByEmailId(doc.email_id);
+      const entities = await this.getAllExtractionsForEmail(doc.email_id);
 
       // Helper to set field if currently empty
       const setIfEmpty = (
@@ -926,14 +1058,13 @@ export class ShipmentLinkingService {
       setIfEmpty('freight_terms', 'freight_terms');
 
       // Get document type for status determination
-      if (this.classificationRepo) {
-        const classification = await this.classificationRepo.findByEmailId(doc.email_id);
-        if (classification?.document_type) {
+      const classification = await this.getClassificationForEmail(doc.email_id);
+      if (classification?.document_type) {
           // Determine status from document type and dates
           const effectiveEtd = (updates.etd || shipment.etd) as string | null;
           const effectiveEta = (updates.eta || shipment.eta) as string | null;
           const newStatus = determineShipmentStatus(
-            classification.document_type,
+            classification.document_type as DocumentType,
             effectiveEtd,
             effectiveEta,
             shipment.status as ShipmentStatus
@@ -951,7 +1082,6 @@ export class ShipmentLinkingService {
             }
           }
         }
-      }
     }
 
     // If no status update from documents, try date-based fallback
@@ -1060,36 +1190,54 @@ export class ShipmentLinkingService {
     emailId: string
   ): Promise<void> {
     // Try enhanced workflow service first (preferred - dual-trigger support)
-    if (this.enhancedWorkflowService && this.classificationRepo) {
+    if (this.enhancedWorkflowService) {
       try {
-        // Get classification with metadata from database
-        const classification = await this.classificationRepo.findByEmailId(emailId);
+        // Get document type from classification (prefer attachment, fall back to email)
+        let effectiveDocumentType = documentType;
+        let emailType: EmailType = 'unknown';
+        let senderCategory: SenderCategory = 'unknown';
 
-        if (classification?.classification_metadata) {
-          const metadata = classification.classification_metadata as Record<string, unknown>;
-
-          // Build transition input from stored classification
-          const transitionInput: WorkflowTransitionInput = {
-            shipmentId,
-            documentType: classification.document_type || documentType,
-            emailType: (metadata.emailType as EmailType) || 'general_notification',
-            direction: (metadata.direction as 'inbound' | 'outbound') || 'inbound',
-            senderCategory: (metadata.senderCategory as SenderCategory) || 'unknown',
-            emailId,
-            subject: '', // Not needed for transition logic
-          };
-
-          const result = await this.enhancedWorkflowService.transitionFromClassification(transitionInput);
-
-          if (result.success) {
-            console.log(
-              `[Workflow] Enhanced: ${shipmentId}: ${result.previousState || 'none'} -> ${result.newState} (triggered by: ${result.triggeredBy})`
-            );
-          } else if (result.skippedReason) {
-            console.log(`[Workflow] Skipped for ${shipmentId}: ${result.skippedReason}`);
+        // Try attachment classification first (has document_type)
+        if (this.attachmentClassificationRepo) {
+          const attachClasses = await this.attachmentClassificationRepo.findByEmailId(emailId);
+          if (attachClasses.length > 0 && attachClasses[0].document_type) {
+            effectiveDocumentType = attachClasses[0].document_type;
+            senderCategory = (attachClasses[0].sender_category as SenderCategory) || 'unknown';
           }
-          return;
         }
+
+        // Get email classification for email_type
+        if (this.emailClassificationRepo) {
+          const emailClass = await this.emailClassificationRepo.findByEmailId(emailId);
+          if (emailClass) {
+            emailType = (emailClass.email_type as EmailType) || 'general_notification';
+            if (!senderCategory || senderCategory === 'unknown') {
+              senderCategory = (emailClass.sender_category as SenderCategory) || 'unknown';
+            }
+          }
+        }
+
+        // Build transition input
+        const transitionInput: WorkflowTransitionInput = {
+          shipmentId,
+          documentType: effectiveDocumentType,
+          emailType,
+          direction: 'inbound', // Default to inbound
+          senderCategory,
+          emailId,
+          subject: '', // Not needed for transition logic
+        };
+
+        const result = await this.enhancedWorkflowService.transitionFromClassification(transitionInput);
+
+        if (result.success) {
+          console.log(
+            `[Workflow] Enhanced: ${shipmentId}: ${result.previousState || 'none'} -> ${result.newState} (triggered by: ${result.triggeredBy})`
+          );
+        } else if (result.skippedReason) {
+          console.log(`[Workflow] Skipped for ${shipmentId}: ${result.skippedReason}`);
+        }
+        return;
       } catch (error) {
         // Fall through to legacy service
         console.warn(`[Workflow] Enhanced service failed, falling back to legacy:`, error);
@@ -1127,7 +1275,7 @@ export class ShipmentLinkingService {
   ): Promise<void> {
     try {
       // Get entities for this email
-      const entities = await this.entityRepo.findByEmailId(emailId);
+      const entities = await this.getAllExtractionsForEmail(emailId);
 
       // Get current shipment to check which fields are empty
       const shipment = await this.shipmentRepo.findById(shipmentId);

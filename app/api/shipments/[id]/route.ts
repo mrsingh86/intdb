@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-import { ShipmentRepository } from '@/lib/repositories/shipment-repository';
-import { ShipmentDocumentRepository } from '@/lib/repositories/shipment-document-repository';
+import { ShipmentRepository, EmailShipmentLinkRepository } from '@/lib/repositories';
 import { withAuth } from '@/lib/auth/server-auth';
 import { detectOutboundActions } from '@/lib/services/outbound-action-detector';
 
@@ -17,12 +16,12 @@ export const GET = withAuth(async (request, { user, params }) => {
     const { id } = resolvedParams;
     const supabase = createClient();
     const shipmentRepo = new ShipmentRepository(supabase);
-    const documentRepo = new ShipmentDocumentRepository(supabase);
+    const emailLinkRepo = new EmailShipmentLinkRepository(supabase);
 
     // Fetch shipment and documents in parallel
     const [shipment, documents] = await Promise.all([
       shipmentRepo.findById(id),
-      documentRepo.findByShipmentIdWithClassification(id),
+      emailLinkRepo.findByShipmentIdWithClassification(id),
     ]);
 
     // Fetch stakeholders - try linked parties first, fallback to flat columns

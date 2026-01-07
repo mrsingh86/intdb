@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-import { ShipmentLinkCandidateRepository } from '@/lib/repositories/shipment-link-candidate-repository';
-import { ShipmentDocumentRepository } from '@/lib/repositories/shipment-document-repository';
-import { ShipmentRepository } from '@/lib/repositories/shipment-repository';
-import { ClassificationRepository } from '@/lib/repositories/classification-repository';
+import {
+  ShipmentLinkCandidateRepository,
+  ShipmentRepository,
+  EmailShipmentLinkRepository,
+  EmailClassificationRepository,
+  AttachmentClassificationRepository,
+} from '@/lib/repositories';
 import { WorkflowStateService } from '@/lib/services/workflow-state-service';
 import { withAuth } from '@/lib/auth/server-auth';
 import { ShipmentStatus } from '@/types/shipment';
@@ -92,9 +95,10 @@ export const POST = withAuth(async (request, { user }) => {
   try {
     const supabase = createClient();
     const candidateRepo = new ShipmentLinkCandidateRepository(supabase);
-    const documentRepo = new ShipmentDocumentRepository(supabase);
+    const emailLinkRepo = new EmailShipmentLinkRepository(supabase);
     const shipmentRepo = new ShipmentRepository(supabase);
-    const classificationRepo = new ClassificationRepository(supabase);
+    const emailClassificationRepo = new EmailClassificationRepository(supabase);
+    const attachmentClassificationRepo = new AttachmentClassificationRepository(supabase);
 
     const body = await request.json();
     const { candidate_id, user_id, action, reason } = body;
@@ -117,18 +121,24 @@ export const POST = withAuth(async (request, { user }) => {
       return NextResponse.json({ error: 'Candidate not found' }, { status: 404 });
     }
 
-    // 2. Get document type from classification
+    // 2. Get document type from classification (check attachments first for actual document_type)
     let documentType: DocumentType = 'booking_confirmation';
-    const classification = await classificationRepo.findByEmailId(candidate.email_id);
-    if (classification?.document_type) {
-      documentType = classification.document_type as DocumentType;
+    // Attachment classifications have document_type from PDF content
+    const attachmentClassifications = await attachmentClassificationRepo.findByEmailId(candidate.email_id);
+    if (attachmentClassifications.length > 0 && attachmentClassifications[0].document_type) {
+      documentType = attachmentClassifications[0].document_type as DocumentType;
+    } else {
+      // Fall back to email classification (use email_type as document_type)
+      const emailClassification = await emailClassificationRepo.findByEmailId(candidate.email_id);
+      if (emailClassification?.email_type) {
+        documentType = emailClassification.email_type as DocumentType;
+      }
     }
 
-    // 3. Create shipment_document record
-    await documentRepo.create({
+    // 3. Create email-shipment link record
+    await emailLinkRepo.upsert({
       shipment_id: candidate.shipment_id,
       email_id: candidate.email_id,
-      document_type: documentType,
       link_confidence_score: candidate.confidence_score,
       link_method: 'manual',
     });
