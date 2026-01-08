@@ -20,6 +20,7 @@
 import { NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { google, gmail_v1 } from 'googleapis';
+import { detectDirection } from '@/lib/utils/direction-detector';
 
 // Configuration
 const MAX_EMAILS_PER_RUN = 50;
@@ -415,6 +416,10 @@ async function processEmail(
   const allAttachments = emailData.payload ? findAttachments(emailData.payload) : [];
   const hasAttachments = allAttachments.length > 0;
 
+  // Detect email direction (inbound/outbound) based on sender
+  const senderEmail = getHeader('From');
+  const emailDirection = detectDirection(senderEmail, subject);
+
   // Store email
   const { data: newEmail, error: insertError } = await supabase
     .from('raw_emails')
@@ -422,7 +427,7 @@ async function processEmail(
       gmail_message_id: messageId,
       thread_id: emailData.threadId,
       subject: subject,
-      sender_email: getHeader('From'),
+      sender_email: senderEmail,
       body_text: bodyText || emailData.snippet || '',
       body_html: bodyHtml,
       snippet: emailData.snippet || '',
@@ -432,6 +437,7 @@ async function processEmail(
       is_response: isResponse || !!inReplyTo,
       in_reply_to_message_id: inReplyTo || null,
       clean_subject: cleanSubject,
+      email_direction: emailDirection,
     })
     .select()
     .single();
