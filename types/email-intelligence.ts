@@ -158,16 +158,25 @@ export type DocumentType =
 export type EntityType =
   | 'booking_number'
   | 'bl_number'
+  | 'mbl_number'
+  | 'hbl_number'
   | 'vessel_name'
   | 'voyage_number'
   | 'port_of_loading'
+  | 'port_of_loading_code'
   | 'port_of_discharge'
+  | 'port_of_discharge_code'
+  | 'place_of_receipt'
+  | 'place_of_delivery'
   | 'etd'
   | 'eta'
   | 'container_number'
   | 'carrier'
   | 'shipper'
+  | 'shipper_name'
   | 'consignee'
+  | 'consignee_name'
+  | 'notify_party'
   | 'commodity'
   | 'weight'
   | 'volume'
@@ -176,12 +185,16 @@ export type EntityType =
   | 'amount'
   | 'currency'
   | 'reference_number'
-  | 'seal_number'
-  // Cutoff dates (Phase 1 enhancement)
+  | 'entry_number'
+  // Cutoff dates
   | 'si_cutoff'
   | 'vgm_cutoff'
   | 'cargo_cutoff'
   | 'gate_cutoff'
+  | 'doc_cutoff'
+  | 'seal_number'
+
+export type ExtractionMethod = 'ai' | 'ai_comprehensive' | 'regex' | 'regex_subject' | 'manual';
 
 export interface EntityExtraction {
   id: string
@@ -189,7 +202,7 @@ export interface EntityExtraction {
   entity_type: EntityType
   entity_value: string
   confidence_score: number
-  extraction_method: 'ai' | 'regex' | 'manual'
+  extraction_method: ExtractionMethod
   position_in_text?: number
   context_snippet?: string
   is_verified: boolean

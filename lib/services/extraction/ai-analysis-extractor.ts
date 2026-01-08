@@ -55,6 +55,20 @@ export interface AIAnalysisInput {
   senderEmail: string;
   senderCategory?: string;
   documentType?: string;
+  // Extracted entities for context-aware analysis
+  entities?: {
+    booking_number?: string | null;
+    bl_number?: string | null;
+    container_numbers?: string[];
+    vessel_name?: string | null;
+    voyage_number?: string | null;
+    etd?: string | null;
+    eta?: string | null;
+    pol?: string | null;
+    pod?: string | null;
+    shipper?: string | null;
+    consignee?: string | null;
+  };
 }
 
 // ============================================================================
@@ -110,9 +124,13 @@ export class AIAnalysisExtractor {
       ? `This email is from a ${input.senderCategory} regarding ${input.documentType || 'shipping matters'}.`
       : '';
 
+    // Build entity context if available
+    const entityContext = this.buildEntityContext(input.entities);
+
     return `Analyze this shipping/logistics email and extract the following information.
 
 ${context}
+${entityContext}
 
 SUBJECT: ${input.subject}
 
@@ -156,7 +174,56 @@ Focus on:
 - Summary: What is the main point of this email?
 - Actions: What needs to happen next?
 
+IMPORTANT: If booking numbers, BL numbers, or container numbers are provided above, reference them specifically in your summary and action items. For example: "Submit SI for BKG 12345678" instead of just "Submit SI".
+
 Return ONLY the JSON, no other text.`;
+  }
+
+  /**
+   * Build entity context string for the prompt.
+   */
+  private buildEntityContext(entities?: AIAnalysisInput['entities']): string {
+    if (!entities) return '';
+
+    const parts: string[] = [];
+
+    if (entities.booking_number) {
+      parts.push(`Booking Number: ${entities.booking_number}`);
+    }
+    if (entities.bl_number) {
+      parts.push(`BL Number: ${entities.bl_number}`);
+    }
+    if (entities.container_numbers && entities.container_numbers.length > 0) {
+      parts.push(`Container(s): ${entities.container_numbers.slice(0, 5).join(', ')}`);
+    }
+    if (entities.vessel_name) {
+      parts.push(`Vessel: ${entities.vessel_name}${entities.voyage_number ? ` / ${entities.voyage_number}` : ''}`);
+    }
+    if (entities.etd) {
+      parts.push(`ETD: ${entities.etd}`);
+    }
+    if (entities.eta) {
+      parts.push(`ETA: ${entities.eta}`);
+    }
+    if (entities.pol) {
+      parts.push(`Port of Loading: ${entities.pol}`);
+    }
+    if (entities.pod) {
+      parts.push(`Port of Discharge: ${entities.pod}`);
+    }
+    if (entities.shipper) {
+      parts.push(`Shipper: ${entities.shipper}`);
+    }
+    if (entities.consignee) {
+      parts.push(`Consignee: ${entities.consignee}`);
+    }
+
+    if (parts.length === 0) return '';
+
+    return `
+EXTRACTED SHIPMENT DATA (use these specific identifiers in your response):
+${parts.map(p => `  - ${p}`).join('\n')}
+`;
   }
 
   /**

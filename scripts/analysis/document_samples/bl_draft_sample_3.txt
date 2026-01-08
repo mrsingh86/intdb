@@ -1,0 +1,99 @@
+FILENAME: 3173-DRAFT.pdf
+CATEGORY: bl_draft
+========================================
+
+BILL OF LADING
+PH: +91 161 660 5300
+Bill/Lading Number
+HIGHWAY ROOP INDUSTRIES LTD.  
+(Formerly known as Highway Industries Limited) G.T.ROAD,  
+Village Nandpur, SAHNEWAL, LUDHIANA- STATE : PUNJAB-
+141120 INDIA 
+TEL.: 0161-6605300 
+CIN NO. U00000PB1971PLC003012 
+EMAIL. parminder.singh@highwayroop.com 
+SE1225003173
+EXPRESS
+EXPRESS BILL OF LADING
+DANA DRIVESHAFT MANUFACTURING LLC 
+777 BIBLE RD LIMA LIMA MI 
+45801 UNITED STATES 
+SOLO WORLD PARTNERS LLC     
+13725 PENNSYLVANIA RD MI 
+48193   
+RIVERVIEW MI UNITED STATES
+NAGOYA EXPRESS / 5152 (Main)
+MUNDRA, INDIA
+RAIL (OnForwarding)
+NORFOLK, UNITED STATESDETROIT, UNITED STATESLUDHIANA, INDIA0 (ZERO)
+CONTAINER NO.: HLBU2158957 /40 1 x 40HC CONTAINER                                          9632.28 KG           
+                               19 Package(s)                                                                    
+L.SEAL NO.: HLG6002865         NINTEEN PACKAGES ONLY                                                            
+C.SEAL NO.: BOLT51950526                                                                                        
+                               19 Packages ( 1596 PCS ) M.V. PARTS                                              
+                                                                                                                
+DESTINATION AGENT :            1-6 MIDSHIP TUBE SHAFT 6.5-53-171  - 504  PCS                                    
+INTOGLO TECHNOLOGIES INC.      7-19 MIDSHIP TUBE SHAFT 5023770 - 1092  PCS                                      
+4047 LONG AVE TRACY, CA 95377                                                                                   
+EMAIL - NAM@INTOGLO.COM;       HSN : 87089900                                                                   
+OPS@INTOGLO.COM                INVOICE NO : 2603400158 DT 20.DEC.2025                                           
+PH - 9176727299                BUYER ORDER NO : 1001482 DT 19-JUL-2022                                          
+                                S/BILL NO : 8130494 DATE - 23-DEC-2025                                          
+                               SCAC : CHSL                                                                      
+                               IEC : 1288012357                                                                 
+                               NET WEIGHT : 8884.680 KGS                                                        
+                                                                                                                
+                               Notify Party address 2                                                           
+                               Dana Limited                                                                     
+                               3939 Technology Drive                                                            
+                               Maumee ,Ohio 43537                                                               
+                                                                                                                
+                               FREIGHT PREPAID                                                                  
+Consol Ref: CSE1225002798*Shipper Load and Count
+INCOTERM: DAPSHIPPED ON BOARD  
+Continuation Page Follows...
+Bill of Lading must be surrendered to:
+MUNDRA, INDIA
+AS CARRIER
+LUDHIANA, INDIADETROIT, UNITED STATES
+ONE CONTAINER(S)
+LAW AND JURISDICTION CLAUSE
+The Contract evidenced by or contained in this Bill of Lading shall be governed by the law in 
+India and any claim or dispute arising hereunder or in connection herewith shall (without 
+prejudice to the Carrier's rights to commence proceedings in any other jurisdiction) be subject to 
+the jurisdiction of the Courts of India.
+The Merchant's attention is called to the fact that according to Clauses 10, 11 and 12 
+of this Bill of Lading, the liability of the Carrier is, in most cases, limited in the respect 
+of loss of or damage to the goods and delay.
+HBoL-ITC 
+DRAFT
+
+DRAFT
+
+CONTINUATION PAGEBILL OF LADING - SE1225003173
+ConsignorConsignee
+HIGHWAY ROOP INDUSTRIES LTD.  
+(Formerly known as Highway Industries Limited) 
+G.T.ROAD,  Village Nandpur, SAHNEWAL, LUDHIANA- 
+STATE : PUNJAB-141120 INDIA 
+TEL.: 0161-6605300 
+CIN NO. U00000PB1971PLC003012 
+EMAIL. parminder.singh@highwayroop.com 
+DANA DRIVESHAFT MANUFACTURING LLC 
+777 BIBLE RD LIMA LIMA MI 
+45801 UNITED STATES 
+Notify Party
+Goods Collected FromETD31-Dec-25
+SOLO WORLD PARTNERS LLC     
+13725 PENNSYLVANIA RD MI 
+48193   
+RIVERVIEW MI UNITED STATES
+LUDHIANA, INDIA
+Goods Delivered ToETA11-Feb-26
+DETROIT, UNITED STATES
+Gross WeightVolume
+9632.28 KG
+Phone: 
+Package Quantity
+Fax: 19 PKG (OUTER)
+DRAFT

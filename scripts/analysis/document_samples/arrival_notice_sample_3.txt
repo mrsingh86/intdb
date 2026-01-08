@@ -1,0 +1,183 @@
+FILENAME: ARR_AMC2459902.pdf
+CATEGORY: arrival_notice
+========================================
+
+
+
+VESSEL:
+OPERATIONAL DISCH. PORT:
+0XR9MW1MA
+APL FLORIDA
+NHAVA SHEVA
+NORFOLK, VA
+CHICAGO, IL
+INTOGLO PVT LTD
+PLOT 72 B 2 106
+INTOGLO TECHNOLOGIES INC.
+4047 LONG AVE, TRACY, CA 95377
+CONTAINER  # SEAL  #SIZE/TYPEPIECE QTY & TYPE WEIGHTMEASURE
+CMAU9684151M072531540HC2429PACKAGE(52873 1766.00
+PLEASE NOTE :
+4047 LONG AVE, TRACY, CA 95377
+UNITED STATES
+NAM@INTOGLO.COM
+OPS@INTOGLO.COM
+INTOGLO TECHNOLOGIES INC.
+.
+The Last Free Day at Ramp provides rail last free date for rail storage, which is payable by the merchant, to the rail provider per the
+rail provider's tariff. Equipment Demurrage charges incurred are payable to CMA CGM and do not include rail storage. Merchant 
+Haulage standard and specialized rail equipment demurrage free time is 3 working days (including day of interchange).
+.
+Did you know that Arrival Notices, Customs information, ETA, Invoices, Container Tracking, Notifications etc. can easily be obtained on
+our user-friendly eBusiness website? You can also submit online payment for quick release. Online payments are processed within two 
+hours. For more information, please visit our website www.cma-cgm.com.
+.
+Please note that demurrage will accrue at the expiration of Free Time in accordance with the CMA-CGM Tariff.
+.
+OPERATIONAL LOAD PORT:
+PLACE OF DELIVERY:
+POD ETA:VOYAGE:
+DEST.CARG MODE:
+SHIPPERNOTIFY
+CONSIGNEE
+FREE BUSINESS
+DAYS AT PORT
+LAST FREE
+DAY AT RAMP
+MILAN VIHAR APARTMENTS PATPARGANJ
+INDRAPRASTHA EXTENSION
+NEW DELHI -110092 INDIA
+UNITED STATES
+NAM@INTOGLO.COM
+OPS@INTOGLO.COM
+Ramp
+PICKUP  #
+12/24/20256555
+12/18/2025
+SCACB/L #BILL
+TYPE
+AMC2459902Waybill
+Please Pay freight against the master B/L shown below
+RELEASE DATE:
+12/22/2025
+LBS
+12/23/2025 03:11 AM
+CONTAINER                        NOTICE
+For ATA, please refer to the vessel schedule which can be found online at cma-cgm.com.Please note that the ETA (estimated time of arrival) 
+shown on this courtesy notice represents the arrival of the vessel at the pilot station, and does not indicate an ATA (actual time of arrival).
+INTOGLO TECHNOLOGIES INC.
+4047 LONG AVE, TRACY, CA 95377
+UNITED STATES
+NAM@INTOGLO.COM
+OPS@INTOGLO.COM
+SECOND NOTIFY
+FTQ
+DESTINATION:
+IT NUMBER:
+LOAD PICKUP POOL ADDRESS:
+EMPTY RETURN DEPOT:
+IT ISSUED DATE:
+PLACE OF ISSUE:
+12/15/2025
+NORFOLK, VA
+CHICAGO, IL
+VA922653509
+NS - LANDERS
+ 
+AVAILABLE
+SE1125002923
+NVOCC/House bill info
+Please Check 
+https://apps.usa.cma-cgm.com/econtainer/
+ daily
+PAYMENT RECEIVED:
+YES
+OBL RECEIVED:
+YES
+CLEARANCE POINT:
+CHICAGO, IL
+PLACE OF RECEIPT:
+FIRMS CODE:
+I104
+CMDU
+FPD ETA:
+
+INTOGLO PVT LTD
+PLOT 72 B 2 106
+INTOGLO TECHNOLOGIES INC.
+4047 LONG AVE, TRACY, CA 95377
+PLEASE NOTE :
+4047 LONG AVE, TRACY, CA 95377
+UNITED STATES
+NAM@INTOGLO.COM
+OPS@INTOGLO.COM
+INTOGLO TECHNOLOGIES INC.
+Failure to provide all release requirements prior to cargo discharge or rail arrival may result in storage charges.
+.
+Delivery Order fax # 1 877 620 1896 or e-mail to ssc.deliveryorder@cma-cgm.com.   If this a CMA-CGM carrier controlled DOOR MOVE,  
+Please submit your Delivery Orders  upon receipt of this Arrival Notice.  Failure to provide this information timely may subject this 
+shipment to undue delays and storage charges.
+.
+THE PARTY TO WHOM THE DELIVERY ORDER HAS BEEN ISSUED SHALL BE ENTITLED TO TAKE DELIVERY OF THE CONTAINER(S) WHEN 
+THEY ARRIVE IN THE INDICATED PLACE FROM THE INTENDED VESSEL.
+IF THIS DELIVERY ORDER HAS BEEN ISSUED FOR SHIPMENTS COVERED BY WAYBILLS, THE CARRIER MAY WITHHOLD DELIVERY OF THE
+CONTAINER(S) WITHOUT PRIOR NOTICE TO THE RECEIVER.
+.
+STORE DOOR  - DROP & PICK  shipment, notification MUST be made via email to ssc.usemptsplit@cma-cgm.com.
+.
+Please note in the event that a chassis flip is required all costs associated will be billed to the account of the cargo.
+.
+When you provide a check as payment, you authorize us either to use information from your check to make a one-time electronic fund 
+transfer from your account or to process the payment as a check transaction.
+For Carrier Haulage Moves - Effective April 1, 2019 When, in the U.S. at motor carriers option, driver remains with container, one (1) 
+hour of free driver wait time will be provided. After expiration of 1 hour, the merchant will be billed $150 per hour or any part thereof. 
+Shipments moved by customer nominated motor carriers will be billed to the merchant as per the individual motor carrier tariff
+For electronic bank transfers remit to ABA # 021001088 ACH: 022000020
+DBA CMA-CGM Beneficiary: CMA CGM & ANL Securities BV
+HSBC Bank USA NA, 452 Fifth Ave, New York, NY, 10018, United States
+Account Number 000279331 CHECKS WILL NO LONGER BE ACCEPTED AFTER JUNE 30,2023.
+ARRIVALREMIT TO
+SHIPPERNOTIFY
+CONSIGNEE
+MILAN VIHAR APARTMENTS PATPARGANJ
+INDRAPRASTHA EXTENSION
+NEW DELHI -110092 INDIA
+UNITED STATES
+NAM@INTOGLO.COM
+OPS@INTOGLO.COM
+12/23/2025 03:11 AM
+CONTAINER                        NOTICE
+INTOGLO TECHNOLOGIES INC.
+4047 LONG AVE, TRACY, CA 95377
+UNITED STATES
+NAM@INTOGLO.COM
+OPS@INTOGLO.COM
+SECOND NOTIFY
+You may also send wire transfers as per 
+below bank details:
+AVAILABLE
+Please contact customer service for further information:
+Tel: 1-877-556-6308 East & West coast discharge ports
+"All carriers must have a valid equipment interchange
+agreement with CMA-CGM under UIIA.  If needing to
+confirm please contact 757-961-2103"
+.
+BENEFICIARY: CMACGM & ANL
+SECURITIES BV
+HSBC BANK USA, N.A.
+452 FIFTH AVENUE
+NEW YORK, NY 10018
+ABA/ROUTING WIRE#: 021001088
+ACH: 022000020
+ACCT #: 000279331
+23502
+CMA CGM (AMERICA) LLC
+ONE CMA CGM WAY
+NORFOLK, VA
+UNITED STATES
+
+═══════════════════════════════════════
+EXTRACTED KEY FIELDS (CMA-CGM)
+═══════════════════════════════════════
+Voyage: DEST
+Consignee: FREE BUSINESS, MILAN VIHAR APARTMENTS PATPARGANJ

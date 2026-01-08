@@ -1,0 +1,192 @@
+FILENAME: 7501 - 04212257.pdf
+CATEGORY: entry_summary
+========================================
+
+
+
+
+DEPARTMENT OF HOMELAND SECURITY
+U.S. Customs and Border Protection
+ENTRY SUMMARY
+OMB APPROVAL NO. 1651-0022
+EXPIRATION DATE 03/31/2025
+ 1. Filer Code/Entry No. 2. Entry Type 3. Summary Date
+ 4. Surety No. 5. Bond Type 6. Port Code 7. Entry Date
+ 8. Importing Carrier 9. Mode of Transport 10. Country of Origin 11. Import Date
+ 15. Export Date 14. Exporting Country 12. B/L or AWB No. 13. Manufacturer ID
+ 20. U.S. Port of Unlading
+ 24. Reference No
+ 19. Foreign Port of Lading
+ 23. Importer No.
+ 16. I.T. No.
+ 21. Location of Goods/G.O. No.
+ 17. I.T. date 18. Missing Docs
+ 22. Consignee No.
+ 25. Ultimate Consignee Name and Address 26. Importer of Record Name and Address
+ City StateZip City StateZip
+9JW  042122570112/11/2025
+85681703
+ONE MAGNIFICENCE11IN11/28/2025
+ONEYLUHF08594300INRESAUT15LUDIN10/16/2025
+622001703
+CONTAINER PORT BERTHS 1-520-352782000233307-03417
+MARATHON  SYSTEMS INC
+125 OLD MILL RD
+CARTERSVILLE-301204101
+GA, UNITED STATES OF AMERICA
+CARTERSVILLEGA301204101
+RESILIENT AUTO BRAKES PRIVATE L
+PLOT NO 15, GT ROAD
+LUDHIANA-141120
+,
+LUDHIANA141120
+ 28. Description of Merchandise 27.
+ Line
+No.
+ 29. 30. 31.
+A. HTSUS No.
+B. ADA/CVD No.
+A. Gross Weight
+B. Manifest Qty.
+Net Quantity in
+HTSUS Units
+ 32.
+ A. Entered Value
+ B. CHGS
+ C. Relationship
+ 33.
+ A. HTSUS Rate
+ B. ADA/CVD Rate
+ C. IRC Rate
+ D. Visa No.
+ 34.
+ Duty and I.R.  Tax
+DollarsCents
+1
+LUDSE0297
+40
+ADDTL BL'S:
+PKG
+Invoice No.
+INWF LUDSE0297
+99030133
+99030187
+99037408
+99039406
+8708305090
+INV
+NDC/DC
+EV
+BRAKE SHOE
+INRESAUT15LUD
+23716
+23716.24
+0.0
+23716
+C  99
+Not Related
+FREE
+FREE
+25.0 %
+FREE
+2.5 %
+Merchandise Process. Fee
+Harbor Maintenance Fee
+0.0
+0.0
+5929.06
+0.0
+592.91
+0.3464%$ 82.15
+0.125%$ 29.65
+3360.0NO
+18570.06
+ 36.DECLARATION OF IMPORTER OF RECORD (OWNER
+ OR PURCHASER) OR AUTHORIZED AGENT
+ D. Ascertained Other
+ E. Anscertained Total
+ 39. Other
+ 40. Total
+ I declare that I am the
+purchaser, or consignee for CBP purposes is as shown above,
+ Importer of record and that the actual owner
+ owner
+or purchaser or agent thereof. I further declare that the merchandise was obtained pursuant to a purchase or agreement to purchase and that the
+prices set forth in the invoices are true, was not obtained pursuant to a purchase or agreement to purchase and the statements in the invoices as
+to value or price are true to the best of my knowledge and belief.I also declare that the statements in the documents herein filed fully disclose to the best
+of my knowledge and belief the true prices, values, quantities, rebates, drawbacks, fees, commissions, and royalties and are true and correct, and that all
+goods or services provided to the seller of the merchandise either free or at reduced cost are fully disclosed.
+I will immediately furnish to the appropriate CBP officer any information showing a different statement of facts.
+ 41. DECLARANT NAMETITLE
+SIGNATURE
+DATE
+42. Broker/Filer Information (Name, address, phone number) 43. Broker/Importer File No
+  Other Fee Summary for Block 39 35. Total Entered Value
+  CBP USE ONLY
+ TOTALS
+ Total Other Fees
+ A. LIQ CODE
+ B. Ascertained Duty
+ C. Ascertained Tax
+ 37. Duty
+ 38. Tax
+ REASON CODE
+MPF499165.1
+HMF50159.58
+$ 47662.00
+$ 224.68
+$ 13107.12
+$ 0.00
+$ 224.68
+$ 13331.80
+12/11/2025
+ATTORNEY-IN-FACTJametha Joe Young
+OR
+OR
+The Artemus Group LLC
+ 207 Business Park Drive Suite 204
+ Virginia Beach VA 23462 1-866-744-7101
+CBP Form 7501 (5/22)
+ 9JW  04212257
+
+
+2
+99030133
+99030187
+99037408
+99039406
+8708305090
+INV
+NDC/DC
+EV
+BRAKE SHOE
+INRESAUT15LUD
+23946
+23945.98
+0.0
+23946
+C  100
+Not Related
+FREE
+FREE
+25.0 %
+FREE
+2.5 %
+Merchandise Process. Fee
+Harbor Maintenance Fee
+0.0
+0.0
+5986.5
+0.0
+598.65
+0.3464%$ 82.95
+0.125%$ 29.93
+3360.0NO
+18749.95
+CBP Form 7501 (5/22)
+
+═══════════════════════════════════════
+EXTRACTED KEY FIELDS (UNKNOWN)
+═══════════════════════════════════════
+Consignee: Name and Address 26. Importer of Record Name and Address, for CBP purposes is as shown above,
+Amount: 39.

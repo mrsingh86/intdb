@@ -83,4 +83,40 @@ export class ClassificationRepository {
 
     return data;
   }
+
+  /**
+   * Upsert classification (create or update by email_id)
+   * Idempotent: safe to call multiple times for same email
+   */
+  async upsert(classification: Partial<DocumentClassification>): Promise<DocumentClassification> {
+    if (!classification.email_id) {
+      throw new Error('email_id is required for upsert');
+    }
+
+    const { data, error } = await this.supabase
+      .from('document_classifications')
+      .upsert(classification, { onConflict: 'email_id' })
+      .select()
+      .single();
+
+    if (error || !data) {
+      throw new Error(`Failed to upsert classification: ${error?.message}`);
+    }
+
+    return data;
+  }
+
+  /**
+   * Delete classification by email ID
+   */
+  async deleteByEmailId(emailId: string): Promise<void> {
+    const { error } = await this.supabase
+      .from('document_classifications')
+      .delete()
+      .eq('email_id', emailId);
+
+    if (error) {
+      throw new Error(`Failed to delete classification: ${error.message}`);
+    }
+  }
 }

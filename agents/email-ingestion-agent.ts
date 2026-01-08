@@ -26,7 +26,7 @@ import {
   RawAttachment,
   CarrierConfig,
   ProcessingLog
-} from '../types/database.types';
+} from '../types/email-intelligence';
 import { EmailData, AttachmentData, GmailCredentials } from '../types/gmail.types';
 
 dotenv.config();

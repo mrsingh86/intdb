@@ -1,0 +1,2664 @@
+[
+  {
+    "documentType": "booking_confirmation",
+    "entitySchema": {
+      "documentType": "booking_confirmation",
+      "description": "Carrier confirmation of cargo booking with vessel/voyage details",
+      "expectedEntities": {
+        "critical": [
+          "booking_number",
+          "vessel_name",
+          "voyage_number"
+        ],
+        "important": [
+          "etd",
+          "eta",
+          "pol",
+          "pod",
+          "container_type",
+          "si_cutoff",
+          "vgm_cutoff"
+        ],
+        "optional": [
+          "cargo_cutoff",
+          "doc_cutoff",
+          "customer_reference",
+          "carrier"
+        ]
+      },
+      "subjectKeywords": [
+        "booking",
+        "confirmation",
+        "rate",
+        "HL-",
+        "BKG"
+      ],
+      "contentKeywords": [
+        "booking",
+        "vessel",
+        "voyage",
+        "ETD",
+        "ETA",
+        "cut-off",
+        "cutoff"
+      ]
+    },
+    "patterns": [
+      {
+        "entity": "booking_number",
+        "priority": "critical",
+        "subjectPatterns": [
+          {
+            "pattern": "Booking confirmation available – ([A-Z0-9]+)",
+            "examples": [
+              "CAD0850214"
+            ],
+            "confidence": 75
+          },
+          {
+            "pattern": "Booking Confirmation : (\\d+)",
+            "examples": [
+              "262826166",
+              "263825123",
+              "263455422"
+            ],
+            "confidence": 90
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "booking has been confirmed",
+            "examples": [
+              "your booking has been confirmed"
+            ],
+            "confidence": 50
+          }
+        ]
+      },
+      {
+        "entity": "pol",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "([A-Z]{5}) to [A-Z]{5}",
+            "examples": [
+              "INSW1"
+            ],
+            "confidence": 75
+          }
+        ],
+        "bodyPatterns": []
+      },
+      {
+        "entity": "pod",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "[A-Z]{5} to ([A-Z]{5})",
+            "examples": [
+              "USATL"
+            ],
+            "confidence": 75
+          }
+        ],
+        "bodyPatterns": []
+      },
+      {
+        "entity": "voyage_number",
+        "priority": "critical",
+        "subjectPatterns": [
+          {
+            "pattern": "([A-Z0-9]{9})_[A-Z]{5}_[A-Z]{5}",
+            "examples": [
+              "0INLPW1MA"
+            ],
+            "confidence": 75
+          }
+        ],
+        "bodyPatterns": []
+      },
+      {
+        "entity": "carrier",
+        "priority": "optional",
+        "subjectPatterns": [
+          {
+            "pattern": "CMA CGM",
+            "examples": [
+              "CMA CGM"
+            ],
+            "confidence": 75
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "Hapag-Lloyd AG",
+            "examples": [
+              "Hapag-Lloyd AG"
+            ],
+            "confidence": 75
+          },
+          {
+            "pattern": "CMA CGM",
+            "examples": [
+              "CMA CGM"
+            ],
+            "confidence": 75
+          }
+        ]
+      },
+      {
+        "entity": "customer_reference",
+        "priority": "optional",
+        "subjectPatterns": [
+          {
+            "pattern": "Your rate confirmation ([A-Z0-9_]+)",
+            "examples": [
+              "V251200659486_INMUN_USDET"
+            ],
+            "confidence": 75
+          }
+        ],
+        "bodyPatterns": []
+      }
+    ],
+    "validationStats": {
+      "samplesAnalyzed": 10,
+      "validSamples": 5,
+      "invalidSamples": 5,
+      "invalidReasons": [
+        "HL-14089549 USNYC PANORA",
+        "HL-25823956 MAPTM GOKUL",
+        "HL-30260275 USNYC PEARL",
+        "HL-29982815 USNYC PEARL",
+        "MAERSK BOOKING 263636127"
+      ]
+    },
+    "overallConfidence": 45,
+    "notes": [
+      "Missing pattern for vessel_name (critical)",
+      "Missing patterns for etd, eta, container_type, si_cutoff, vgm_cutoff (important)",
+      "pol and pod only have subject patterns, need body patterns for reliability",
+      "voyage_number only has subject patterns, need body patterns",
+      "Critical entity vessel_name completely missing"
+    ]
+  },
+  {
+    "documentType": "arrival_notice",
+    "entitySchema": {
+      "documentType": "arrival_notice",
+      "description": "Notification that shipment has arrived or is arriving at destination",
+      "expectedEntities": {
+        "critical": [
+          "mbl_number",
+          "container_number",
+          "eta"
+        ],
+        "important": [
+          "hbl_number",
+          "ata",
+          "port_of_discharge",
+          "it_number",
+          "lfd"
+        ],
+        "optional": [
+          "consignee",
+          "notify_party",
+          "pickup_number",
+          "terminal"
+        ]
+      },
+      "subjectKeywords": [
+        "arrival",
+        "notice",
+        "AN",
+        "MBL",
+        "HBL",
+        "container"
+      ],
+      "contentKeywords": [
+        "arrival",
+        "ETA",
+        "ATA",
+        "discharge",
+        "terminal",
+        "IT#",
+        "LFD"
+      ]
+    },
+    "patterns": [
+      {
+        "entity": "mbl_number",
+        "priority": "critical",
+        "subjectPatterns": [
+          {
+            "pattern": "MBL#\\s*-\\s*([A-Z]{4}\\d{9})",
+            "examples": [
+              "MBL# - MAEU261751773"
+            ],
+            "confidence": 95
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "MBL #\\s*([A-Z]{4}\\d{9})",
+            "examples": [
+              "MBL # MAEU261751773"
+            ],
+            "confidence": 90
+          },
+          {
+            "pattern": "MBL Number.*?([A-Z]{4}\\d{9})",
+            "examples": [
+              "MBL Number / Container OOCL2038256270"
+            ],
+            "confidence": 85
+          }
+        ]
+      },
+      {
+        "entity": "container_number",
+        "priority": "critical",
+        "subjectPatterns": [
+          {
+            "pattern": "Container#\\s*-\\s*([A-Z]{4}\\d{7})",
+            "examples": [
+              "Container# - MRKU9970529"
+            ],
+            "confidence": 95
+          },
+          {
+            "pattern": "Container#\\s*([A-Z]{4}\\d{7})",
+            "examples": [
+              "Container# CSNU8995220"
+            ],
+            "confidence": 90
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "Container #\\s*([A-Z]{4}\\d{7})",
+            "examples": [
+              "Container # MRKU9970529",
+              "Container # CSNU8995220"
+            ],
+            "confidence": 95
+          },
+          {
+            "pattern": "Container.*?([A-Z]{4}\\d{7})",
+            "examples": [
+              "Container# CSNU8995220"
+            ],
+            "confidence": 85
+          }
+        ]
+      },
+      {
+        "entity": "eta",
+        "priority": "critical",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "ETA:\\s*(\\d{1,2}\\s+[A-Za-z]{3},?\\s+\\d{4})",
+            "examples": [
+              "ETA: 29 Dec, 2025"
+            ],
+            "confidence": 90
+          },
+          {
+            "pattern": "ETA to [A-Z]+\\s+is\\s+(\\d{1,2}\\s+[A-Za-z]{3})",
+            "examples": [
+              "ETA to SAVANNAH is 27 Dec"
+            ],
+            "confidence": 85
+          },
+          {
+            "pattern": "POD ETA.*?(\\d{1,2}-[A-Za-z]{3}-\\d{4})",
+            "examples": [
+              "POD ETA 3-Jan-2026"
+            ],
+            "confidence": 80
+          }
+        ]
+      },
+      {
+        "entity": "hbl_number",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "HBL#\\s*-\\s*([A-Z0-9]+)",
+            "examples": [
+              "HBL# - SWLLUD000344"
+            ],
+            "confidence": 95
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "HBL #\\s*([A-Z0-9]+)",
+            "examples": [
+              "HBL # SWLLUD000344"
+            ],
+            "confidence": 90
+          },
+          {
+            "pattern": "HBL Number\\s*([A-Z0-9]+)",
+            "examples": [
+              "HBL Number SE1125002980"
+            ],
+            "confidence": 85
+          }
+        ]
+      },
+      {
+        "entity": "port_of_discharge",
+        "priority": "important",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Port of Discharge\\s*([A-Za-z]+,\\s*[A-Z]{6})",
+            "examples": [
+              "Port of Discharge Newark, USEWR"
+            ],
+            "confidence": 90
+          },
+          {
+            "pattern": "ETA to ([A-Z]+)",
+            "examples": [
+              "ETA to SAVANNAH"
+            ],
+            "confidence": 75
+          }
+        ]
+      },
+      {
+        "entity": "lfd",
+        "priority": "important",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "LFD is (\\d{2}/\\d{2})",
+            "examples": [
+              "LFD is 08/01"
+            ],
+            "confidence": 95
+          }
+        ]
+      },
+      {
+        "entity": "consignee",
+        "priority": "optional",
+        "subjectPatterns": [
+          {
+            "pattern": "\\|\\s*([A-Z][A-Z\\s,\\.]+?)\\s*\\|",
+            "examples": [
+              "| NEO BRAKE SYSTEMS, INC. |"
+            ],
+            "confidence": 80
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "Dear ([A-Z][A-Z\\s,\\.]+?),",
+            "examples": [
+              "Dear NEO BRAKE SYSTEMS, INC.,"
+            ],
+            "confidence": 85
+          }
+        ]
+      },
+      {
+        "entity": "it_number",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "Deal Id:\\s*([A-Z0-9_]+)",
+            "examples": [
+              "Deal Id: SEINUS14112502693_I"
+            ],
+            "confidence": 90
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "Inlops ID\\s*([A-Z0-9_]+)",
+            "examples": [
+              "Inlops ID SEINUS14112502693_I"
+            ],
+            "confidence": 85
+          }
+        ]
+      }
+    ],
+    "validationStats": {
+      "samplesAnalyzed": 5,
+      "validSamples": 5,
+      "invalidSamples": 0,
+      "invalidReasons": []
+    },
+    "overallConfidence": 78,
+    "notes": [
+      "Missing ETA patterns in subject lines - critical entity only found in body",
+      "ATA patterns missing entirely - should be present for arrival notices",
+      "Vessel name patterns not discovered but commonly present in arrival notices"
+    ]
+  },
+  {
+    "documentType": "payment_receipt",
+    "entitySchema": {
+      "documentType": "payment_receipt",
+      "description": "Confirmation of payment received or payment transaction details",
+      "expectedEntities": {
+        "critical": [
+          "payment_amount",
+          "invoice_number"
+        ],
+        "important": [
+          "payment_date",
+          "transaction_id",
+          "payer_name"
+        ],
+        "optional": [
+          "bank_reference",
+          "currency",
+          "payment_method"
+        ]
+      },
+      "subjectKeywords": [
+        "payment",
+        "receipt",
+        "paid",
+        "received",
+        "remittance"
+      ],
+      "contentKeywords": [
+        "payment",
+        "paid",
+        "amount",
+        "received",
+        "transaction",
+        "bank"
+      ]
+    },
+    "patterns": [
+      {
+        "entity": "payment_amount",
+        "priority": "critical",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "\\$([0-9,]+\\.\\d{2})",
+            "examples": [
+              "$14.50",
+              "$12,645.00",
+              "$2,070.00"
+            ],
+            "confidence": 95
+          },
+          {
+            "pattern": "([0-9,]+\\.\\d{2})\\s+USD",
+            "examples": [
+              "48,865 USD"
+            ],
+            "confidence": 90
+          },
+          {
+            "pattern": "Amount\\s*\\n([0-9,]+\\.\\d{2})",
+            "examples": [
+              "Amount\n12,645.00",
+              "Amount\n2,070.00"
+            ],
+            "confidence": 85
+          }
+        ]
+      },
+      {
+        "entity": "invoice_number",
+        "priority": "critical",
+        "subjectPatterns": [
+          {
+            "pattern": "INV#\\s*(\\d{10})",
+            "examples": [
+              "INV# 7529780751"
+            ],
+            "confidence": 90
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "(\\d{10})\\s+[0-9,]+\\.\\d{2}",
+            "examples": [
+              "7540950441 12,645.00",
+              "7529780751 2,070.00"
+            ],
+            "confidence": 95
+          },
+          {
+            "pattern": "invoice\\s+\\((INV-\\d+)\\)",
+            "examples": [
+              "invoice (INV-2501958)"
+            ],
+            "confidence": 85
+          },
+          {
+            "pattern": "Maersk Invoice Number\\s*\\(10 digits\\)\\s*Amount\\s*(\\d{10})",
+            "examples": [
+              "7540950441",
+              "7529780751"
+            ],
+            "confidence": 90
+          }
+        ]
+      },
+      {
+        "entity": "payment_date",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "(\\d{1,2}\\.?\\s+\\w+\\s+\\d{4})",
+            "examples": [
+              "22. december 2025"
+            ],
+            "confidence": 80
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "Date:\\s+(\\d{2}-\\d{2}-\\d{2})",
+            "examples": [
+              "Date: 22-12-25"
+            ],
+            "confidence": 85
+          },
+          {
+            "pattern": "(\\d{2}\\w{3}\\d{4})\\s+statement",
+            "examples": [
+              "31Dec2025 statement"
+            ],
+            "confidence": 80
+          }
+        ]
+      },
+      {
+        "entity": "payer_name",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "(INTOGLO\\s+[A-Z\\s]+)\\s+\\(",
+            "examples": [
+              "INTOGLO PRIVATE LIMITED",
+              "INTOGLO TECHNOLOGIES INC"
+            ],
+            "confidence": 90
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "TO:\\s+([A-Z\\s]+)\\s+\\(",
+            "examples": [
+              "INTOGLO PRIVATE LIMITED"
+            ],
+            "confidence": 85
+          },
+          {
+            "pattern": "Dear\\s+([A-Z\\s]+),",
+            "examples": [
+              "MRIGANK SINGH"
+            ],
+            "confidence": 80
+          }
+        ]
+      },
+      {
+        "entity": "currency",
+        "priority": "optional",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "\\$[0-9,]+\\.\\d{2}",
+            "examples": [
+              "$14.50",
+              "$12,645.00"
+            ],
+            "confidence": 95
+          },
+          {
+            "pattern": "(USD)",
+            "examples": [
+              "USD"
+            ],
+            "confidence": 90
+          }
+        ]
+      },
+      {
+        "entity": "payment_method",
+        "priority": "optional",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "(credit card|check|wire|ACH transfer)",
+            "examples": [
+              "credit card",
+              "wire",
+              "ACH transfer"
+            ],
+            "confidence": 85
+          },
+          {
+            "pattern": "(wire transfers)",
+            "examples": [
+              "wire transfers"
+            ],
+            "confidence": 80
+          }
+        ]
+      }
+    ],
+    "validationStats": {
+      "samplesAnalyzed": 10,
+      "validSamples": 5,
+      "invalidSamples": 5,
+      "invalidReasons": [
+        "Guidelines for Collateral Support for Export Credi",
+        "Guidelines for Interest Subvention Support for Pre",
+        "Re: Statement of Account 22. december 2025- INTOGL",
+        "Re: SVC ~ 25-4659-12 REV1 INTOGLO PRIVATE LIMITED ",
+        "OOCL IB Demurrage LFD Advice For Bill Of Lading: 2"
+      ]
+    },
+    "overallConfidence": 70,
+    "notes": [
+      "Missing transaction_id patterns (important entity)",
+      "Payment amount has no subject patterns which is unusual for payment receipts",
+      "Sample subjects show statements rather than payment receipts - may indicate document type confusion"
+    ]
+  },
+  {
+    "documentType": "invoice",
+    "entitySchema": {
+      "documentType": "invoice",
+      "description": "Commercial or freight invoice requesting payment",
+      "expectedEntities": {
+        "critical": [
+          "invoice_number",
+          "total_amount"
+        ],
+        "important": [
+          "invoice_date",
+          "due_date",
+          "charges_breakdown"
+        ],
+        "optional": [
+          "booking_reference",
+          "container_number",
+          "currency",
+          "tax_amount"
+        ]
+      },
+      "subjectKeywords": [
+        "invoice",
+        "INV",
+        "bill",
+        "statement"
+      ],
+      "contentKeywords": [
+        "invoice",
+        "amount",
+        "charges",
+        "total",
+        "payment",
+        "due"
+      ]
+    },
+    "patterns": [
+      {
+        "entity": "invoice_number",
+        "priority": "critical",
+        "subjectPatterns": [
+          {
+            "pattern": "Invoice #\\s*([A-Z0-9|]+)",
+            "examples": [
+              "Invoice # 2610028928",
+              "INVOICE # EI|O1596"
+            ],
+            "confidence": 95
+          }
+        ],
+        "bodyPatterns": []
+      },
+      {
+        "entity": "total_amount",
+        "priority": "critical",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "BALANCE DUE\\$([0-9,]+\\.\\d{2})",
+            "examples": [
+              "BALANCE DUE$1421.08",
+              "BALANCE DUE$4730.58"
+            ],
+            "confidence": 100
+          },
+          {
+            "pattern": "\\$([0-9,]+\\.\\d{2})\\s+balance",
+            "examples": [
+              "$1421.08 balance",
+              "$4730.58 balance"
+            ],
+            "confidence": 100
+          }
+        ]
+      },
+      {
+        "entity": "due_date",
+        "priority": "important",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "due on (\\d{2}/\\d{2}/\\d{4})",
+            "examples": [
+              "due on 12/01/2025",
+              "due on 12/08/2025"
+            ],
+            "confidence": 100
+          }
+        ]
+      },
+      {
+        "entity": "booking_reference",
+        "priority": "optional",
+        "subjectPatterns": [
+          {
+            "pattern": "^(\\d{8})\\s*\\|",
+            "examples": [
+              "36729547 |"
+            ],
+            "confidence": 85
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "booking copy\\s+(\\d{9})",
+            "examples": [
+              "booking copy 263805268"
+            ],
+            "confidence": 90
+          }
+        ]
+      },
+      {
+        "entity": "currency",
+        "priority": "optional",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "freight as (USD)\\s+\\d+",
+            "examples": [
+              "freight as USD 2220"
+            ],
+            "confidence": 95
+          },
+          {
+            "pattern": "\\$(\\d+)",
+            "examples": [
+              "$1421.08",
+              "$4730.58"
+            ],
+            "confidence": 80
+          }
+        ]
+      }
+    ],
+    "validationStats": {
+      "samplesAnalyzed": 5,
+      "validSamples": 5,
+      "invalidSamples": 0,
+      "invalidReasons": []
+    },
+    "overallConfidence": 60,
+    "notes": [
+      "Missing body patterns for critical entity invoice_number",
+      "Missing patterns for critical entity invoice_date",
+      "Missing patterns for important entity charges_breakdown",
+      "All discovered patterns appear appropriate for freight invoices"
+    ]
+  },
+  {
+    "documentType": "shipping_instruction",
+    "entitySchema": {
+      "documentType": "shipping_instruction",
+      "description": "SI submission with shipper/consignee details for BL preparation",
+      "expectedEntities": {
+        "critical": [
+          "booking_number",
+          "shipper_name",
+          "consignee_name"
+        ],
+        "important": [
+          "bl_number",
+          "notify_party",
+          "vessel_name",
+          "container_number"
+        ],
+        "optional": [
+          "port_of_loading",
+          "port_of_discharge",
+          "cargo_description",
+          "hs_code"
+        ]
+      },
+      "subjectKeywords": [
+        "SI",
+        "shipping instruction",
+        "submitted",
+        "amendment"
+      ],
+      "contentKeywords": [
+        "shipper",
+        "consignee",
+        "notify",
+        "BL",
+        "booking",
+        "cargo"
+      ]
+    },
+    "patterns": [
+      {
+        "entity": "booking_number",
+        "priority": "critical",
+        "subjectPatterns": [
+          {
+            "pattern": "Sh#(\\d{8})",
+            "examples": [
+              "Sh#31028095"
+            ],
+            "confidence": 20
+          },
+          {
+            "pattern": "(\\d{9})",
+            "examples": [
+              "262874542",
+              "263375571",
+              "263368883"
+            ],
+            "confidence": 80
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "Booking No:?\\s*(\\d{8})",
+            "examples": [
+              "Booking No: 31028095"
+            ],
+            "confidence": 20
+          }
+        ]
+      },
+      {
+        "entity": "shipper_name",
+        "priority": "critical",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Shipper\\s*\\n([A-Z\\s]+(?:PRIVATE|LIMITED|INC\\.?|CORP\\.?))",
+            "examples": [
+              "INTOGLO PRIVATE LIMITED"
+            ],
+            "confidence": 20
+          }
+        ]
+      },
+      {
+        "entity": "consignee_name",
+        "priority": "critical",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Consignee\\s*\\n([A-Z\\s]+(?:INC\\.?|LIMITED|CORP\\.?))",
+            "examples": [
+              "INTOGLO TECHNOLOGIES INC."
+            ],
+            "confidence": 20
+          }
+        ]
+      },
+      {
+        "entity": "bl_number",
+        "priority": "important",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "BL Number:?\\s*([A-Z0-9]{15})",
+            "examples": [
+              "HLCUBO12512AXVS0"
+            ],
+            "confidence": 20
+          }
+        ]
+      },
+      {
+        "entity": "notify_party",
+        "priority": "important",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Notify Address\\s*\\n([A-Z\\s]+(?:INC\\.?|LIMITED|CORP\\.?))",
+            "examples": [
+              "INTOGLO TECHNOLOGIES INC."
+            ],
+            "confidence": 20
+          }
+        ]
+      },
+      {
+        "entity": "container_number",
+        "priority": "important",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Container No\\.\\s*\\n([A-Z]{4}\\d{7})",
+            "examples": [
+              "HLBU1442510"
+            ],
+            "confidence": 20
+          }
+        ]
+      },
+      {
+        "entity": "port_of_loading",
+        "priority": "optional",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Port of Loading\\s*\\n([A-Z]+)",
+            "examples": [
+              "MUNDRA"
+            ],
+            "confidence": 20
+          }
+        ]
+      },
+      {
+        "entity": "port_of_discharge",
+        "priority": "optional",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Port of Discharge\\s*\\n([A-Z,\\s]+)",
+            "examples": [
+              "SAVANNAH, GA"
+            ],
+            "confidence": 20
+          }
+        ]
+      },
+      {
+        "entity": "cargo_description",
+        "priority": "optional",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Cargo Description\\s*\\n([A-Z\\s\\-/]+(?:CONTAINING|ONLY)[^\\n]+)",
+            "examples": [
+              "FORTY FOUR PACKAGES ONLY CONTAINING OF FILTERS - OIL/AIR/FUEL"
+            ],
+            "confidence": 20
+          }
+        ]
+      },
+      {
+        "entity": "hs_code",
+        "priority": "optional",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "HS Code\\s*\\n(\\d{6})",
+            "examples": [
+              "842123"
+            ],
+            "confidence": 20
+          }
+        ]
+      }
+    ],
+    "validationStats": {
+      "samplesAnalyzed": 5,
+      "validSamples": 5,
+      "invalidSamples": 0,
+      "invalidReasons": []
+    },
+    "overallConfidence": 65,
+    "notes": [
+      "Missing pattern for vessel_name (critical entity)",
+      "All critical entities should have multiple patterns for reliability",
+      "shipper_name and consignee_name only have 1 body pattern each - insufficient for critical entities",
+      "booking_number has good coverage with subject patterns"
+    ]
+  },
+  {
+    "documentType": "bill_of_lading",
+    "entitySchema": {
+      "documentType": "bill_of_lading",
+      "description": "BL document or draft for review/approval",
+      "expectedEntities": {
+        "critical": [
+          "bl_number",
+          "shipper_name",
+          "consignee_name"
+        ],
+        "important": [
+          "vessel_name",
+          "voyage_number",
+          "container_number",
+          "pol",
+          "pod"
+        ],
+        "optional": [
+          "notify_party",
+          "cargo_description",
+          "weight",
+          "measurement"
+        ]
+      },
+      "subjectKeywords": [
+        "BL",
+        "B/L",
+        "bill of lading",
+        "draft",
+        "MBL",
+        "HBL"
+      ],
+      "contentKeywords": [
+        "shipper",
+        "consignee",
+        "vessel",
+        "voyage",
+        "container",
+        "cargo"
+      ]
+    },
+    "patterns": [
+      {
+        "entity": "bl_number",
+        "priority": "critical",
+        "subjectPatterns": [
+          {
+            "pattern": "HBL:\\s*([A-Z0-9]+)",
+            "examples": [
+              "HBL: SWLLUD000344",
+              "HBL: GLLIN0016786",
+              "HBL: LUDSE0313"
+            ],
+            "confidence": 95
+          },
+          {
+            "pattern": "Bill of lading\\s+([A-Z0-9]+)",
+            "examples": [
+              "Bill of lading HLCUBO12509AXQR4"
+            ],
+            "confidence": 90
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "HBL Number\\s+([A-Z0-9]+)",
+            "examples": [
+              "SWLLUD000344",
+              "GLLIN0016786",
+              "LUDSE0313"
+            ],
+            "confidence": 90
+          },
+          {
+            "pattern": "bill of lading\\s+([A-Z0-9]+)",
+            "examples": [
+              "bill of lading HLCUBO12509AXQR4"
+            ],
+            "confidence": 85
+          }
+        ]
+      },
+      {
+        "entity": "shipper_name",
+        "priority": "critical",
+        "subjectPatterns": [
+          {
+            "pattern": "Shipper\\s*-([^/]+?)\\s*//",
+            "examples": [
+              "Shipper -RESILIENT AUTO BRAKES PRIVATE LIMITED",
+              "Shipper -RESILIENT AUTOCOMP PVT.LTD"
+            ],
+            "confidence": 95
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "Shipper\\s+([A-Z\\s\\.]+?)\\s+\\d",
+            "examples": [
+              "RESILIENT AUTO BRAKES PRIVATE LIMITED",
+              "RESILIENT AUTOCOMP PVT.LTD"
+            ],
+            "confidence": 90
+          }
+        ]
+      },
+      {
+        "entity": "consignee_name",
+        "priority": "critical",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Delivery Address\\s+([^\\d]+?)\\s+\\d",
+            "examples": [
+              "Neo Brake Systems Inc.",
+              "Automann USA - GA",
+              "MARATHON SYSTEMS, INC."
+            ],
+            "confidence": 80
+          }
+        ]
+      },
+      {
+        "entity": "container_number",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "Container#\\s*([A-Z]{4}\\d{7})",
+            "examples": [
+              "Container# MRKU9970529",
+              "Container# CXDU1639050",
+              "Container# CSNU1111647"
+            ],
+            "confidence": 95
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "Container Number:\\s*([A-Z]{4}\\s*\\d{7})",
+            "examples": [
+              "Container Number: FANU 1774306"
+            ],
+            "confidence": 90
+          },
+          {
+            "pattern": "/\\s*([A-Z]{4}\\d{7})",
+            "examples": [
+              "/ MRKU9970529",
+              "/ CXDU1639050",
+              "/ CSNU1111647"
+            ],
+            "confidence": 85
+          }
+        ]
+      },
+      {
+        "entity": "pol",
+        "priority": "important",
+        "subjectPatterns": [],
+        "bodyPatterns": []
+      },
+      {
+        "entity": "pod",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "POD\\s+([A-Z]+)",
+            "examples": [
+              "POD USPEF"
+            ],
+            "confidence": 80
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "Final Port of Delivery\\s+([A-Z/\\s]+?)\\s+[A-Z]",
+            "examples": [
+              "NEWARK / CHICAGO",
+              "SAVANNAH / Atlanta",
+              "Savannah"
+            ],
+            "confidence": 75
+          }
+        ]
+      },
+      {
+        "entity": "vessel_name",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "SSY\\s+([A-Z]+)",
+            "examples": [
+              "SSY TEX"
+            ],
+            "confidence": 70
+          }
+        ],
+        "bodyPatterns": []
+      },
+      {
+        "entity": "voyage_number",
+        "priority": "important",
+        "subjectPatterns": [],
+        "bodyPatterns": []
+      },
+      {
+        "entity": "weight",
+        "priority": "optional",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Weight / \\(Kgs\\)\\s+MBL Number.*?([\\d,]+\\.\\d{2})",
+            "examples": [
+              "18,640.00",
+              "18,624.00",
+              "16554"
+            ],
+            "confidence": 85
+          }
+        ]
+      },
+      {
+        "entity": "cargo_description",
+        "priority": "optional",
+        "subjectPatterns": [],
+        "bodyPatterns": []
+      },
+      {
+        "entity": "notify_party",
+        "priority": "optional",
+        "subjectPatterns": [],
+        "bodyPatterns": []
+      },
+      {
+        "entity": "measurement",
+        "priority": "optional",
+        "subjectPatterns": [],
+        "bodyPatterns": []
+      }
+    ],
+    "validationStats": {
+      "samplesAnalyzed": 7,
+      "validSamples": 5,
+      "invalidSamples": 2,
+      "invalidReasons": [
+        "Re: Request for Bill of Lading – Invoice No. RAI/2",
+        "Re: Request for Bill of Lading – Invoice No. RAI/2"
+      ]
+    },
+    "overallConfidence": 65,
+    "notes": [
+      "Missing patterns for pol (port of loading)",
+      "Missing patterns for voyage_number",
+      "consignee_name has no subject patterns",
+      "vessel_name has no body patterns",
+      "Critical entity pol has zero patterns discovered"
+    ]
+  },
+  {
+    "documentType": "work_order",
+    "entitySchema": {
+      "documentType": "work_order",
+      "description": "Delivery/trucking work order with container pickup details",
+      "expectedEntities": {
+        "critical": [
+          "container_number",
+          "pickup_location"
+        ],
+        "important": [
+          "work_order_number",
+          "lfd",
+          "delivery_address",
+          "pickup_date"
+        ],
+        "optional": [
+          "trucker_name",
+          "appointment_time",
+          "terminal",
+          "chassis_number"
+        ]
+      },
+      "subjectKeywords": [
+        "work order",
+        "WO",
+        "delivery",
+        "pickup",
+        "container"
+      ],
+      "contentKeywords": [
+        "pickup",
+        "delivery",
+        "LFD",
+        "appointment",
+        "terminal",
+        "container"
+      ]
+    },
+    "patterns": [
+      {
+        "entity": "container_number",
+        "priority": "critical",
+        "subjectPatterns": [
+          {
+            "pattern": "//\\s*([A-Z]{4}\\d{7,10})",
+            "examples": [
+              "// OOCU6952051",
+              "// HLCUDE1251050616"
+            ],
+            "confidence": 95
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "([A-Z]{4}\\d{7,10})\\s*:",
+            "examples": [
+              "OOCU6952051 :"
+            ],
+            "confidence": 90
+          },
+          {
+            "pattern": "Containers#\\s*([A-Z]{4}\\d{7,10}(?:,\\s*[A-Z]{4}\\d{7,10})*)",
+            "examples": [
+              "Containers# MRKU2660917, TCNU7501437, SUDU8833656"
+            ],
+            "confidence": 95
+          },
+          {
+            "pattern": "pickup\\s+([A-Z]{4}\\d{7,10})",
+            "examples": [
+              "pickup SUDU8833656"
+            ],
+            "confidence": 85
+          }
+        ]
+      },
+      {
+        "entity": "pickup_location",
+        "priority": "critical",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Meiborg warehouse",
+            "examples": [
+              "Meiborg warehouse"
+            ],
+            "confidence": 80
+          }
+        ]
+      },
+      {
+        "entity": "work_order_number",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "Work [Oo]rder\\s*:?\\s*([A-Z0-9_]+)",
+            "examples": [
+              "Work order :SEINUS15102502533_I",
+              "Work Order: TEMU7956858"
+            ],
+            "confidence": 90
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "work order",
+            "examples": [
+              "work order for custom bonded movement"
+            ],
+            "confidence": 70
+          }
+        ]
+      },
+      {
+        "entity": "lfd",
+        "priority": "important",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "LFD is (\\d{1,2}/\\d{1,2}|tomorrow)",
+            "examples": [
+              "LFD is 1/4",
+              "LFD is tomorrow"
+            ],
+            "confidence": 95
+          }
+        ]
+      },
+      {
+        "entity": "delivery_address",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "//.*?//.*?//\\s*([^/]+,\\s*\\d+[^/]+)",
+            "examples": [
+              "13725 Pennsylvania Rd #1, Riverview, MI 48193"
+            ],
+            "confidence": 85
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "Matcom Warehouse",
+            "examples": [
+              "Matcom Warehouse"
+            ],
+            "confidence": 80
+          }
+        ]
+      },
+      {
+        "entity": "pickup_date",
+        "priority": "important",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "pickup.*?(today)",
+            "examples": [
+              "We will pickup SUDU8833656 and TCNU7501437 today"
+            ],
+            "confidence": 85
+          }
+        ]
+      },
+      {
+        "entity": "trucker_name",
+        "priority": "optional",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Blake Horvath",
+            "examples": [
+              "Blake Horvath"
+            ],
+            "confidence": 90
+          },
+          {
+            "pattern": "Wolverine Freightways",
+            "examples": [
+              "Wolverine Freightways"
+            ],
+            "confidence": 90
+          }
+        ]
+      },
+      {
+        "entity": "terminal",
+        "priority": "optional",
+        "subjectPatterns": [
+          {
+            "pattern": "//\\s*(M&B)",
+            "examples": [
+              "// M&B"
+            ],
+            "confidence": 80
+          }
+        ],
+        "bodyPatterns": []
+      }
+    ],
+    "validationStats": {
+      "samplesAnalyzed": 5,
+      "validSamples": 5,
+      "invalidSamples": 0,
+      "invalidReasons": []
+    },
+    "overallConfidence": 65,
+    "notes": [
+      "pickup_location has insufficient coverage (0 subject, 1 body pattern)",
+      "Critical entity pickup_location severely under-represented",
+      "terminal has subject pattern but no body patterns - inconsistent coverage",
+      "pickup_date only has body patterns, may miss subject-line dates"
+    ]
+  },
+  {
+    "documentType": "sob_confirmation",
+    "entitySchema": {
+      "documentType": "sob_confirmation",
+      "description": "Shipped on Board confirmation that cargo is loaded on vessel",
+      "expectedEntities": {
+        "critical": [
+          "bl_number",
+          "vessel_name",
+          "on_board_date"
+        ],
+        "important": [
+          "container_number",
+          "voyage_number",
+          "etd"
+        ],
+        "optional": [
+          "seal_number",
+          "weight",
+          "measurement"
+        ]
+      },
+      "subjectKeywords": [
+        "SOB",
+        "shipped",
+        "on board",
+        "loaded",
+        "departed"
+      ],
+      "contentKeywords": [
+        "shipped",
+        "on board",
+        "loaded",
+        "vessel",
+        "departed",
+        "sailing"
+      ]
+    },
+    "patterns": [],
+    "validationStats": {
+      "samplesAnalyzed": 10,
+      "validSamples": 0,
+      "invalidSamples": 10,
+      "invalidReasons": [
+        "RE: SOB CONFIRMATION // BL DRAFT // RABPL // MUNDR",
+        "RE: SOB CONFIRMATION // Invoice for USA Skyway - 2",
+        "Re: SOB CONFIRMATION //Re: FCL ​1X20 the subject s",
+        "Re: SOB CONFIRMATION // Invoice # DX25-26/211 Dt. ",
+        "Re: SOB CONFIRMATION // Invoice # DX25-26/211 Dt. ",
+        "Re: SOB CONFIRMATON // SPOT 261794595 // 1X20'FT /",
+        "Re: SOB CONFIRMATION // SPOT 261794270 // 1X20'FT ",
+        "Re: SOB CONFIRMATION // BKG : 261308924 | LVM VEHC",
+        "RE: SOB CONFIRMATON // BK-261842003 : Nhava Sheva ",
+        "RE: SOB CONFIRMATION // 261683714 // 1*40'HC MUNDR"
+      ]
+    },
+    "overallConfidence": 0,
+    "notes": [
+      "No valid samples - classification quality issue"
+    ]
+  },
+  {
+    "documentType": "booking_amendment",
+    "entitySchema": {
+      "documentType": "booking_amendment",
+      "description": "Change/update to existing booking details",
+      "expectedEntities": {
+        "critical": [
+          "booking_number",
+          "amendment_type"
+        ],
+        "important": [
+          "old_value",
+          "new_value",
+          "vessel_name"
+        ],
+        "optional": [
+          "amendment_fee",
+          "effective_date",
+          "reason"
+        ]
+      },
+      "subjectKeywords": [
+        "amendment",
+        "update",
+        "change",
+        "revision",
+        "modify"
+      ],
+      "contentKeywords": [
+        "amendment",
+        "change",
+        "update",
+        "revised",
+        "new",
+        "old"
+      ]
+    },
+    "patterns": [],
+    "validationStats": {
+      "samplesAnalyzed": 10,
+      "validSamples": 0,
+      "invalidSamples": 10,
+      "invalidReasons": [
+        "TPDoc, sea waybill, shipped on board 263375571",
+        "TPDoc, sea waybill, shipped on board 262874542",
+        "TPDoc, sea waybill, shipped on board 263375571",
+        "TPDoc, sea waybill, shipped on board 263368698",
+        "TPDoc, sea waybill, shipped on board 263022847",
+        "TPDoc, sea waybill, shipped on board 263375454",
+        "TPDoc, sea waybill, shipped on board 263368698",
+        "TPDoc, sea waybill, shipped on board 262444124",
+        "TPDoc, sea waybill, shipped on board 263375454",
+        "TPDoc, sea waybill, shipped on board 262444124"
+      ]
+    },
+    "overallConfidence": 0,
+    "notes": [
+      "No valid samples - classification quality issue"
+    ]
+  },
+  {
+    "documentType": "entry_summary",
+    "entitySchema": {
+      "documentType": "entry_summary",
+      "description": "US Customs entry summary (CBP Form 7501)",
+      "expectedEntities": {
+        "critical": [
+          "entry_number",
+          "entry_type"
+        ],
+        "important": [
+          "duty_amount",
+          "entry_date",
+          "port_of_entry"
+        ],
+        "optional": [
+          "importer_of_record",
+          "hts_code",
+          "bond_number"
+        ]
+      },
+      "subjectKeywords": [
+        "entry",
+        "summary",
+        "CBP",
+        "7501",
+        "customs"
+      ],
+      "contentKeywords": [
+        "entry",
+        "duty",
+        "customs",
+        "CBP",
+        "bond",
+        "importer"
+      ]
+    },
+    "patterns": [
+      {
+        "entity": "entry_number",
+        "priority": "critical",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "9JW\\s+(\\d{8})",
+            "examples": [
+              "9JW  04216241"
+            ],
+            "confidence": 85
+          },
+          {
+            "pattern": "Filer Code/Entry No\\..*?\\n.*?(\\d{8})",
+            "examples": [
+              "04216241"
+            ],
+            "confidence": 80
+          }
+        ]
+      },
+      {
+        "entity": "entry_type",
+        "priority": "critical",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Entry Type.*?\\n.*?(\\d{2})",
+            "examples": [
+              "01"
+            ],
+            "confidence": 75
+          }
+        ]
+      },
+      {
+        "entity": "duty_amount",
+        "priority": "important",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Custom duty\\s*:\\s*\\$([\\d,]+\\.\\d{2})",
+            "examples": [
+              "Custom duty : $145.21"
+            ],
+            "confidence": 90
+          },
+          {
+            "pattern": "custom duty charges",
+            "examples": [
+              "invoice for the custom duty charges"
+            ],
+            "confidence": 60
+          }
+        ]
+      },
+      {
+        "entity": "entry_date",
+        "priority": "important",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Entry Date.*?\\n.*?(\\d{2}/\\d{2}/\\d{4})",
+            "examples": [
+              "12/16/2025"
+            ],
+            "confidence": 80
+          }
+        ]
+      },
+      {
+        "entity": "port_of_entry",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "NHAVA SHEVA TO (\\w+)",
+            "examples": [
+              "NHAVA SHEVA TO NEWARK"
+            ],
+            "confidence": 70
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "Port Code.*?\\n.*?(\\d{4})",
+            "examples": [
+              "0368"
+            ],
+            "confidence": 75
+          }
+        ]
+      },
+      {
+        "entity": "importer_of_record",
+        "priority": "optional",
+        "subjectPatterns": [
+          {
+            "pattern": "duty bill - ([A-Z]+)",
+            "examples": [
+              "duty bill - ARGL"
+            ],
+            "confidence": 85
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "raise the duty bill to ([A-Z]+)",
+            "examples": [
+              "raise the duty bill to ARGL"
+            ],
+            "confidence": 90
+          },
+          {
+            "pattern": "ARGL LIMITED\\s+([\\d\\s\\w]+)\\s+GURGAON",
+            "examples": [
+              "ARGL LIMITED 111 MANESAR ROAD GURGAON"
+            ],
+            "confidence": 80
+          }
+        ]
+      }
+    ],
+    "validationStats": {
+      "samplesAnalyzed": 10,
+      "validSamples": 3,
+      "invalidSamples": 7,
+      "invalidReasons": [
+        "Re: SOB CONFIRMATION // 261948373 // 40'HC NHAVA S",
+        "Re: Intoglo || Order Confirmation on Custom Bonded",
+        "Fwd: Shipping Instruction for Strut Channel==Booki",
+        "Request for duty bill - Resilient Auto Brakes - SS",
+        "Re: Shipping Instruction for Strut Channel==Bookin",
+        "RE: FW: Hot Hydraulics Stuffing plan & packing det",
+        "Re: Shipping Instruction for Strut Channel==Bookin"
+      ]
+    },
+    "overallConfidence": 25,
+    "notes": [
+      "Critical entity entry_number has 0 subject patterns",
+      "Critical entity entry_type has 0 subject patterns",
+      "Sample subjects appear to be shipping/booking related, not CBP Form 7501",
+      "Subject patterns don't match US Customs entry summary format",
+      "importer_of_record should be critical for CBP forms, not optional"
+    ]
+  },
+  {
+    "documentType": "delivery_order",
+    "entitySchema": {
+      "documentType": "delivery_order",
+      "description": "Authorization to release/deliver cargo",
+      "expectedEntities": {
+        "critical": [
+          "bl_number",
+          "container_number"
+        ],
+        "important": [
+          "consignee_name",
+          "delivery_location",
+          "release_date"
+        ],
+        "optional": [
+          "do_number",
+          "terminal",
+          "trucker_authorization"
+        ]
+      },
+      "subjectKeywords": [
+        "delivery order",
+        "DO",
+        "release",
+        "authorization"
+      ],
+      "contentKeywords": [
+        "delivery",
+        "release",
+        "authorize",
+        "consignee",
+        "container"
+      ]
+    },
+    "patterns": [
+      {
+        "entity": "bl_number",
+        "priority": "critical",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "MBL Number.*?([A-Z]{4}\\d{9})",
+            "examples": [
+              "MAEU261948373"
+            ],
+            "confidence": 85
+          }
+        ]
+      },
+      {
+        "entity": "container_number",
+        "priority": "critical",
+        "subjectPatterns": [
+          {
+            "pattern": "Container#\\s*([A-Z]{4}\\d{7})",
+            "examples": [
+              "Container# MSKU0147635"
+            ],
+            "confidence": 90
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "/\\s*([A-Z]{4}\\d{7})",
+            "examples": [
+              "/ MSKU0147635"
+            ],
+            "confidence": 85
+          }
+        ]
+      },
+      {
+        "entity": "consignee_name",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "IOR:\\s*([A-Z\\s]+)\\s*//",
+            "examples": [
+              "IOR: SRI VENKATESH AROMAS"
+            ],
+            "confidence": 80
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "Shipper\\s+([A-Z\\s]+)\\s+\\d",
+            "examples": [
+              "SRI VENKATESH AROMAS"
+            ],
+            "confidence": 75
+          }
+        ]
+      },
+      {
+        "entity": "delivery_location",
+        "priority": "important",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Delivery Address\\s+([^\\n]+)",
+            "examples": [
+              "IUSL - 600 PRINCIPIO PKWY W 21901-2914 - NORTH EAST, MD , US"
+            ],
+            "confidence": 85
+          }
+        ]
+      },
+      {
+        "entity": "release_date",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "ETA:\\s*(\\d{1,2}\\s+[A-Za-z]{3})",
+            "examples": [
+              "ETA: 28 Dec"
+            ],
+            "confidence": 85
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "ETA is\\s+(\\d{1,2}\\s+[A-Za-z]{3})",
+            "examples": [
+              "28 Dec"
+            ],
+            "confidence": 80
+          }
+        ]
+      },
+      {
+        "entity": "do_number",
+        "priority": "optional",
+        "subjectPatterns": [
+          {
+            "pattern": "([A-Z]{6}\\d{11}_I)",
+            "examples": [
+              "SEINUS17112502710_I"
+            ],
+            "confidence": 75
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "Inlops ID\\s+([A-Z]{6}\\d{11}_I)",
+            "examples": [
+              "SEINUS17112502710_I"
+            ],
+            "confidence": 80
+          }
+        ]
+      },
+      {
+        "entity": "terminal",
+        "priority": "optional",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Final Port of Delivery\\s+([A-Z]+)",
+            "examples": [
+              "NEWARK"
+            ],
+            "confidence": 70
+          }
+        ]
+      }
+    ],
+    "validationStats": {
+      "samplesAnalyzed": 10,
+      "validSamples": 1,
+      "invalidSamples": 9,
+      "invalidReasons": [
+        "Please file E-Manifest || BL# 261708626 || Shipper",
+        "Re: Please file E-Manifest || 261308924 || SONA BL",
+        "Please file E-Manifest || 261308924 || SONA BLW ||",
+        "Arrival notice 261615715",
+        "Arrival notice 261840776",
+        "Arrival notice 261140829",
+        "Arrival notice 261840491",
+        "Arrival notice 262078468",
+        "Arrival notice 261856928"
+      ]
+    },
+    "overallConfidence": 65,
+    "notes": [
+      "Missing bl_number patterns in subject line",
+      "bl_number is critical but only has 1 body pattern",
+      "Sample subject shows pre-alert format rather than delivery order authorization",
+      "Missing vessel/voyage information typical for delivery orders"
+    ]
+  },
+  {
+    "documentType": "hbl",
+    "entitySchema": {
+      "documentType": "hbl",
+      "description": "House Bill of Lading from freight forwarder",
+      "expectedEntities": {
+        "critical": [
+          "hbl_number",
+          "shipper_name",
+          "consignee_name"
+        ],
+        "important": [
+          "mbl_number",
+          "vessel_name",
+          "container_number"
+        ],
+        "optional": [
+          "notify_party",
+          "cargo_description",
+          "freight_charges"
+        ]
+      },
+      "subjectKeywords": [
+        "HBL",
+        "house BL",
+        "house bill"
+      ],
+      "contentKeywords": [
+        "HBL",
+        "house",
+        "shipper",
+        "consignee",
+        "MBL",
+        "master"
+      ]
+    },
+    "patterns": [
+      {
+        "entity": "hbl_number",
+        "priority": "critical",
+        "subjectPatterns": [
+          {
+            "pattern": "HBL#\\s*(SE\\d{10})",
+            "examples": [
+              "HBL# SE0925002731"
+            ],
+            "confidence": 95
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "HOUSE BILL OF LADING\\s*\\n.*?(SE\\d{10})",
+            "examples": [
+              "SE1025002815"
+            ],
+            "confidence": 90
+          },
+          {
+            "pattern": "SHIPMENT\\s*(SSE\\d{10})",
+            "examples": [
+              "SSE1025002831",
+              "SSE1025002815"
+            ],
+            "confidence": 85
+          }
+        ]
+      },
+      {
+        "entity": "shipper_name",
+        "priority": "critical",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "SHIPPER\\s*\\n([A-Z\\s&]+(?:PRIVATE LIMITED|INTERNATIONAL))",
+            "examples": [
+              "ANAND NVH PRODUCTS PRIVATE LIMITED",
+              "SINGHANIA INTERNATIONAL"
+            ],
+            "confidence": 90
+          }
+        ]
+      },
+      {
+        "entity": "consignee_name",
+        "priority": "critical",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "CONSIGNEE\\s*\\n([A-Z\\s&]+(?:INC|LLC))",
+            "examples": [
+              "ANAND NVH NORTH AMERICA INC",
+              "4A FASTENERS LLC"
+            ],
+            "confidence": 90
+          },
+          {
+            "pattern": "invoice.*?to\\s+([A-Z\\s]+(?:INC|LLC|PRODUCTS))",
+            "examples": [
+              "INDUSTRIAL THREADED PRODUCTS"
+            ],
+            "confidence": 75
+          }
+        ]
+      },
+      {
+        "entity": "mbl_number",
+        "priority": "important",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "OCEAN BILL OF LADING\\s*\\n([A-Z]{3}\\d{7})",
+            "examples": [
+              "CAD0837447"
+            ],
+            "confidence": 95
+          }
+        ]
+      },
+      {
+        "entity": "vessel_name",
+        "priority": "important",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "VESSEL.*?\\n([A-Z\\s]+)\\s*/",
+            "examples": [
+              "CMA CGM VERDI"
+            ],
+            "confidence": 90
+          }
+        ]
+      },
+      {
+        "entity": "container_number",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "Container#\\s*(TCLU\\d{7})",
+            "examples": [
+              "TCLU0723380"
+            ],
+            "confidence": 95
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "CONTAINERS\\s*\\n(TCLU\\d{7})",
+            "examples": [
+              "TCLU7517143"
+            ],
+            "confidence": 90
+          }
+        ]
+      },
+      {
+        "entity": "notify_party",
+        "priority": "optional",
+        "subjectPatterns": [],
+        "bodyPatterns": []
+      },
+      {
+        "entity": "cargo_description",
+        "priority": "optional",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "GOODS DESCRIPTION\\s*\\n([A-Z\\s]+(?:PACKAGES|FASTENERS).*?)(?=IMPORT|$)",
+            "examples": [
+              "FIFTY TWO PACKAGES ONLY CASES SAID TO CONTAINS 90946 PCS FOR AUTOMOTIVE PARTS",
+              "TWENTY NINE PACKAGES ONLY FASTENERS: SCREW, FLAT WASHER"
+            ],
+            "confidence": 80
+          }
+        ]
+      },
+      {
+        "entity": "freight_charges",
+        "priority": "optional",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Custom Duty\\s*[:\\$]?\\s*\\$?\\s*([\\d,]+\\.\\d{2})",
+            "examples": [
+              "27,283.31",
+              "24,616.69"
+            ],
+            "confidence": 95
+          },
+          {
+            "pattern": "TOTAL USD\\s*\\n([\\d,]+\\.\\d{2})",
+            "examples": [
+              "24,616.69"
+            ],
+            "confidence": 90
+          }
+        ]
+      }
+    ],
+    "validationStats": {
+      "samplesAnalyzed": 10,
+      "validSamples": 3,
+      "invalidSamples": 7,
+      "invalidReasons": [
+        "DO // SSE1225003098",
+        "Re: 261166820 // 5X20'GP // MUNDRA TO MEMPHIS // C",
+        "Re: 261166820 // 5X20'GP // MUNDRA TO MEMPHIS // C",
+        "Re: SOB CONFIRMATION // 261948373 // 40'HC NHAVA S",
+        "Re: SOB CONFIRMATION // 260591381 // 5X20'GP // MU",
+        "Re: Approval to raise the final invoice - Chelsy's",
+        "Re: SOB CONFIRMATION //BKG #CAD0844605 | ANAND NVH"
+      ]
+    },
+    "overallConfidence": 65,
+    "notes": [
+      "Missing shipper_name patterns in subject line",
+      "Missing vessel_name patterns in subject line",
+      "Only 1 body pattern for shipper_name is insufficient for critical entity",
+      "Missing notify_party patterns entirely - should have at least 1 body pattern for HBL documents"
+    ]
+  },
+  {
+    "documentType": "hbl_draft",
+    "entitySchema": {
+      "documentType": "hbl_draft",
+      "description": "Draft House BL for review before final issuance",
+      "expectedEntities": {
+        "critical": [
+          "hbl_number",
+          "shipper_name",
+          "consignee_name"
+        ],
+        "important": [
+          "vessel_name",
+          "voyage_number",
+          "container_number"
+        ],
+        "optional": [
+          "corrections_needed",
+          "approval_deadline"
+        ]
+      },
+      "subjectKeywords": [
+        "HBL",
+        "draft",
+        "review",
+        "approval"
+      ],
+      "contentKeywords": [
+        "draft",
+        "review",
+        "approve",
+        "correct",
+        "shipper",
+        "consignee"
+      ]
+    },
+    "patterns": [
+      {
+        "entity": "hbl_number",
+        "priority": "critical",
+        "subjectPatterns": [
+          {
+            "pattern": "BL (EID\\d{7})",
+            "examples": [
+              "BL EID0918049"
+            ],
+            "confidence": 95
+          },
+          {
+            "pattern": "draft BL (EID\\d{7})",
+            "examples": [
+              "draft BL EID0918049"
+            ],
+            "confidence": 95
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "BL number-(SE\\d{10})",
+            "examples": [
+              "BL number-SE1225003160",
+              "BL number-SE1225003161"
+            ],
+            "confidence": 90
+          },
+          {
+            "pattern": "B/L (EID\\d{7})",
+            "examples": [
+              "B/L EID0918049"
+            ],
+            "confidence": 85
+          },
+          {
+            "pattern": "reference no\\. (EID\\d{7})",
+            "examples": [
+              "reference no. EID0918049"
+            ],
+            "confidence": 80
+          }
+        ]
+      },
+      {
+        "entity": "shipper_name",
+        "priority": "critical",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Company ([A-Z\\s]+) - ([A-Z\\s]+PVT LTD)",
+            "examples": [
+              "Company CMACGM - INTOGLO PVT LTD"
+            ],
+            "confidence": 75
+          }
+        ]
+      },
+      {
+        "entity": "consignee_name",
+        "priority": "critical",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Ship-to:([A-Z\\s\\.]+) TAX ID",
+            "examples": [
+              "Ship-to:TOTAL DISTRIBUTION INC. TAX ID"
+            ],
+            "confidence": 80
+          }
+        ]
+      },
+      {
+        "entity": "vessel_name",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "VSL\\.([A-Z\\s]+)/",
+            "examples": [
+              "VSL.MAERSK DETROIT/548W"
+            ],
+            "confidence": 90
+          },
+          {
+            "pattern": "Vessel ([A-Z]+)",
+            "examples": [
+              "Vessel KOIKO"
+            ],
+            "confidence": 85
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "Vessel ([A-Z]+)",
+            "examples": [
+              "Vessel KOIKO"
+            ],
+            "confidence": 85
+          }
+        ]
+      },
+      {
+        "entity": "voyage_number",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "VSL\\.[A-Z\\s]+/(\\w+)",
+            "examples": [
+              "VSL.MAERSK DETROIT/548W"
+            ],
+            "confidence": 85
+          },
+          {
+            "pattern": "Voyage ([A-Z0-9]+)",
+            "examples": [
+              "Voyage 0INLJW1MA"
+            ],
+            "confidence": 90
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "Voyage ([A-Z0-9]+)",
+            "examples": [
+              "Voyage 0INLJW1MA"
+            ],
+            "confidence": 90
+          }
+        ]
+      },
+      {
+        "entity": "container_number",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "CON\\.NO\\.([A-Z]{4}\\d{7})/([A-Z]{4}\\d{7})",
+            "examples": [
+              "CON.NO.MSKU9500907/MRSU3866295"
+            ],
+            "confidence": 95
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "([A-Z]{4}\\d{7})\\s+1x40HC",
+            "examples": [
+              "TRHU8912333 1x40HC"
+            ],
+            "confidence": 80
+          },
+          {
+            "pattern": "CONTAINER AND SEALS.*?([A-Z]{4}\\d{7})",
+            "examples": [
+              "TRHU8912333"
+            ],
+            "confidence": 75
+          }
+        ]
+      },
+      {
+        "entity": "corrections_needed",
+        "priority": "optional",
+        "subjectPatterns": [
+          {
+            "pattern": "Modification requested",
+            "examples": [
+              "Modification requested on draft BL"
+            ],
+            "confidence": 95
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "Please change as per below",
+            "examples": [
+              "Please change as per below"
+            ],
+            "confidence": 85
+          },
+          {
+            "pattern": "changes are requested",
+            "examples": [
+              "changes are requested by"
+            ],
+            "confidence": 80
+          },
+          {
+            "pattern": "Please update highlighted details",
+            "examples": [
+              "Please update highlighted details in the ship to address"
+            ],
+            "confidence": 85
+          }
+        ]
+      },
+      {
+        "entity": "approval_deadline",
+        "priority": "optional",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "for your approval",
+            "examples": [
+              "PFA revised HBL draft for your approval"
+            ],
+            "confidence": 70
+          }
+        ]
+      }
+    ],
+    "validationStats": {
+      "samplesAnalyzed": 6,
+      "validSamples": 5,
+      "invalidSamples": 1,
+      "invalidReasons": [
+        "RE: Re: BKG NO.: SZPM95470100//Re: RE: 2ND SHIPMEN"
+      ]
+    },
+    "overallConfidence": 45,
+    "notes": [
+      "Missing patterns for shipper_name (0 total patterns)",
+      "Missing patterns for consignee_name (0 total patterns)",
+      "Critical entities shipper_name and consignee_name have no extraction patterns",
+      "Only 1 of 3 critical entities properly covered"
+    ]
+  },
+  {
+    "documentType": "shipping_bill",
+    "entitySchema": {
+      "documentType": "shipping_bill",
+      "description": "Export customs declaration document (India specific)",
+      "expectedEntities": {
+        "critical": [
+          "shipping_bill_number",
+          "exporter_name"
+        ],
+        "important": [
+          "booking_number",
+          "container_number",
+          "let_export_date"
+        ],
+        "optional": [
+          "iec_code",
+          "fob_value",
+          "port_of_loading"
+        ]
+      },
+      "subjectKeywords": [
+        "SB",
+        "shipping bill",
+        "LEO",
+        "export"
+      ],
+      "contentKeywords": [
+        "shipping bill",
+        "SB No",
+        "LEO",
+        "exporter",
+        "customs"
+      ]
+    },
+    "patterns": [
+      {
+        "entity": "shipping_bill_number",
+        "priority": "critical",
+        "subjectPatterns": [
+          {
+            "pattern": "SB No\\s*:?\\s*(\\d{7})",
+            "examples": [
+              "SB No :8142647"
+            ],
+            "confidence": 95
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "shipping bill no\\.?\\s*([\\d,]+)",
+            "examples": [
+              "shipping bill no. 7640866,7640891,7640892,7640895,7640906"
+            ],
+            "confidence": 90
+          },
+          {
+            "pattern": "SB No\\s*:?\\s*(\\d{7})",
+            "examples": [
+              "SB No :8142647"
+            ],
+            "confidence": 95
+          }
+        ]
+      },
+      {
+        "entity": "exporter_name",
+        "priority": "critical",
+        "subjectPatterns": [
+          {
+            "pattern": "([A-Z][A-Z\\s&]+)\\s*\\|",
+            "examples": [
+              "SONA BLW |",
+              "SOMIK ENTERPRISES |"
+            ],
+            "confidence": 85
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "M/s\\s+([A-Za-z\\s&]+?)\\s+for",
+            "examples": [
+              "M/s Highway Roop Industries Ltd for"
+            ],
+            "confidence": 80
+          }
+        ]
+      },
+      {
+        "entity": "booking_number",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "BOOKING NO\\.?\\s*(\\d{8})",
+            "examples": [
+              "BOOKING NO. 34366797"
+            ],
+            "confidence": 90
+          },
+          {
+            "pattern": "(\\d{8})\\s*\\|",
+            "examples": [
+              "36729547 |"
+            ],
+            "confidence": 75
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "Booking No\\.?\\s*(\\d{8})",
+            "examples": [
+              "Booking No. 34366797"
+            ],
+            "confidence": 90
+          }
+        ]
+      },
+      {
+        "entity": "container_number",
+        "priority": "important",
+        "subjectPatterns": [],
+        "bodyPatterns": [
+          {
+            "pattern": "Container No\\.?\\s*([A-Z]{4}\\d{7})",
+            "examples": [
+              "Container No. HAMU4322720"
+            ],
+            "confidence": 95
+          }
+        ]
+      },
+      {
+        "entity": "let_export_date",
+        "priority": "important",
+        "subjectPatterns": [
+          {
+            "pattern": "SB Date\\s*:?\\s*(\\d{2}/\\d{2}/\\d{4})",
+            "examples": [
+              "SB Date :23/12/2025"
+            ],
+            "confidence": 95
+          }
+        ],
+        "bodyPatterns": [
+          {
+            "pattern": "DT\\.\\s*(\\d{2}\\.\\d{2}\\.\\d{4})",
+            "examples": [
+              "DT. 06.12.2025"
+            ],
+            "confidence": 90
+          }
+        ]
+      }
+    ],
+    "validationStats": {
+      "samplesAnalyzed": 10,
+      "validSamples": 3,
+      "invalidSamples": 7,
+      "invalidReasons": [
+        "RE: BKG #36055216 | ANAND NVH | 1X40HC | ICD TKD T",
+        "PTFC Meetings conducted by Commissioner of Customs",
+        "Re: RL/SE/3648/25-26 || SVM-2454 || MSKU5710280 //",
+        "Re: [External]BKG - 36729547 | DANA INCORPORATED -",
+        "Re: Plastofine : Mundra to Houston : 40 HC : 26314",
+        "Re: Booking No- 263675723",
+        "Re: BKG #CAD0850107 | ROBUST AUTOCOMP | 1X40HC | I"
+      ]
+    },
+    "overallConfidence": 90,
+    "notes": [
+      "container_number has 0 subject patterns - may miss extractions from email subjects",
+      "let_export_date only has 1 subject pattern - consider adding more body patterns for better coverage"
+    ]
+  }
+]

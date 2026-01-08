@@ -1,0 +1,114 @@
+FILENAME: AN_MUMFA0549800.pdf
+CATEGORY: arrival_notice
+========================================
+
+
+
+ARRIVAL NOTICE
+Ocean Network Express (North America) - Customer Service [Do Not Reply]
+8730 Stony Point Parkway
+Suite 400
+Arrival Vessel :ONE MAXIM 076EFlag :JPO/BL Required :No
+B/L No :ONEYMUMFA0549800Seawaybill
+CONSIGNEE ADDRESSNOTIFY ADDRESS
+INTOGLO TECHNOLOGIES INC
+4047, LONG AVE TRACY CA 95377
+UNITED STATES NAM@INTOGLO.COM
+OPS@INTOGLO.COM EIN NO. #880864197
+INTOGLO TECHNOLOGIES INC
+4047, LONG AVE TRACY CA 95377
+UNITED STATES NAM@INTOGLO.COM
+OPS@INTOGLO.COM EIN NO. #880864197
+Port of Discharging
+NEW YORK, NY(FIRMS :E425)
+SHIPPER ADDRESS
+ETA
+17 Dec 25 07:00REBUS LOGISTICS PRIVATE LIMITED
+F - 07, SECTOR 3, NOIDA, GAUTAM
+BUDDHA NAGAR, UTTAR PRADESH, 201301
+Place of Delivery
+NEW YORK, NY
+ETA
+17 Dec 25 13:00(CY)
+Place of Receipt
+NHAVA SHEVA
+Available Date
+17 Dec 25 19:00
+AVAILABLE CONTAINER YARD
+Est. General Order
+01 Jan 26 19:00APM TERMINALS NEWARK
+In-bond Number
+Not ApplicableAPM Terminals Port Elizabeth  5080 McLester Street  Elizabeth
+NJ 07207
+In-bond Type
+Not Applicable
+I.T. HUB
+Not ApplicableTEL :1FAX :908-558-6481
+FIRM & Code :E425
+TOTAL AMOUNT DUE
+Bank In Account No
+US Payments - HSBC Bank USA, N.A
+Wire ABA No. 021001088 / ACH ABA No. # 022000020
+A/C No. 000274666 / Swift Code:MRMDUS33
+https://us.one-line.com/Payments
+DESTINATION
+Ocean Network Express (North America)
+[I/B SVC]TEL:844-413-6029
+EMAIL:
+[TRAFFIC]TEL:844-413-6029
+EMAIL:
+NA.DeliveryOrders@one-line.com
+[DELIVERY ORDER]Submit directly to www.one-line.com
+Purchase Order #
+Total Piece Count20,234 PKTotal Weight :23,979.060 KGSMeasure :40.000 CBM
+Customs DescriptionPRINTED BOOKS
+IMPORTANT
+Remark :
+* SEE ATTACHED RIDER *
+CONTAINER#TP
+QTYWGT
+SEAL#PU#
+ONEU1072640D5
+20234 PK23979.06 KGS
+IN1874434
+CHG     RATED ASRATEPERCOLLECT
+CMD  USD    1.000        15.00BX        15.00
+[AMT by CUR] USD:15.00
+
+ARRIVAL NOTICE ( RIDER )
+==============
+ Important Notice
+==============
+Please note that we have recently amended our Arrival Notice issuance timeline: We will now be sending one Arrival Notice.
+Arrival notice will include the following details:
+Arrival Notice: Scheduled to be sent 3 days after the container departs from the last foreign port of load. (If your shipment has a
+short transit time you will receive the arrival notice at least 3 days prior to the arrival at the POD).
+Vessel / Voyage details
+ETA and Port of Discharge
+Customer Information
+Collect Freight Charges (where applicable)
+information:
+Inbond Information (date & number)
+Firms Code
+Addresses for pickup locations
+ETA at Port of Discharge and Final Destination
+Piece Count / Weight / Measure
+Cross Border information (where applicable)
+For empty return instructions, please visit www.returnlocation.com
+Remit To:
+Ocean Network Express PTE Ltd.
+c/o Ocean Network Express North America, Inc.
+8730 Stony Point Parkway, Suite 400
+Richmond, VA 23235
+Attn: Freight Cashier
+Remittance Email: na.fa.intlremits@one-line.com
+Please remit payment and send in any endorsed original bills of lading at least 48 hours prior to your preferred container pickup
+date in order to reduce the chance of demurrage accruing at the final destination
+Please contact Ocean Network Express (North America), Inc. Customer Service at (844) 413-6029 for further assistance.
+Ocean Network Express (North America) - Customer Service [Do Not Reply]
+8730 Stony Point Parkway
+Suite 400
+Richmond, VA 23235
+(844) 413-6029
+ONEYMUMFA0549800
+B/L No.        :

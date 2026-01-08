@@ -377,6 +377,10 @@ export class DocumentLifecycleService {
       revisionId?: string;
       receivedAt?: string;
       dueDate?: string;
+      // New fields for registry integration
+      documentId?: string;       // FK to documents table (document registry)
+      sourceEmailId?: string;    // Email that triggered this lifecycle
+      sourceAttachmentId?: string; // Attachment that triggered this lifecycle
     } = {}
   ): Promise<DocumentLifecycle> {
     // Check if lifecycle already exists
@@ -439,6 +443,10 @@ export class DocumentLifecycleService {
       received_at: options.receivedAt || new Date().toISOString(),
       due_date: options.dueDate,
       current_revision_id: options.revisionId,
+      // Registry integration fields
+      document_id: options.documentId,
+      source_email_id: options.sourceEmailId,
+      source_attachment_id: options.sourceAttachmentId,
     };
 
     // Calculate quality score if fields provided

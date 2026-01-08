@@ -1,87 +1,434 @@
 {
-  "total": 1309,
-  "willReclassify": 0,
-  "unchanged": 1306,
-  "skippedManualReview": 11,
-  "skippedLowConfidence": 75,
-  "unknowns": 55,
+  "total": 2128,
+  "willReclassify": 259,
+  "verified": 1801,
+  "unchanged": 68,
+  "skippedManualReview": 15,
+  "skippedLowConfidence": 53,
+  "unknowns": 53,
   "byOldType": {
-    "draft_hbl": 34,
-    "shipping_bill": 137,
-    "booking_confirmation": 168,
-    "hbl": 119,
-    "arrival_notice": 82,
-    "sob_confirmation": 38,
-    "shipping_instruction": 86,
-    "gate_in_confirmation": 22,
-    "invoice": 93,
-    "isf_filing": 7,
-    "payment_receipt": 169,
-    "entry_summary": 62,
-    "packing_list": 45,
-    "mbl": 5,
-    "delivery_order": 75,
-    "booking_cancellation": 6,
-    "delay_notice": 34,
-    "commercial_invoice": 18,
-    "booking_amendment": 2,
-    "duty_invoice": 17,
-    "freight_invoice": 14,
-    "general_correspondence": 15,
-    "vessel_schedule": 8,
-    "work_order": 1,
-    "rate_confirmation": 1,
-    "vgm_confirmation": 3,
-    "unknown": 7,
-    "cargo_manifest": 10,
-    "proof_of_delivery": 3,
-    "entry_immediate_delivery": 3,
-    "hbl_draft": 1,
-    "customs_document": 2,
+    "payment_receipt": 236,
+    "bill_of_lading": 45,
+    "draft_hbl": 39,
+    "shipping_bill": 189,
+    "booking_confirmation": 344,
+    "invoice": 126,
+    "hbl": 131,
+    "arrival_notice": 136,
+    "sob_confirmation": 104,
+    "unknown": 91,
+    "shipping_instruction": 103,
+    "booking_cancellation": 12,
+    "gate_in_confirmation": 23,
+    "freight_invoice": 23,
+    "isf_filing": 6,
+    "shipment_notice": 13,
+    "entry_summary": 91,
+    "packing_list": 49,
+    "mbl": 6,
+    "delivery_order": 86,
+    "empty_return": 13,
+    "duty_invoice": 22,
+    "delay_notice": 51,
+    "commercial_invoice": 22,
+    "booking_amendment": 67,
     "customs_clearance": 2,
-    "checklist": 1,
-    "bill_of_lading": 7,
+    "shipment_status": 8,
+    "general_correspondence": 20,
+    "vessel_schedule": 6,
+    "rate_quote": 9,
+    "proof_of_delivery": 5,
+    "vgm_confirmation": 13,
+    "leo_copy": 4,
+    "container_release": 4,
+    "demurrage_notice": 1,
+    "cargo_manifest": 14,
+    "entry_immediate_delivery": 4,
+    "hbl_draft": 1,
+    "company_introduction": 1,
+    "booking_request": 1,
+    "expense_reimbursement": 1,
+    "customs_document": 2,
     "draft_entry": 1,
-    "si_draft": 4,
-    "rate_quote": 1,
-    "leo_copy": 2,
-    "empty_return": 1
+    "si_draft": 2,
+    "work_order": 1
   },
   "byNewType": {
-    "draft_hbl": 34,
-    "shipping_bill": 137,
-    "unknown": 55,
-    "booking_confirmation": 167,
-    "hbl": 118,
-    "arrival_notice": 79,
-    "sob_confirmation": 38,
-    "shipping_instruction": 79,
-    "gate_in_confirmation": 22,
-    "invoice": 81,
-    "isf_filing": 6,
-    "payment_receipt": 169,
-    "entry_summary": 62,
-    "packing_list": 41,
-    "mbl": 5,
-    "delivery_order": 72,
+    "payment_receipt": 276,
+    "shipping_instruction": 120,
+    "draft_hbl": 39,
+    "shipping_bill": 188,
+    "booking_confirmation": 420,
+    "invoice": 131,
+    "hbl": 133,
+    "arrival_notice": 142,
+    "sob_confirmation": 87,
+    "gate_in_confirmation": 24,
+    "isf_filing": 7,
+    "entry_summary": 96,
+    "empty_return": 18,
+    "packing_list": 46,
+    "mbl": 6,
+    "delivery_order": 91,
+    "booking_amendment": 53,
+    "duty_invoice": 27,
     "booking_cancellation": 6,
-    "delay_notice": 34,
-    "commercial_invoice": 18,
-    "booking_amendment": 6,
-    "duty_invoice": 17,
-    "freight_invoice": 11,
-    "vessel_schedule": 3,
-    "general_correspondence": 10,
+    "delay_notice": 52,
+    "unknown": 53,
+    "commercial_invoice": 25,
+    "shipment_status": 9,
+    "freight_invoice": 12,
+    "vessel_schedule": 4,
+    "general_correspondence": 13,
+    "proof_of_delivery": 5,
     "vgm_confirmation": 13,
-    "proof_of_delivery": 3,
-    "cargo_manifest": 9,
-    "shipment_status": 3,
-    "entry_immediate_delivery": 3,
+    "leo_copy": 4,
+    "cargo_manifest": 15,
+    "entry_immediate_delivery": 4,
+    "container_release": 7,
     "draft_entry": 1,
-    "leo_copy": 2,
-    "si_draft": 1,
-    "container_release": 1
+    "si_draft": 1
   },
-  "migrations": {},
-  "sampleChanges": []
+  "migrations": {
+    "bill_of_lading -> shipping_instruction": 5,
+    "unknown -> hbl": 8,
+    "booking_cancellation -> booking_confirmation": 6,
+    "freight_invoice -> payment_receipt": 2,
+    "shipment_notice -> shipping_instruction": 12,
+    "unknown -> empty_return": 5,
+    "unknown -> payment_receipt": 18,
+    "unknown -> shipping_instruction": 8,
+    "bill_of_lading -> booking_amendment": 21,
+    "unknown -> arrival_notice": 10,
+    "freight_invoice -> invoice": 9,
+    "booking_amendment -> booking_confirmation": 57,
+    "unknown -> duty_invoice": 5,
+    "bill_of_lading -> payment_receipt": 11,
+    "unknown -> delivery_order": 2,
+    "bill_of_lading -> invoice": 2,
+    "unknown -> booking_amendment": 4,
+    "arrival_notice -> delivery_order": 4,
+    "demurrage_notice -> payment_receipt": 1,
+    "unknown -> freight_invoice": 1,
+    "unknown -> invoice": 8,
+    "hbl -> sob_confirmation": 1,
+    "unknown -> container_release": 3,
+    "unknown -> commercial_invoice": 3,
+    "unknown -> cargo_manifest": 1,
+    "unknown -> shipment_status": 1,
+    "company_introduction -> delivery_order": 1,
+    "unknown -> entry_summary": 5,
+    "booking_request -> booking_confirmation": 1,
+    "unknown -> booking_confirmation": 5,
+    "sob_confirmation -> booking_amendment": 18,
+    "invoice -> payment_receipt": 8,
+    "rate_quote -> booking_confirmation": 8,
+    "si_draft -> shipping_instruction": 1,
+    "delivery_order -> gate_in_confirmation": 1,
+    "unknown -> delay_notice": 1,
+    "customs_document -> container_release": 1,
+    "unknown -> isf_filing": 1
+  },
+  "sampleChanges": [
+    {
+      "old": "bill_of_lading",
+      "new": "shipping_instruction",
+      "confidence": 99,
+      "markers": "SHIPPING INSTRUCTION, SHIPPER, CONSIGNEE"
+    },
+    {
+      "old": "unknown",
+      "new": "hbl",
+      "confidence": 94,
+      "markers": "HOUSE BILL OF LADING, CONSIGNEE"
+    },
+    {
+      "old": "booking_cancellation",
+      "new": "booking_confirmation",
+      "confidence": 99,
+      "markers": "BOOKING CONFIRMATION, BOOKING NUMBER, VESSEL"
+    },
+    {
+      "old": "freight_invoice",
+      "new": "payment_receipt",
+      "confidence": 92,
+      "markers": "RECEIPT, PAYMENT"
+    },
+    {
+      "old": "shipment_notice",
+      "new": "shipping_instruction",
+      "confidence": 97,
+      "markers": "SHIPPING INSTRUCTION, SHIPPER"
+    },
+    {
+      "old": "unknown",
+      "new": "empty_return",
+      "confidence": 94,
+      "markers": "EMPTY, RETURN, CONTAINER"
+    },
+    {
+      "old": "unknown",
+      "new": "payment_receipt",
+      "confidence": 92,
+      "markers": "RECEIPT, TRANSACTION"
+    },
+    {
+      "old": "unknown",
+      "new": "shipping_instruction",
+      "confidence": 99,
+      "markers": "SHIPPING INSTRUCTION, SHIPPER, CONSIGNEE"
+    },
+    {
+      "old": "bill_of_lading",
+      "new": "booking_amendment",
+      "confidence": 96,
+      "markers": "BOOKING, AMENDMENT, UPDATE"
+    },
+    {
+      "old": "freight_invoice",
+      "new": "payment_receipt",
+      "confidence": 92,
+      "markers": "RECEIPT, PAYMENT"
+    },
+    {
+      "old": "unknown",
+      "new": "arrival_notice",
+      "confidence": 99,
+      "markers": "ARRIVAL NOTICE, ETA, PORT OF DISCHARGE"
+    },
+    {
+      "old": "unknown",
+      "new": "payment_receipt",
+      "confidence": 94,
+      "markers": "RECEIPT, PAYMENT, PAID"
+    },
+    {
+      "old": "freight_invoice",
+      "new": "invoice",
+      "confidence": 89,
+      "markers": "INVOICE, INVOICE NO, INVOICE DATE"
+    },
+    {
+      "old": "bill_of_lading",
+      "new": "booking_amendment",
+      "confidence": 96,
+      "markers": "BOOKING, AMENDMENT, UPDATE"
+    },
+    {
+      "old": "unknown",
+      "new": "hbl",
+      "confidence": 94,
+      "markers": "HOUSE BILL OF LADING, CONSIGNEE"
+    },
+    {
+      "old": "booking_amendment",
+      "new": "booking_confirmation",
+      "confidence": 99,
+      "markers": "BOOKING CONFIRMATION, BOOKING NUMBER, VESSEL"
+    },
+    {
+      "old": "bill_of_lading",
+      "new": "booking_amendment",
+      "confidence": 96,
+      "markers": "BOOKING, AMENDMENT, UPDATE"
+    },
+    {
+      "old": "booking_amendment",
+      "new": "booking_confirmation",
+      "confidence": 99,
+      "markers": "BOOKING CONFIRMATION, VESSEL, ETD"
+    },
+    {
+      "old": "unknown",
+      "new": "arrival_notice",
+      "confidence": 99,
+      "markers": "ARRIVAL NOTICE, ETA, PORT OF DISCHARGE"
+    },
+    {
+      "old": "booking_amendment",
+      "new": "booking_confirmation",
+      "confidence": 99,
+      "markers": "BOOKING CONFIRMATION, BOOKING NUMBER, VESSEL"
+    },
+    {
+      "old": "unknown",
+      "new": "duty_invoice",
+      "confidence": 88,
+      "markers": "INVOICE"
+    },
+    {
+      "old": "bill_of_lading",
+      "new": "booking_amendment",
+      "confidence": 96,
+      "markers": "BOOKING, AMENDMENT, UPDATE"
+    },
+    {
+      "old": "booking_amendment",
+      "new": "booking_confirmation",
+      "confidence": 99,
+      "markers": "BOOKING CONFIRMATION, BOOKING NUMBER, VESSEL"
+    },
+    {
+      "old": "bill_of_lading",
+      "new": "payment_receipt",
+      "confidence": 94,
+      "markers": "RECEIPT, ACH, PAID"
+    },
+    {
+      "old": "unknown",
+      "new": "arrival_notice",
+      "confidence": 99,
+      "markers": "ARRIVAL NOTICE, ETA, PORT OF DISCHARGE"
+    },
+    {
+      "old": "bill_of_lading",
+      "new": "booking_amendment",
+      "confidence": 96,
+      "markers": "BOOKING, AMENDMENT, UPDATE"
+    },
+    {
+      "old": "unknown",
+      "new": "delivery_order",
+      "confidence": 98,
+      "markers": "DELIVERY ORDER, DO NO, RELEASE"
+    },
+    {
+      "old": "unknown",
+      "new": "delivery_order",
+      "confidence": 98,
+      "markers": "DELIVERY ORDER, DO NO, RELEASE"
+    },
+    {
+      "old": "unknown",
+      "new": "shipping_instruction",
+      "confidence": 99,
+      "markers": "SHIPPING INSTRUCTION, SI SUB TYPE, TRANSPORT DOCUMENT"
+    },
+    {
+      "old": "bill_of_lading",
+      "new": "invoice",
+      "confidence": 89,
+      "markers": "INVOICE, INVOICE NO, INVOICE DATE"
+    },
+    {
+      "old": "bill_of_lading",
+      "new": "booking_amendment",
+      "confidence": 96,
+      "markers": "BOOKING, AMENDMENT, UPDATE"
+    },
+    {
+      "old": "bill_of_lading",
+      "new": "booking_amendment",
+      "confidence": 96,
+      "markers": "BOOKING, AMENDMENT, UPDATE"
+    },
+    {
+      "old": "bill_of_lading",
+      "new": "booking_amendment",
+      "confidence": 96,
+      "markers": "BOOKING, AMENDMENT, UPDATE"
+    },
+    {
+      "old": "freight_invoice",
+      "new": "invoice",
+      "confidence": 89,
+      "markers": "INVOICE, INVOICE NO, INVOICE DATE"
+    },
+    {
+      "old": "booking_amendment",
+      "new": "booking_confirmation",
+      "confidence": 99,
+      "markers": "BOOKING CONFIRMATION, BOOKING NUMBER, VESSEL"
+    },
+    {
+      "old": "unknown",
+      "new": "booking_amendment",
+      "confidence": 96,
+      "markers": "BOOKING, AMENDMENT, UPDATE"
+    },
+    {
+      "old": "booking_cancellation",
+      "new": "booking_confirmation",
+      "confidence": 99,
+      "markers": "BOOKING CONFIRMATION, BOOKING NUMBER, VESSEL"
+    },
+    {
+      "old": "freight_invoice",
+      "new": "invoice",
+      "confidence": 89,
+      "markers": "INVOICE, INVOICE NO, INVOICE DATE"
+    },
+    {
+      "old": "bill_of_lading",
+      "new": "booking_amendment",
+      "confidence": 96,
+      "markers": "BOOKING, AMENDMENT, UPDATE"
+    },
+    {
+      "old": "arrival_notice",
+      "new": "delivery_order",
+      "confidence": 98,
+      "markers": "DELIVERY ORDER, DO NO, RELEASE"
+    },
+    {
+      "old": "booking_amendment",
+      "new": "booking_confirmation",
+      "confidence": 99,
+      "markers": "BOOKING CONFIRMATION, BOOKING NUMBER, VESSEL"
+    },
+    {
+      "old": "unknown",
+      "new": "arrival_notice",
+      "confidence": 99,
+      "markers": "ARRIVAL NOTICE, ETA, PORT OF DISCHARGE"
+    },
+    {
+      "old": "unknown",
+      "new": "shipping_instruction",
+      "confidence": 99,
+      "markers": "SHIPPING INSTRUCTION, SI SUB TYPE, TRANSPORT DOCUMENT"
+    },
+    {
+      "old": "bill_of_lading",
+      "new": "invoice",
+      "confidence": 89,
+      "markers": "INVOICE, INVOICE NO, INVOICE DATE"
+    },
+    {
+      "old": "bill_of_lading",
+      "new": "booking_amendment",
+      "confidence": 96,
+      "markers": "BOOKING, AMENDMENT, UPDATE"
+    },
+    {
+      "old": "bill_of_lading",
+      "new": "booking_amendment",
+      "confidence": 96,
+      "markers": "BOOKING, AMENDMENT, UPDATE"
+    },
+    {
+      "old": "booking_cancellation",
+      "new": "booking_confirmation",
+      "confidence": 99,
+      "markers": "BOOKING CONFIRMATION, BOOKING NUMBER, VESSEL"
+    },
+    {
+      "old": "booking_amendment",
+      "new": "booking_confirmation",
+      "confidence": 99,
+      "markers": "BOOKING CONFIRMATION, BOOKING NUMBER, VESSEL"
+    },
+    {
+      "old": "demurrage_notice",
+      "new": "payment_receipt",
+      "confidence": 98,
+      "markers": "RECEIPT, PAYMENT, WIRE"
+    },
+    {
+      "old": "unknown",
+      "new": "freight_invoice",
+      "confidence": 89,
+      "markers": "INVOICE, FREIGHT, CONTAINER"
+    }
+  ]
 }

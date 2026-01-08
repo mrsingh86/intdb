@@ -160,27 +160,35 @@ export type LinkMethod =
 
 export interface ShipmentDocument {
   id: string;
-  shipment_id: string;
+  shipment_id: string | null;
   email_id: string;
   classification_id?: string;
 
   document_type: string;
-  document_date?: string;
-  document_number?: string;
+  document_date?: string | null;
+  document_number?: string | null;
   subject?: string;
 
-  is_primary: boolean;
-  link_confidence_score?: number;
-  link_method: LinkMethod;
-  linked_by?: string;
-  linked_at: string;
+  is_primary?: boolean;
+  link_confidence_score?: number | null;
+  link_method?: LinkMethod | string | null;
+  link_source?: string | null;
+  link_identifier_type?: string | null;
+  link_identifier_value?: string | null;
+  linked_by?: string | null;
+  linked_at?: string | null;
 
   // Matched identifiers (for traceability)
   matched_booking_number?: string | null;
   matched_bl_number?: string | null;
   matched_container_number?: string | null;
 
-  created_at: string;
+  // New fields from split architecture
+  attachment_id?: string;
+  linking_id?: string | null;
+  status?: string;
+
+  created_at?: string;
 }
 
 export interface ShipmentContainer {

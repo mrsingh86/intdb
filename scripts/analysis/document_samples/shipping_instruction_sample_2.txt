@@ -1,0 +1,140 @@
+FILENAME: Shipping Instruction Sh#20758363.pdf
+CATEGORY: shipping_instruction
+========================================
+
+Shipping Instruction
+Dear Customer
+This is a confirmation that your Shipping Instruction was sent.
+Document Details
+Booking No: 20758363
+Date of Submission: 2025-12-20
+Time of Submission: 05:06:08.629 GMT
+BL Number: HLCUDE1251231645
+Technical Reference
+In case that any technical issue happens or you face delays (more than 8 hours)
+with receiving your initial draft, please reach out to us with the following ID:
+72C8A0F8ECE44FB79E651A1F71439940
+Addresses and References
+Shipper
+INTOGLO PRIVATE LIMITED
+PATPARGANJ INDRAPRASTHA EXTENSION
+NEW DELHI-110092 INDIA
+Consignee
+INTOGLO TECHNOLOGIES INC.
+4047, LONG AVE TRACY CA 95377
+UNITED STATES
+NAM@INTOGLO.COM
+OPS@INTOGLO.COM
+Notify Address
+INTOGLO TECHNOLOGIES INC.
+4047, LONG AVE TRACY CA 95377
+UNITED STATES
+NAM@INTOGLO.COM
+OPS@INTOGLO.COM
+Port of Discharge
+NORFOLK, VA
+Port of Loading
+MUNDRA
+Place of Receipt
+PATLI
+Place of Delivery
+CHICAGO, IL
+Containers and Cargo
+Container No.
+FANU1580002
+Seal(s)
+HLK2734089
+
+Cargo Item 1Cargo Item 1
+No. of
+31
+Kind of Packages / UN Packing 
+Code
+PK
+Print the Kind of Packages on 
+BL as
+Package
+HS Code
+871690
+Cargo Description
+THIRTY ONE PACKAGES ONLY 
+CONTAINING
+OF BRAKE SHOE
+SB NO.: 7965530 DT. 17/12/2025
+SB NO.: 7961327 DT. 17/12/2025
+SCAC: INWF
+HSN CODE: 87169010, 87083000
+Marks & Nos
+01 TO 31 PKGS
+Gross Weight
+25,496.800 kg
+Gross Volume
+cbm
+Net Weight
+24,877.800 kg
+Total
+No. of Outer 
+Packaging
+31 Packages
+Gross 
+Weight
+25496.8 kg
+Gross 
+Volume
+0 cbm
+Net Weight
+24877.8 kg
+Total of all Containers:
+Total Number of Containers received by Carrier
+1
+Packages received by Carrier
+31
+Total Gross Weight
+25496.8 kg
+Total Net Weight
+24877.8 kg
+Total Gross Volume
+0 cbm
+Total Net Volume
+cbm
+Country Specific & Customs Requirements
+US Automated Manifest System filing
+Selected:
+• I am an NVOCC/Freight Forwarder and act as self-filer for house bill data
+Self Filer SCAC Code
+INWF
+
+Payment & Payer Terms
+Origin Port Charge
+Prepaid (Origin)
+Sea Freight
+Collect (Destination)
+Destination Port Charge
+Collect (Destination)
+Prepaid Payer
+Shipper
+Origin Haulage Charges
+Prepaid (Origin)
+Destination Haulage Charge
+Collect (Destination)
+Collect Payer
+Consignee
+Document Issuance
+Number of Freighted Original BL
+0
+Number of Freighted Copies
+0
+Number of Non-Freighted 
+Original BL
+0
+Number of Non-Freighted 
+Copies
+1
+Document Type
+Sea Waybill
+Send first BL draft to (email)
+pricing@intoglo.com
+Invoice Reference
+-
+Comments & Attachments
+No comments & nothing attached

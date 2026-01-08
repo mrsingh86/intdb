@@ -1,0 +1,149 @@
+FILENAME: SI_EID0918049.pdf
+CATEGORY: shipping_instruction
+========================================
+
+
+
+This document is not a Draft B/L.
+Transaction type: Shipping Instruction RequestLast submission date/time (UTC): 12/19/2025 6:18 AM UTC+00:00
+SI Requestor
+Name: INTOGLO PVT LTD
+Address: PLOT 72 B 2 106
+MILAN VIHAR APARTMENTS PATPARGANJ
+INDRAPRASTHA EXTENSION
+110092 NEW DELHI
+India
+ 
+Contact Name: Singh Mrigank
+Contact Email: pricing@intoglo.com
+Contact Phone / Fax / Mobile:
+Reference(s)
+Request Ref.: WBINS18529270
+Booking ref.: EID0918049
+Shipment ref.:
+Customer reference:
+Customs / AES Reference:
+House B/L Ref:
+Shipper
+Name: INTOGLO PVT LTD
+Address: PLOT 72 B 2 106
+MILAN VIHAR APARTMENTS PATPARGANJ
+INDRAPRASTHA EXTENSION
+NEW DELHI -110092 INDIA
+IN
+Code: 0007261403
+Reference:
+Contact: / /
+Forwarder
+Name: INTOGLO PVT LTD
+Address: PLOT 72 B 2 106
+MILAN VIHAR APARTMENTS PATPARGANJ
+INDRAPRASTHA EXTENSION
+NEW DELHI -110092 INDIA
+IN
+Code: 0007261403
+Reference:
+Contact: / /
+Consignee
+Name: INTOGLO TECHNOLOGIES INC.
+Address: 4047 LONG AVE, TRACY, CA 95377
+UNITED STATES
+NAM@INTOGLO.COM
+OPS@INTOGLO.COM
+US
+Code: 0007813355
+Reference:
+Contact: / /
+Freight Payer
+Name: INTOGLO TECHNOLOGIES INC.
+Address: 4047 LONG AVE, TRACY, CA 95377
+UNITED STATES
+NAM@INTOGLO.COM
+OPS@INTOGLO.COM
+US
+Code: 0007813355
+Reference:
+Contact: / /
+Notify
+Name: INTOGLO TECHNOLOGIES INC.
+Address: 4047 LONG AVE, TRACY, CA 95377
+UNITED STATES
+NAM@INTOGLO.COM
+OPS@INTOGLO.COM
+US
+Code: 0007813355
+Reference:
+Contact: / /
+ 
+Voyage Reference
+0INLJW1MA
+Vessel Name
+KOI
+Export Movement Type: Port
+Import Movement Type: Port
+Place of Receipt
+Name (UN Code):
+Print on B/L as:
+Port of Loading
+Name (UN Code): MUNDRA (INMUN)
+Print on B/L as: MUNDRA
+Port of Discharge
+Name (UN Code): NEW YORK, NY
+(USNYC)
+Print on B/L as: NEW YORK, NY
+Place of Delivery
+Name (UN Code):
+Print on B/L as:
+Marks And Descriptions
+Container TRHU8912333
+Equip.: 40 HC
+Shipper seal:
+Carrier seal: M5367739
+Custom seal:
+Terminal op. seal:
+Total volume: -
+Total Weight (Excl. Tare): 17626.0 KGM
+Tare weight: 3700.0 KGM
+SOC: No
+ 
+Package #1
+Commodity: 130232 / Mucilages and
+thickeners, derived from locust beans,
+locust
+No & type of packages: 700 PACKAGE(S)
+Cargo gross weight: 17626 KGM
+Cargo Volume: -
+Marks & numbers
+01 to 700 PKGS
+Goods description
+SEVEN HUNDRED PACKAGES ONLY CONTAINING OF
+Guar Gum FOODAID-FG3, 200 Mesh 5000 Cps min
+SCAC: INWF
+HSN CODE: 13023239
+NET WT.: 17500.000 KGS
+Payment
+Freight: Collect
+Freight Payer: INTOGLO TECHNOLOGIES INC-Freight Payer
+Payable At: VIRGINIA BEACH, VA, US
+BL Clauses:
+B/L Details
+Place of Issue: DELHI,IN
+B/L Type: W
+Number of Originals: 0.0
+Number of Copies: 1.0
+B/L Instructions:
+Remarks
+Freight charges : INTOGLO TECHNOLOGIES INC-Freight Payer / Collect / VIRGINIA BEACH, VA, US / USD / pricing@intoglo.com
+***BL comments***
+WBINS18529270Page 1 on 1
+Exported on 2025 December 19 at 06:18
+     
+
+═══════════════════════════════════════
+EXTRACTED KEY FIELDS (UNKNOWN)
+═══════════════════════════════════════
+BL Number: Instructions
+Container: TRHU8912333
+Vessel: Name
+Voyage: Reference
+Weight: 3700.0, 17626

@@ -169,4 +169,37 @@ export class EntityRepository {
     if (error || !data) return null;
     return data;
   }
+
+  /**
+   * Delete all entities for an email (for re-extraction)
+   * Returns count of deleted entities
+   */
+  async deleteByEmailId(emailId: string): Promise<number> {
+    const { error, count } = await this.supabase
+      .from('entity_extractions')
+      .delete({ count: 'exact' })
+      .eq('email_id', emailId);
+
+    if (error) {
+      throw new Error(`Failed to delete entities: ${error.message}`);
+    }
+
+    return count ?? 0;
+  }
+
+  /**
+   * Replace all entities for an email (atomic delete + insert)
+   * Used for re-extraction to ensure clean state
+   */
+  async replaceForEmail(
+    emailId: string,
+    entities: Partial<EntityExtraction>[]
+  ): Promise<EntityExtraction[]> {
+    // Delete existing entities first
+    await this.deleteByEmailId(emailId);
+
+    // Insert new entities
+    if (entities.length === 0) return [];
+    return this.createMany(entities);
+  }
 }

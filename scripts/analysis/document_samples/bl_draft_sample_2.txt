@@ -1,0 +1,66 @@
+FILENAME: 425 - DRAFT BL.pdf
+CATEGORY: bl_draft
+========================================
+
+BILL OF LADING
+Bill/Lading Number
+Matangi Industries LLP
+Plot 5605 to 5614, Phase   2Vatva GIDC 
+Ahmedabad 382445, Gujarat, India
+GSTIN No. :24AAEFM6021B1ZZ
+PAN No. :AAEFM6021B
+SE1225003080
+EXPRESS
+EXPRESS BILL OF LADING
+Fci Technology
+C/O PGS WHS2010 
+Nazareth Church Rd
+Spartanburg, SC 29301
+Fci Technology
+DIVISION OF ALINEA CHEMICAL SOLUTIONS310 
+SPARTANGREEN BLVD.DUNCAN, 
+SC 29334
+PHONE: 704 629 4630
+MAERSK ATLANTA / 550W
+PORT PIPAVAV, INDIA
+CHARLESTON, UNITED STATESAHMEDABAD, INDIA0 (ZERO)
+Product name                   1 x 20GP CONTAINER                                            19008 KG           
+Batch no                       18 Package(s)                                                                    
+IBC/Drum/Bag no                EIGHTEEN PACKAGES ONLY                                                           
+Gross weight                                                                                                    
+Tare weight                    Speciality Chemicals/Surfactants                                                 
+Net weight                     FCL Container                                                                    
+Manufacturer name              Total : 18 IBC Tank                                                              
+Made in India                  Packing : 1000 Kgs X 18 IBC Tank                                                 
+                               Matpers DFD 351                                                                  
+CONTAINER NO.: MSKU5710280     Packing : 1000 Kgs X 18 IBC Tank                                                 
+L.SEAL NO.: MLIN2946481        HS CODE: 3402.42.00                                                              
+One time Seal No.:             Purchase Order No. : PO 60253 Date : 11/11/2025                                  
+WIND02743519                   Performa Invoice No. : EX2/252640354 Dated : 11/11/2025                          
+                               Commercial Invoice No. :  EX2252640425 Dated : 06/12/2025                        
+DESTINATION AGENT :            Shipping Bill No : 7644453  Dated : 06/12/2025                                   
+INTOGLO TECHNOLOGIES INC.      NET WEIGHT : 18000.00 KGS                                                        
+4047 LONG AVE TRACY, CA 95377                                                                                   
+EMAIL - NAM@INTOGLO.COM;       FREIGHT PREPAID                                                                  
+OPS@INTOGLO.COM                                                                                                 
+PH - 9176727299                                                                                                 
+                                                                                  
+Consol Ref: CSE1225002704*Shipper Load and Count
+INCOTERM: CIFSHIPPED ON BOARD  
+Bill of Lading must be surrendered to:
+PORT PIPAVAV, INDIA
+AS CARRIER
+KHODIYAR, INDIACHARLESTON, UNITED STATES
+ONE CONTAINER(S)
+LAW AND JURISDICTION CLAUSE
+The Contract evidenced by or contained in this Bill of Lading shall be governed by the law in 
+India and any claim or dispute arising hereunder or in connection herewith shall (without 
+prejudice to the Carrier's rights to commence proceedings in any other jurisdiction) be subject to 
+the jurisdiction of the Courts of India.
+The Merchant's attention is called to the fact that according to Clauses 10, 11 and 12 
+of this Bill of Lading, the liability of the Carrier is, in most cases, limited in the respect 
+of loss of or damage to the goods and delay.
+HBoL-ITC 
+DRAFT
+
+DRAFT

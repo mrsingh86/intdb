@@ -1,0 +1,157 @@
+FILENAME: Shipping Instruction Sh#93908595.pdf
+CATEGORY: shipping_instruction
+========================================
+
+
+
+Shipping Instruction
+Dear Customer
+This is a confirmation that your Shipping Instruction was sent.
+Document Details
+Booking No: 93908595
+Date of Submission: 2025-12-14
+Time of Submission: 11:45:10.135 GMT
+BL Number: HLCUBO12512AVUF0
+Technical Reference
+In case that any technical issue happens or you face delays (more than 8 hours)
+with receiving your initial draft, please reach out to us with the following ID:
+B8B155A8E66F4D3B879E4907AAF20608
+Addresses and References
+Shipper
+INTOGLO PRIVATE LIMITED
+PATPARGANJ INDRAPRASTHA EXTENSION
+NEW DELHI-110092 INDIA
+Consignee
+INTOGLO TECHNOLOGIES INC.
+4047, LONG AVE TRACY CA 95377
+UNITED STATES
+NAM@INTOGLO.COM
+OPS@INTOGLO.COM
+Notify Address
+INTOGLO TECHNOLOGIES INC.
+4047, LONG AVE TRACY CA 95377
+UNITED STATES
+NAM@INTOGLO.COM
+OPS@INTOGLO.COM
+Port of Discharge
+SAVANNAH, GA
+Port of Loading
+MUNDRA
+Containers and Cargo
+Container No.
+CAAU2287901
+Seal(s)
+HLK2813042
+Cargo Item 1Cargo Item 1
+
+No. of
+20
+Kind of Packages / UN Packing 
+Code
+BG
+Print the Kind of Packages on 
+BL as
+Bag
+HS Code
+100630
+Cargo Description
+TWENTY BAGS ONLY 
+CONTAINING OF
+TOTAL -20 JUMBO BAGS
+INDIAN LONG GRAIN WHITE RICE
+Broken under 5% 2/3 basis
+100% SORTEX CLEANED,CROP 
+2024-2025
+01X20 FT CONTAINER, 
+CONTAINING 20
+JUMBO BAGS
+WEIGHT OF EACH JUMBO BAG : 
+1MTS
+TOTAL: 20 BAGS
+INVOICE NO . SGEA244 DT :
+01-12-2025
+S/BILL NO: 7864972 DT:
+14.12.2025
+GR.WEIGHT : 20.100 MTS
+NET WEIGHT : 20.000 MTS
+IEC : ARFPG6410L
+HS CODE: 10063099
+Marks & Nos
+1 TO 20 BAGS
+Gross Weight
+20,100.000 kg
+Gross Volume
+cbm
+Net Weight
+20,000.000 kg
+Total
+No. of Outer 
+Packaging
+20 Packages
+Gross 
+Weight
+20100 kg
+Gross 
+Volume
+0 cbm
+Net Weight
+20000 kg
+Total of all Containers:
+Total Number of Containers received by Carrier
+1
+Packages received by Carrier
+20
+Total Gross WeightTotal Net WeightTotal Gross VolumeTotal Net Volume
+
+20100 kg20000 kg0 cbmcbm
+Country Specific & Customs Requirements
+US Automated Manifest System filing
+Selected:
+• I am an NVOCC/Freight Forwarder and act as self-filer for house bill data
+Self Filer SCAC Code
+INWF
+Payment & Payer Terms
+Origin Port Charge
+Prepaid (Origin)
+Sea Freight
+Collect (Destination)
+Destination Port Charge
+Collect (Destination)
+Prepaid Payer
+Booking Party
+Collect Payer
+Consignee
+Document Issuance
+Number of Freighted Original BL
+0
+Number of Freighted Copies
+0
+Number of Non-Freighted 
+Original BL
+0
+Number of Non-Freighted 
+Copies
+1
+Document Type
+Sea Waybill
+Send first BL draft to (email)
+pricing@intoglo.com
+Invoice Reference
+-
+Comments & Attachments
+HBL INVOLVED AMS FILE BY FORWERDER
+SCAC CODE : INWF
+
+
+
+═══════════════════════════════════════
+EXTRACTED KEY FIELDS (UNKNOWN)
+═══════════════════════════════════════
+Booking Number: 93908595
+BL Number: HLCUBO12512AVUF0
+Container: CAAU2287901
+POL: MUNDRA
+POD: SAVANNAH, GA
+Shipper: INTOGLO PRIVATE LIMITED
+Consignee: INTOGLO TECHNOLOGIES INC., Document Issuance
+Weight: 20.100, 20.000, 20,100.000, 20,000.000, 20100

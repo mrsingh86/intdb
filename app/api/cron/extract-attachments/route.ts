@@ -28,18 +28,18 @@ const pdfParse = require('pdf-parse-fork');
 const MAX_PER_RUN = 50;
 
 interface GmailPart {
-  partId: string;
-  mimeType: string;
-  filename: string;
-  body: {
-    attachmentId?: string;
-    size: number;
-    data?: string;
-  };
-  parts?: GmailPart[];
+  partId?: string | null;
+  mimeType?: string | null;
+  filename?: string | null;
+  body?: {
+    attachmentId?: string | null;
+    size?: number | null;
+    data?: string | null;
+  } | null;
+  parts?: GmailPart[] | null;
 }
 
-function findAttachmentPart(parts: GmailPart[] | undefined, filename: string): GmailPart | null {
+function findAttachmentPart(parts: GmailPart[] | null | undefined, filename: string): GmailPart | null {
   if (!parts) return null;
 
   for (const part of parts) {

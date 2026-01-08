@@ -213,6 +213,27 @@ export class EmailIngestionService {
           .eq('email_id', emailId);
         const attachmentFilenames = attachments?.map(a => a.filename).filter(Boolean) || [];
 
+        // Check thread context - get existing document types from this thread
+        const { data: threadEmails } = await this.supabase
+          .from('raw_emails')
+          .select('id, is_response, document_classifications(document_type)')
+          .eq('thread_id', email.thread_id)
+          .neq('id', emailId)
+          .order('received_at', { ascending: true });
+
+        const existingDocTypesInThread = threadEmails
+          ?.flatMap((e: any) => e.document_classifications?.map((c: any) => c.document_type))
+          .filter(Boolean) || [];
+
+        // Get is_response flag from email
+        const { data: emailMeta } = await this.supabase
+          .from('raw_emails')
+          .select('is_response, clean_subject')
+          .eq('id', emailId)
+          .single();
+
+        const isResponse = emailMeta?.is_response || false;
+
         // Run classification with AI fallback for low-confidence results
         classificationOutput = await this.classificationOrchestrator.classifyWithAI({
           subject: email.subject || '',
@@ -220,6 +241,8 @@ export class EmailIngestionService {
           bodyText: email.body_text || '',
           attachmentFilenames,
           pdfContent: attachmentContent || undefined,
+          isResponse,
+          existingDocTypesInThread,
         });
 
         // Save classification to database
@@ -804,6 +827,40 @@ export class EmailIngestionService {
 
     if (existing && existing.length > 0) {
       return; // Already linked
+    }
+
+    // Get email's thread_id for deduplication
+    const { data: email } = await this.supabase
+      .from('raw_emails')
+      .select('thread_id, is_response')
+      .eq('id', emailId)
+      .single();
+
+    // THREAD DEDUPLICATION: If this is a RE:/FW: email and the same document type
+    // already exists from this thread for this shipment, skip linking
+    if (email?.thread_id && email?.is_response && documentType) {
+      const { data: existingInThread } = await this.supabase
+        .from('shipment_documents')
+        .select('id, email_id')
+        .eq('shipment_id', shipmentId)
+        .eq('document_type', documentType);
+
+      if (existingInThread && existingInThread.length > 0) {
+        // Check if any of those documents are from the same thread
+        const existingEmailIds = existingInThread.map(d => d.email_id);
+        const { data: threadCheck } = await this.supabase
+          .from('raw_emails')
+          .select('id')
+          .eq('thread_id', email.thread_id)
+          .in('id', existingEmailIds);
+
+        if (threadCheck && threadCheck.length > 0) {
+          console.log(
+            `[LinkEmail] Skipping duplicate: ${documentType} already linked from thread ${email.thread_id.substring(0, 8)}...`
+          );
+          return; // Skip duplicate from same thread
+        }
+      }
     }
 
     // Get classification ID

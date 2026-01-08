@@ -155,6 +155,12 @@ export async function GET(request: Request) {
         const getHeader = (name: string) =>
           headers.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value || '';
 
+        // Detect RE:/FW: responses
+        const subject = getHeader('Subject');
+        const isResponse = /^(RE|Re|FW|Fw|Fwd|FWD):\s*/i.test(subject);
+        const inReplyTo = getHeader('In-Reply-To');
+        const cleanSubject = subject.replace(/^(RE|Re|FW|Fw|Fwd|FWD):\s*/gi, '').trim();
+
         // Extract email body
         let bodyText = '';
         let bodyHtml = '';
@@ -203,7 +209,7 @@ export async function GET(request: Request) {
           .insert({
             gmail_message_id: messageId,
             thread_id: emailData.threadId,
-            subject: getHeader('Subject'),
+            subject: subject,
             sender_email: getHeader('From'),
             body_text: bodyText || emailData.snippet || '',
             body_html: bodyHtml,
@@ -211,6 +217,9 @@ export async function GET(request: Request) {
             received_at: new Date(parseInt(emailData.internalDate || '0')).toISOString(),
             has_attachments: hasAttachments,
             processing_status: 'pending',
+            is_response: isResponse || !!inReplyTo,
+            in_reply_to_message_id: inReplyTo || null,
+            clean_subject: cleanSubject,
           })
           .select()
           .single();

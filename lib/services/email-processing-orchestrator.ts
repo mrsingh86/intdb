@@ -43,6 +43,23 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { EntityType, ExtractionMethod } from '@/types/email-intelligence';
 import { createUnifiedExtractionService, UnifiedExtractionService } from './extraction';
+import { FlaggingOrchestrator, createFlaggingOrchestrator } from './flagging-orchestrator';
+import {
+  DocumentRegistryService,
+  createDocumentRegistryService,
+  ClassificationInput as RegistryClassificationInput,
+} from './document-registry-service';
+// Hybrid registry approach: EmailRegistry + WorkstateRegistry only
+// ShipmentRegistry skipped (processBookingConfirmation has richer logic)
+// StakeholderRegistry skipped (extractAndLinkStakeholders handles it)
+// DocumentRegistry called directly (not via orchestrator)
+import {
+  EmailRegistryService,
+  createEmailRegistryService,
+  WorkstateRegistryService,
+  createWorkstateRegistryService,
+} from './registry';
+import { createHash } from 'crypto';
 
 // ============================================================================
 // Configuration
@@ -136,6 +153,12 @@ export class EmailProcessingOrchestrator {
   private workflowService: WorkflowStateService;
   private enhancedWorkflowService: EnhancedWorkflowStateService;
   private unifiedExtractionService: UnifiedExtractionService;
+  // New services for full pipeline integration
+  private flaggingOrchestrator: FlaggingOrchestrator;
+  private documentRegistryService: DocumentRegistryService;
+  // Hybrid registry: only EmailRegistry + WorkstateRegistry
+  private emailRegistryService: EmailRegistryService;
+  private workstateRegistryService: WorkstateRegistryService;
   // Repositories (follow repository pattern - split architecture)
   private shipmentRepository: ShipmentRepository;
   private emailRepository: EmailRepository;
@@ -181,6 +204,14 @@ export class EmailProcessingOrchestrator {
     this.enhancedWorkflowService = new EnhancedWorkflowStateService(this.supabase);
     // Unified extraction service (schema + regex based) - $0 cost vs AI $0.002/email
     this.unifiedExtractionService = createUnifiedExtractionService(this.supabase);
+    // Flagging orchestrator (coordinates email + attachment flagging)
+    this.flaggingOrchestrator = createFlaggingOrchestrator(this.supabase);
+    // Document registry (tracks unique documents and versions)
+    this.documentRegistryService = createDocumentRegistryService(this.supabase);
+    // Hybrid registry: EmailRegistry for sender tracking, WorkstateRegistry for state history
+    // ShipmentRegistry/StakeholderRegistry skipped - handled by existing services
+    this.emailRegistryService = createEmailRegistryService(this.supabase);
+    this.workstateRegistryService = createWorkstateRegistryService(this.supabase);
   }
 
   /**
@@ -252,16 +283,20 @@ export class EmailProcessingOrchestrator {
   /**
    * Process a single email through the entire pipeline
    *
-   * Pipeline order:
-   * 1. Fetch email (with optional existing classification)
+   * FULL PIPELINE ORDER:
+   * 1. Fetch email
+   * 1a. FLAG email + attachments (parallel: is_response, is_business_document, etc.)
    * 2. Get PDF content from attachments
-   * 3. Classify if no classification exists (CRITICAL - was missing before)
+   * 3. CLASSIFY (document type + email type from content markers)
    * 4. Detect carrier from content
-   * 5. Extract entities with AI
+   * 5. EXTRACT entities (booking#, BL#, ports, dates, parties)
+   * 5a. DOCUMENT REGISTRY (version tracking using classification + extraction)
    * 6. Process based on document type (create/update/link shipment)
    * 7. Extract stakeholders
-   * 8. Create document lifecycle
+   * 8. Create document lifecycle (with document_id from registry)
    * 9. Update processing status
+   *
+   * CONVERGENCE POINT: Steps 6-9 converge email + attachment paths at shipment level
    */
   async processEmail(emailId: string): Promise<ProcessingResult> {
     try {
@@ -274,6 +309,17 @@ export class EmailProcessingOrchestrator {
 
       if (!email) {
         return { emailId, success: false, stage: 'classification', error: 'Email not found' };
+      }
+
+      // 1a. FLAG email and attachments (parallel processing)
+      // Sets: is_response, clean_subject, email_direction, true_sender_email, thread_position
+      // Sets: is_signature_image, is_business_document on attachments
+      const flaggingResult = await this.flaggingOrchestrator.flagEmail({ emailId });
+      if (!flaggingResult.success) {
+        console.warn(`[Orchestrator] Flagging failed for ${emailId}: ${flaggingResult.error}`);
+        // Continue anyway - flagging is not critical
+      } else {
+        console.log(`[Orchestrator] Flagged: ${flaggingResult.businessAttachmentIds.length} business docs, ${flaggingResult.signatureImageIds.length} signature images filtered`);
       }
 
       // 2. Get email content including PDF attachments (needed for classification)
@@ -332,13 +378,23 @@ export class EmailProcessingOrchestrator {
         });
 
         // Check minimum confidence for processing
-        if (classificationConfidence < MINIMUM_CONFIDENCE_FOR_PROCESSING) {
-          console.log(`[Orchestrator] Confidence ${classificationConfidence}% below minimum ${MINIMUM_CONFIDENCE_FOR_PROCESSING}% - marking for manual review`);
+        // P1 Fix: Also accept emails with high emailTypeConfidence (known email types)
+        // Rationale: Emails without attachments have 0% document confidence but may be
+        // legitimate shipping emails (confirmations, updates) identified by email type
+        const emailTypeConfidence = classificationResult?.emailTypeConfidence || 0;
+        const hasValidEmailType = emailTypeConfidence >= 70;
+
+        if (classificationConfidence < MINIMUM_CONFIDENCE_FOR_PROCESSING && !hasValidEmailType) {
+          console.log(`[Orchestrator] Confidence ${classificationConfidence}% below minimum ${MINIMUM_CONFIDENCE_FOR_PROCESSING}% and email type confidence ${emailTypeConfidence}% insufficient - marking for manual review`);
           await this.supabase
             .from('raw_emails')
             .update({ processing_status: 'manual_review' })
             .eq('id', emailId);
-          return { emailId, success: false, stage: 'classification', error: `Low confidence (${classificationConfidence}%) - requires manual review` };
+          return { emailId, success: false, stage: 'classification', error: `Low confidence (${classificationConfidence}%) and no valid email type - requires manual review` };
+        }
+
+        if (hasValidEmailType && classificationConfidence < MINIMUM_CONFIDENCE_FOR_PROCESSING) {
+          console.log(`[Orchestrator] Low document confidence (${classificationConfidence}%) but valid email type (${classificationResult?.emailType} at ${emailTypeConfidence}%) - continuing processing`);
         }
       }
 
@@ -376,6 +432,83 @@ export class EmailProcessingOrchestrator {
 
       // NOTE: storeExtractedEntities() REMOVED - UnifiedExtractionService already saves to
       // email_extractions and document_extractions tables. Linking now uses those tables.
+
+      // 5a. DOCUMENT REGISTRY - Register business documents for version tracking
+      // Uses classification + extraction for quality (not fallback to weak regex)
+      const registryResults: Array<{ attachmentId: string; documentId: string | null; versionId: string | null; isDuplicate: boolean }> = [];
+      if (flaggingResult.success && flaggingResult.businessAttachmentIds.length > 0) {
+        for (const attachmentId of flaggingResult.businessAttachmentIds) {
+          // Get attachment details
+          const { data: att } = await this.supabase
+            .from('raw_attachments')
+            .select('id, filename, extracted_text, size_bytes')
+            .eq('id', attachmentId)
+            .single();
+
+          if (att) {
+            // Compute content hash for duplicate detection
+            const contentHash = createHash('sha256')
+              .update(`${att.filename}|${att.size_bytes}|${(att.extracted_text || '').substring(0, 2000)}`)
+              .digest('hex');
+
+            // Build classification input from upstream services
+            const registryClassification: RegistryClassificationInput = {
+              documentType: documentType || 'other',
+              confidence: classificationConfidence,
+              primaryReference: extractedData.booking_number || unifiedResult.entities.bl_number || unifiedResult.entities.hbl_number,
+              secondaryReference: unifiedResult.entities.container_number,
+            };
+
+            // Register in document registry (uses upstream classification for quality)
+            const result = await this.documentRegistryService.registerAttachment(
+              attachmentId,
+              contentHash,
+              att.filename,
+              att.extracted_text,
+              emailId,
+              email.received_at,
+              registryClassification  // Pass classification from upstream
+            );
+
+            if (result.success) {
+              registryResults.push({
+                attachmentId,
+                documentId: result.documentId,
+                versionId: result.versionId,
+                isDuplicate: result.isDuplicate,
+              });
+              console.log(`[Orchestrator] Registered doc: ${result.isNewDocument ? 'NEW' : result.isNewVersion ? 'VERSION' : result.isDuplicate ? 'DUP' : 'LINKED'} - ${att.filename.substring(0, 30)}`);
+            }
+          }
+        }
+      }
+
+      // 5b. EMAIL REGISTRY - Track unique senders (hybrid approach)
+      // Only EmailRegistry here; WorkstateRegistry called after shipment processing
+      // ShipmentRegistry/StakeholderRegistry skipped - handled by existing services
+      try {
+        const emailRegistryResult = await this.emailRegistryService.registerEmail({
+          emailId,
+          senderEmail: email.sender_email || '',
+          senderName: email.sender_name || undefined,
+          threadId: email.thread_id || undefined,
+          subject: email.subject || '',
+          emailType: classificationResult?.emailType,
+          emailTypeConfidence: classificationResult?.emailTypeConfidence,
+          sentiment: classificationResult?.sentiment && ['positive', 'neutral', 'negative', 'urgent'].includes(classificationResult.sentiment)
+            ? classificationResult.sentiment as 'positive' | 'neutral' | 'negative' | 'urgent'
+            : undefined,
+          sentimentScore: classificationResult?.sentimentScore,
+          direction: (flaggingResult.emailFlags?.email_direction as 'inbound' | 'outbound') || 'inbound',
+        });
+
+        if (emailRegistryResult.success) {
+          console.log(`[Orchestrator] EmailRegistry: sender=${emailRegistryResult.isNewSender ? 'NEW' : 'EXIST'} (${emailRegistryResult.senderDomain})`);
+        }
+      } catch (emailRegError) {
+        // Registry errors should not block main processing
+        console.error(`[Orchestrator] EmailRegistry error (non-blocking):`, emailRegError);
+      }
 
       // 6. Process based on document type
       let shipmentId: string | undefined;
@@ -442,9 +575,33 @@ export class EmailProcessingOrchestrator {
         await this.extractAndLinkStakeholders(shipmentId, extractedData, documentType ?? undefined);
       }
 
-      // 8. Create document lifecycle record
+      // 7b. WORKSTATE REGISTRY - Record state transition for journey history (hybrid approach)
+      // Creates immutable workflow_state_history record for audit trail
       if (shipmentId && documentType) {
-        await this.createDocumentLifecycle(shipmentId, documentType, extractedData);
+        try {
+          const workstateResult = await this.workstateRegistryService.recordTransition({
+            shipmentId,
+            documentType,
+            direction: (flaggingResult.emailFlags?.email_direction as 'inbound' | 'outbound') || 'inbound',
+            sourceEmailId: emailId,
+            sourceDocumentId: registryResults.find(r => r.documentId)?.documentId || undefined,
+            sourceAttachmentId: flaggingResult.businessAttachmentIds[0],
+          });
+
+          if (workstateResult.transitionRecorded) {
+            console.log(`[Orchestrator] WorkstateRegistry: ${workstateResult.previousState || 'none'} → ${workstateResult.currentState}`);
+          }
+        } catch (workstateError) {
+          // Registry errors should not block main processing
+          console.error(`[Orchestrator] WorkstateRegistry error (non-blocking):`, workstateError);
+        }
+      }
+
+      // 8. Create document lifecycle record (with document_id from registry when available)
+      if (shipmentId && documentType) {
+        // Get first document ID from registry results (if any documents were registered)
+        const firstDocumentId = registryResults.find(r => r.documentId)?.documentId || null;
+        await this.createDocumentLifecycle(shipmentId, documentType, extractedData, emailId, firstDocumentId);
       }
 
       // 9. Update processing status
@@ -991,7 +1148,6 @@ export class EmailProcessingOrchestrator {
     data: ExtractedBookingData
   ): Promise<void> {
     const entities: {
-      email_id: string;
       entity_type: string;
       entity_value: string;
       confidence_score: number;
@@ -1002,7 +1158,6 @@ export class EmailProcessingOrchestrator {
     const addEntity = (type: string, value: string | undefined, confidence: number) => {
       if (value) {
         entities.push({
-          email_id: emailId,
           entity_type: type,
           entity_value: value,
           confidence_score: confidence,
@@ -1022,10 +1177,11 @@ export class EmailProcessingOrchestrator {
     addEntity('container_number', data.container_number, 85);
 
     if (entities.length > 0) {
-      // Use email_extractions table (NEW) instead of entity_extractions (OLD)
-      await this.supabase
-        .from('email_extractions')
-        .upsert(entities, { onConflict: 'email_id,entity_type' });
+      // Use EmailExtractionRepository (split architecture) instead of direct Supabase call
+      const result = await this.emailExtractionRepository.upsert(emailId, entities);
+      if (result.errors?.length) {
+        console.warn(`[Orchestrator] Failed to store some entities for ${emailId}:`, result.errors);
+      }
     }
   }
 
@@ -1368,12 +1524,15 @@ export class EmailProcessingOrchestrator {
   }
 
   /**
-   * Create document lifecycle record for tracking
+   * Create document lifecycle record for tracking.
+   * Links to document registry via document_id (when available).
    */
   private async createDocumentLifecycle(
     shipmentId: string,
     documentType: string,
-    data: ExtractedBookingData | null
+    data: ExtractedBookingData | null,
+    sourceEmailId?: string,
+    documentId?: string | null
   ): Promise<void> {
     // Build extracted fields for quality scoring
     const extractedFields: Record<string, unknown> = {};
@@ -1391,12 +1550,21 @@ export class EmailProcessingOrchestrator {
       if (data.container_number) extractedFields.container_numbers = [data.container_number];
     }
 
-    // Create lifecycle record
+    // Create lifecycle record with registry integration
     await this.lifecycleService.createLifecycleForDocument(
       shipmentId,
       documentType,
-      { extractedFields }
+      {
+        extractedFields,
+        documentId: documentId || undefined,
+        sourceEmailId: sourceEmailId,
+      }
     );
+
+    // Log registry linkage for debugging
+    if (documentId) {
+      console.log(`[Orchestrator] Lifecycle created for shipment ${shipmentId.substring(0, 8)}, doc: ${documentId.substring(0, 8)}`);
+    }
   }
 
   /**

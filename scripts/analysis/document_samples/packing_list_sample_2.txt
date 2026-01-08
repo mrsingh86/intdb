@@ -1,0 +1,174 @@
+FILENAME: 425 - PRE PL.pdf
+CATEGORY: packing_list
+========================================
+
+PACKING LIST
+Packing List No. & Date
+EX2252640425 Date 06/12/2025
+IE. Code No.
+0894003691
+Other Reference (s)
+EX2/2526/40354 Date 11/11/2025
+Buyer's Order No. & Date
+PO 60253 Date 11/11/2025
+Exporter (Consigner) & Manufacturer
+Matangi Industries LLP
+Plot 5605 to 5614, Phase - 2Vatva GIDC 
+Ahmedabad-382445, Gujarat, India
+GSTIN No. :24AAEFM6021B1ZZ
+PAN No. : AAEFM6021B
+LC Ref.No.
+Notify Party / Buyer
+FT
+Consignee
+To the Order
+USA,
+FCI (Gastonia)
+Mount Vernon Chemicals LLC
+2001 Willow Springs Lane
+(704)629-4630 FAX (704)629-1495
+Burlington, NC 27215
+Place of Receipt by Pre-Carrier
+ICD/Ahmedabad
+Pre Carriage
+By road / Rail
+Country of Final Destination
+USA
+Country of Origin / Acquisition / 
+Provenance
+India
+Vessel Name/No
+/
+Port of Loading
+Pipavav
+Port of Discharge
+CHARLESTON
+Final Destination
+USA,
+Shipment Terms :
+CIF - CHARLESTON
+Payment Terms: 60 Days From B/L Date
+Description of GoodsGross Quantity
+Net Quantity
+No. Kind of 
+Packing
+Marks & Nos.
+Speciality Chemicals/Surfactants
+Packages :  18 IBC Tank
+Matpers DFD 351
+Product 3600 (Polyoxy Ethylene Castor Oil Ethoxylate) (100% Strength containing 36 moles of EO)
+Kgs
+18000.00
+Kgs
+19008.00
+Export Under DEEC License No. : 0811016085 Date : 09/09/2025
+HS CODE : 3402.42.00
+Packing : 1000 Kgs X 18 IBC Tank
+
+PACKING LIST
+Packing List No. & Date
+EX2252640425 Date 06/12/2025
+IE. Code No.
+0894003691
+Other Reference (s)
+EX2/2526/40354 Date 11/11/2025
+Buyer's Order No. & Date
+PO 60253 Date 11/11/2025
+Exporter (Consigner) & Manufacturer
+Matangi Industries LLP
+Plot 5605 to 5614, Phase - 2Vatva GIDC 
+Ahmedabad-382445, Gujarat, India
+GSTIN No. :24AAEFM6021B1ZZ
+PAN No. : AAEFM6021B
+LC Ref.No.
+Notify Party / Buyer
+FT
+Consignee
+To the Order
+USA,
+FCI (Gastonia)
+Mount Vernon Chemicals LLC
+2001 Willow Springs Lane
+(704)629-4630 FAX (704)629-1495
+Burlington, NC 27215
+Place of Receipt by Pre-Carrier
+ICD/Ahmedabad
+Pre Carriage
+By road / Rail
+Country of Final Destination
+USA
+Country of Origin / Acquisition / 
+Provenance
+India
+Vessel Name/No
+/
+Port of Loading
+Pipavav
+Port of Discharge
+CHARLESTON
+Final Destination
+USA,
+Shipment Terms :
+CIF - CHARLESTON
+Payment Terms: 60 Days From B/L Date
+Description of GoodsGross Quantity
+Net Quantity
+No. Kind of 
+Packing
+Marks & Nos.
+HS Code : 3402.42.00
+Product name
+Batch no
+IBC/Drum/Bag no
+Gross weight
+Tare weight
+Net weight
+Manufacturer name
+Made in India
+Claim under Chapter 3 RODTEP as per FTP 2015-2020 "I/We intend to claim rewards under 
+RODTEP I/We  undertake  to abide by  provisions  of  Foreign Exchange Management  Act, 
+1999, as amended from time to time, including realization/repatriation of foreign exchange 
+to/from India."
+“I/We, in regard to my/our claim under RODTEP scheme made in this shipping bill or bill of 
+export, hereby declare that:
+1. I/We undertake to abide by the provisions, including conditions, restrictions,  exclusions 
+and time-limits as provided under RODTEP Scheme, and relevant notifications, regulations, 
+etc., as amended from time to time.
+2. Any claim made in this shipping bill or bill of export is not with respect to any duties or 
+taxes  or  levies which are exempted or  remitted or  credited under  any  other  mechanism 
+outside RODTEP.
+3. I/We undertake to preserve and make available relevant documents relating to the 
+exported goods for the purposes of audit in the manner and for the time period prescribed in 
+the Customs Audit Regulations, 2018.”
+Net Weight :
+18000.00 Kgs
+Tare Weight : 
+1008.00 Kgs
+Total
+Gross Weight : 
+19008.00 Kgs 
+Packing of
+No.
+Packing TypeNet Weight 
+(Kgs)
+Tare Weight 
+(Kgs)
+Lot No.
+Product Name
+Gross Weight 
+(Kgs)
+1 to 52526/PU2/01828Matpers DFD 351
+IBC TANK5280.005000.00280.00
+1 to 32526/PU2/01804Matpers DFD 351
+IBC TANK3168.003000.00168.00
+1 to 52526/PU2/01822Matpers DFD 351
+IBC TANK5280.005000.00280.00
+1 to 52526/PU2/01816Matpers DFD 351
+IBC TANK5280.005000.00280.00
+18
+19008.0018000.001008.00
+Declaration :
+(Authorised Signatory)
+We declare that this Invoice shows the actual price of the goods 
+described and that all particulars are true and correct.
+For, Matangi Industries LLP

@@ -1,0 +1,242 @@
+FILENAME: 00124789_0.pdf-CSLU1965926.pdf
+CATEGORY: entry_summary
+========================================
+
+DRAFT ONLY
+CBP Form 7501 (07/25)
+3. Summary Date
+4. Surety Number
+7. Entry Date
+9. Mode of Transport10. Country of Origin11. Import Date
+12. B/L or AWB Number13. Manufacturer ID14. Exporting Country15. Export Date
+16. I.T. Number17. I.T. Date18. Missing Docs19. Foreign Port of Lading20. U.S. Port of Unlading
+25. Location of Goods/G.O. Number26. Consignee Number27. Importer Number28. Reference Number
+29. Ultimate Consignee Name (Last, First, M.I.) and Address30. Importer of Record Name (Last, First, M.I.) and Address
+Line 
+No.
+Description of Merchandise
+A. Entered Value
+B. CHGS
+C. Relationship
+Duty and IR Tax
+A. HTSUS No.
+B. AD/CVD No.
+A. Gross Weight
+B. Manifest Qty.
+Net Quantity in 
+HTSUS Units
+DollarsCents
+39. Total Entered Value
+CBP USE ONLYTOTALS
+Other Fee Summary (for Block 39)
+A. LIQ Code
+B. Ascertained Duty41. Duty
+REASON CODEC. Ascertained Tax42. Tax
+D. Ascertained Other43. Other
+E. Ascertained Total44. Total
+SignatureDate
+46. Broker/Filer Information Name (Last, First, M.I.) and Phone Number47. Broker/Importer File Number
+8. Importing Carrier
+Title45. Declarant Name (Last, First, M.I.)
+1. Filer Code/Entry Number
+2. Entry Type
+40. Declaration of Importer of Record (Owner or Purchaser) or
+Authorized Agent
+CityStateZipCityStateZip
+$
+Total Other Fees
+$
+I declare that I am the
+I also declare that the statements in the documents herein filed fully disclose to the best 
+of my knowledge and belief the true prices, values, quantities, rebates, drawbacks, fees, commissions, and royalties and are true and correct, and that all 
+goods or services provided to the seller of the merchandise either free or at reduced cost are fully disclosed.
+Importer of record and that the actual owner, 
+was not obtained pursuant to a purchase or agreement to purchase and the statements in the invoices as
+to value or price are true to the best of my knowledge and belief. 
+I will immediately furnish to the appropriate CBP officer any information showing a different statement of facts.
+or purchaser or agent thereof.
+purchaser, or consignee for CBP purposes is as shown above,owner 
+I further declare that the merchandisewas obtained pursuant to a purchase or agreement to purchase and that the 
+OR
+ORprices set forth in the invoices are true, 
+5. Bond Type6. Port Code
+DEPARTMENT OF HOMELAND SECURITY  
+U.S. Customs and Border Protection  
+ENTRY SUMMARY
+OMB CONTROL NUMBER 1651-0022 
+EXPIRATION DATE 11/30/2025
+38.
+Page 1
+21. Country of Melt and Pour22. Primary Country of Smelt
+23. Secondary Country of Smelt24. Country of Cast
+31.
+32.
+33.
+34.35.
+36.
+A. HTSUS Rate
+B. AD/CVD Rate
+C. IRC Rate
+D. Visa Number
+37.
+01 ABI-A
+01/02/2026
+03683001
+OOCL NEW YORK11IN12/19/2025
+OOLU2038178770INSTRCHA1628KAL
+IN
+10/30/2025
+533063001
+FIRMS # X117-TERMINAL 18 CENTRAL93-080582500230901-80864
+ACME CONSTRUCTION SUPPLY INC
+330 SE SALMON ST
+PORTLANDOR97214
+STRUT CHANNEL FRAMING SYSTEMS
+B 30 1628 BABA DEEP SINGH NAGAR
+PUNJABFN
+
+
+
+
+1
+
+
+
+
+
+
+
+
+
+
+
+ADDTL BL'S: SE1025002860
+
+70 PKG
+Invoice No. CSLU1965926
+9903.01.87             19950
+RU-IN EO 232 EX
+9903.01.33             19950
+IEEPA-RECIPROCAL EXCLUSION
+9903.81.90             19950             0
+DERIV STL, NT16(M) ALL CTR
+7216.91.0010           19950             19750
+ANGLE,SHP & SCTN,IRN/NALY,DRLD
+INSTRCHA1628KAL
+     INV
+     NDC
+
+     EV
+
+
+
+
+0
+
+0
+
+0
+
+11500
+11500
+0.00
+11500
+C 100
+Not Related
+
+
+
+
+0.00%
+
+0.00%
+
+50.00%
+
+0.00%
+
+
+
+
+
+
+
+
+
+$0.00
+
+$0.00
+
+$5,750.00
+
+$0.00
+
+
+
+
+
+54.220
+HANSEL DSOUZA
+ATTORNEY-IN-FACT
+SEVEN SEAS SHIPPING USA, INC.
+2472 Chambers Rd STE 200 Tustin CA 92780
+(714) 660-2000
+TCKU3716788
+IN
+UNKNO
+$5,804.22
+$54.22
+$0.00
+$0.00
+$5,750.00
+MPF   499   39.84
+HMF   501   14.38
+11500
+9AD 00124789
+HANSEL DSOUZA
+
+DRAFT ONLY
+ENTRY SUMMARY CONTINUATION SHEET
+1. Filer Code/Entry Number
+9AD 00124789
+Page 2CBP Form 7501 (07/25)
+31.32. Description of Merchandise36.37.38.
+Line No.33.
+A. HTSUS No.
+B. AD/CVD No.
+34.
+A. Grossweight
+B. Manifest Qty.
+35.
+Net Quantity in
+HTSUS Units
+A. Entered Value
+B. CHGS
+C. Relationship
+A. HTSUS Rate
+B. ADA/CVD Rate
+C. IRC Rate
+D. Visa Number
+Duty and I.R. Tax
+________________
+
+Dollars        Cents
+
+
+
+
+
+     Merchandise Process. Fee
+     Harbor Maintenance Fee
+
+
+
+
+
+
+0.3464%
+0.125%
+
+
+$39.84
+$14.38

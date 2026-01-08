@@ -557,8 +557,8 @@ export const DOCUMENT_TYPE_CONFIGS: DocumentTypeConfig[] = [
       }
     ],
     filenamePatterns: [/\bMBL\b/i, /master.?bill/i, /\bBL\b/i],
-    expectedSenders: ['shipping_line'],
-    description: 'Final Master Bill of Lading (issued by shipping line)'
+    expectedSenders: ['shipping_line', 'freight_forwarder'],
+    description: 'Final Master Bill of Lading (issued by shipping line, shared by forwarders)'
   },
 
   {
@@ -1019,4 +1019,119 @@ export function getExpectedDocumentTypes(senderType: SenderType): DocumentTypeCo
   return DOCUMENT_TYPE_CONFIGS.filter(c =>
     c.expectedSenders?.includes(senderType)
   );
+}
+
+/**
+ * Identify sender type from sender name (company name)
+ * Uses namePatterns defined in SENDER_PATTERNS
+ */
+export function identifySenderTypeByName(senderName: string): SenderType {
+  if (!senderName) return 'unknown';
+
+  for (const pattern of SENDER_PATTERNS) {
+    if (pattern.namePatterns) {
+      for (const regex of pattern.namePatterns) {
+        if (regex.test(senderName)) {
+          return pattern.type;
+        }
+      }
+    }
+  }
+
+  return 'unknown';
+}
+
+/**
+ * Extract display name from email string
+ * e.g., "Northpole Industries <info@northpole-industries.com>" -> "Northpole Industries"
+ */
+function extractDisplayName(emailString: string): string | undefined {
+  // Pattern: "Display Name" <email@domain.com> or Display Name <email@domain.com>
+  const match = emailString.match(/^["']?([^"'<]+?)["']?\s*<[^>]+>/);
+  if (match) {
+    return match[1].trim();
+  }
+  return undefined;
+}
+
+/**
+ * Identify sender type from both email and name
+ * Email domain takes precedence, falls back to name patterns
+ */
+export function identifySenderTypeFull(email: string, senderName?: string): SenderType {
+  // First try email domain
+  const byEmail = identifySenderType(email);
+  if (byEmail !== 'unknown') {
+    return byEmail;
+  }
+
+  // Fallback to name patterns with explicit sender name
+  if (senderName) {
+    const byName = identifySenderTypeByName(senderName);
+    if (byName !== 'unknown') {
+      return byName;
+    }
+  }
+
+  // Try to extract display name from email string if sender_name not provided
+  const displayName = extractDisplayName(email);
+  if (displayName) {
+    const byDisplayName = identifySenderTypeByName(displayName);
+    if (byDisplayName !== 'unknown') {
+      return byDisplayName;
+    }
+  }
+
+  return 'unknown';
+}
+
+/**
+ * Validate if a sender type is allowed for a document type
+ * Returns true if sender can issue this document type
+ *
+ * SPECIAL CASES:
+ * - 'intoglo' is treated as 'freight_forwarder' since Intoglo acts as
+ *   an intermediary receiving and forwarding all document types
+ * - 'unknown' senders are allowed but flagged for review
+ */
+export function validateSenderForDocumentType(
+  documentType: string,
+  senderType: SenderType
+): { valid: boolean; reason?: string } {
+  const config = getDocumentConfig(documentType);
+
+  if (!config) {
+    return { valid: true, reason: 'Unknown document type - no validation' };
+  }
+
+  // If no expectedSenders defined, allow any sender
+  if (!config.expectedSenders || config.expectedSenders.length === 0) {
+    return { valid: true };
+  }
+
+  // 'unknown' sender - allow but flag for review
+  if (senderType === 'unknown') {
+    return { valid: true, reason: 'Unknown sender - needs review' };
+  }
+
+  // SPECIAL: Intoglo is a freight forwarder/platform operator
+  // They receive documents from carriers/shippers and share internally
+  // Treat 'intoglo' as equivalent to 'freight_forwarder' for validation
+  const effectiveSenderType = senderType === 'intoglo' ? 'freight_forwarder' : senderType;
+
+  // Check if sender type is in expected list
+  if (config.expectedSenders.includes(senderType)) {
+    return { valid: true };
+  }
+
+  // Also check the effective sender type (for intoglo → freight_forwarder)
+  if (effectiveSenderType !== senderType && config.expectedSenders.includes(effectiveSenderType)) {
+    return { valid: true, reason: `${senderType} allowed as ${effectiveSenderType}` };
+  }
+
+  // Sender type not allowed for this document type
+  return {
+    valid: false,
+    reason: `${senderType} cannot issue ${documentType}. Expected: ${config.expectedSenders.join(', ')}`
+  };
 }

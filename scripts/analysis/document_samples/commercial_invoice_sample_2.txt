@@ -1,0 +1,429 @@
+FILENAME: INVOICE 2610028928.pdf
+CATEGORY: commercial_invoice
+========================================
+
+(Issued under Section 31 of the CGST Act read with Rule 46 of the CGST Rules)
+IRN NO.:5975eb2aff8756e86da5fd6a28ccc80cfea5a948dc00e58bb19b80b65795a70e
+Ack. No:132524994251326   ACK. Date:2025-12-20 18:53:00 E-way:
+COMMERCIAL INVOICE (EXPORT)
+SONA BLW PRECISION FORGINGS LTD. 
+Unit-II, Sona Enclave, Village Begumpur Khatola,Sector-35 Post Box No. 90
+Gurugram-122004
+Haryana India
+Ph.No:01244768200
+Details of Receiver(Bill To)Details of Receive (Ship To)
+Name:Dana Commercial Vehicle Manufacturing, LLCName:SOLO SHELBYVILLE 
+Address:1491 DANA DRIVE HENDERSON, KY 42420 
+USA  42420 USA
+VAT No : 
+Address:Solo Warehouse 2000 Isaac Shelby Drive, Shelbyville, KY 40065,
+USA 
+Kentucky  40065 USA
+Country of Origin
+Mode of Transport
+Port of Loading
+Port of Discharge
+Place of Delivery
+:India
+:BY SEA
+:Mumbai Nhava Sheva
+:LOUISVILLE
+:Henderson USA
+Eway Bill No & Date .
+Invoice No.
+Invoice Date
+Payment Terms
+Invoice Currency
+Incoterms
+:2610028928 / Ref. No. : 9300001083
+:20.12.2025
+:62 DAYS NET
+:USD
+:delivery at place
+Sr.
+No.
+Sona Part No. &
+HSN code
+Customer Part No./
+Purchase Order
+Description of Goods/
+Services
+Qty.UOMRateTotal Value
+1A330B1-DI04-000-0
+87085000
+10135062/
+1721B-1020-001-1
+DIFF., PINION,  A330B1-DI04-000-03264.000NOS4.230013806.72
+2A130B1-DI12-000-3
+87085000
+10014706/
+1721B-1020-001-1
+DIFF., PINION, A130B1-DI12-000-33465.000NOS4.000013860.00
+3A130A1-DI12-000-5
+87085000
+10021095/
+1721B-1020-001-1
+DIFF., SIDE GEAR, A130A1-DI12-000-52800.000NOS9.650027020.00
+4A130A6-DI12-000-0
+87085000
+10050029/
+1721B-1020-001-1
+DIFF., SIDE GEAR, A130A6-DI12-000-02000.000NOS9.650019300.00
+5A130B1-DI23-000-0
+87085000
+10177389/
+1721B-1020-001-1
+DIFF., PINION, A130B1-DI23-000-02808.000NOS8.460023755.68
+6A130A1-DI23-000-010177388/DIFF., SIDE GEAR, A130A1-DI23-000-0840.000NOS16.870014170.80
+For SonaBLW Precision Forgings Ltd.
+Authorised Signatory
+Remarks: 
+REGD.OFFICE: SONA ENCLAVE,  VILLAGE BEGUMPUR KHATOLA, SECTOR 35, GURGAON - 122004 TEL: 91-124-4768200
+(OR)
+Certified that the particulars given above are true and correct and the amount indicated is provisional as
+additional consideration will be received from the buyer on account of price escalation.
+Certified that the Particulars given above are true and correct and the amount indicated represents the price
+actually charged and that there is no flow additional considerations directly or indirectly from the buyer.
+Total16881.00130718.16
+Total Invoice Value in Words: US DOLLAR ONE HUNDRED THIRTY THOUSAND SEVEN HUNDRED EIGHTEEN and SIXTEEN CENTS
+This shipment is carried out according to our general terms of Supply and Payment. Property and title to all goods supplied remain with us until we
+have received payment in full.
+No. of Boxes
+Our IEC
+GSTIN
+PAN
+Vendor Code
+:29 
+:0597006504
+:06AABCS4786P1ZN
+:AABCS4786P
+:
+Net/Gross Weight
+CIN
+END USE CODE
+DUTY DRAWBACK SR. NO.
+EPCG Lic No.
+:18510.067 KG 19534.786        KG
+:L27300HR1995PLC083037
+:GNX 200
+:8708
+:
+Supply meant for Export under Bond or Letter of Undertaking without Payment of Integrated Tax (IGST) & LUT No. (ARN) AD0603250162969 Dated 24/03/2025 
+Our Bank Details:STATE BANK OF INDIA, Industrial Finance Branch, 14-15 Floor, Jawahar Vyapar Bhawan,
+SWIFT Code: SBININBB132  AD Code: 0009601 Pay to Account No: 10277792289
+Drive axles with differential whether or not provided with other transmission components non driving axles and parts thereof We intend to claim rewards under
+Merchandise Exports from India Scheme (MEIS) & under Remission of Duties and Taxes on Exported Products(RoDTEP) Scheme.
+Mode of Transport :        Vehicle Number :
+
+(Issued under Section 31 of the CGST Act read with Rule 46 of the CGST Rules)
+IRN NO.:5975eb2aff8756e86da5fd6a28ccc80cfea5a948dc00e58bb19b80b65795a70e
+Ack. No:132524994251326   ACK. Date:2025-12-20 18:53:00 E-way:
+COMMERCIAL INVOICE (EXPORT)
+SONA BLW PRECISION FORGINGS LTD. 
+Unit-II, Sona Enclave, Village Begumpur Khatola,Sector-35 Post Box No. 90
+Gurugram-122004
+Haryana India
+Ph.No:01244768200
+Details of Receiver(Bill To)Details of Receive (Ship To)
+Name:Dana Commercial Vehicle Manufacturing, LLCName:SOLO SHELBYVILLE 
+Address:1491 DANA DRIVE HENDERSON, KY 42420 
+USA  42420 USA
+VAT No : 
+Address:Solo Warehouse 2000 Isaac Shelby Drive, Shelbyville, KY 40065,
+USA 
+Kentucky  40065 USA
+Country of Origin
+Mode of Transport
+Port of Loading
+Port of Discharge
+Place of Delivery
+:India
+:BY SEA
+:Mumbai Nhava Sheva
+:LOUISVILLE
+:Henderson USA
+Eway Bill No & Date .
+Invoice No.
+Invoice Date
+Payment Terms
+Invoice Currency
+Incoterms
+:2610028928 / Ref. No. : 9300001083
+:20.12.2025
+:62 DAYS NET
+:USD
+:delivery at place
+Sr.
+No.
+Sona Part No. &
+HSN code
+Customer Part No./
+Purchase Order
+Description of Goods/
+Services
+Qty.UOMRateTotal Value
+870850001721B-1020-001-1
+7A130B1-DI25-000-0
+87085000
+95218/
+1721B-1020-001
+DIFF., PINION, A130B1-DI25-000-01320.000NOS5.90007788.00
+8A130A1-DI25-000-0
+87085000
+78911/
+1721B-1020-001
+DIFF., SIDE GEAR, A130A1-DI25-000-0384.000NOS28.690011016.96
+For SonaBLW Precision Forgings Ltd.
+Authorised Signatory
+Remarks: 
+REGD.OFFICE: SONA ENCLAVE,  VILLAGE BEGUMPUR KHATOLA, SECTOR 35, GURGAON - 122004 TEL: 91-124-4768200
+(OR)
+Certified that the particulars given above are true and correct and the amount indicated is provisional as
+additional consideration will be received from the buyer on account of price escalation.
+Certified that the Particulars given above are true and correct and the amount indicated represents the price
+actually charged and that there is no flow additional considerations directly or indirectly from the buyer.
+Total16881.00130718.16
+Total Invoice Value in Words: US DOLLAR ONE HUNDRED THIRTY THOUSAND SEVEN HUNDRED EIGHTEEN and SIXTEEN CENTS
+This shipment is carried out according to our general terms of Supply and Payment. Property and title to all goods supplied remain with us until we
+have received payment in full.
+No. of Boxes
+Our IEC
+GSTIN
+PAN
+Vendor Code
+:29 
+:0597006504
+:06AABCS4786P1ZN
+:AABCS4786P
+:
+Net/Gross Weight
+CIN
+END USE CODE
+DUTY DRAWBACK SR. NO.
+EPCG Lic No.
+:18510.067 KG 19534.786        KG
+:L27300HR1995PLC083037
+:GNX 200
+:8708
+:
+Supply meant for Export under Bond or Letter of Undertaking without Payment of Integrated Tax (IGST) & LUT No. (ARN) AD0603250162969 Dated 24/03/2025 
+Our Bank Details:STATE BANK OF INDIA, Industrial Finance Branch, 14-15 Floor, Jawahar Vyapar Bhawan,
+SWIFT Code: SBININBB132  AD Code: 0009601 Pay to Account No: 10277792289
+Drive axles with differential whether or not provided with other transmission components non driving axles and parts thereof We intend to claim rewards under
+Merchandise Exports from India Scheme (MEIS) & under Remission of Duties and Taxes on Exported Products(RoDTEP) Scheme.
+Mode of Transport :        Vehicle Number :
+
+(Issued under Section 31 of the CGST Act read with Rule 46 of the CGST Rules)
+IRN NO.:5975eb2aff8756e86da5fd6a28ccc80cfea5a948dc00e58bb19b80b65795a70e
+Ack. No:132524994251326   ACK. Date:2025-12-20 18:53:00 E-way:
+COMMERCIAL INVOICE (EXPORT)
+SONA BLW PRECISION FORGINGS LTD. 
+Unit-II, Sona Enclave, Village Begumpur Khatola,Sector-35 Post Box No. 90
+Gurugram-122004
+Haryana India
+Ph.No:01244768200
+Details of Receiver(Bill To)Details of Receive (Ship To)
+Name:Dana Commercial Vehicle Manufacturing, LLCName:SOLO SHELBYVILLE 
+Address:1491 DANA DRIVE HENDERSON, KY 42420 
+USA  42420 USA
+VAT No : 
+Address:Solo Warehouse 2000 Isaac Shelby Drive, Shelbyville, KY 40065,
+USA 
+Kentucky  40065 USA
+Country of Origin
+Mode of Transport
+Port of Loading
+Port of Discharge
+Place of Delivery
+:India
+:BY SEA
+:Mumbai Nhava Sheva
+:LOUISVILLE
+:Henderson USA
+Eway Bill No & Date .
+Invoice No.
+Invoice Date
+Payment Terms
+Invoice Currency
+Incoterms
+:2610028928 / Ref. No. : 9300001083
+:20.12.2025
+:62 DAYS NET
+:INR
+:delivery at place
+Sr.
+No.
+Sona Part No. &
+HSN code
+Customer Part No./
+Purchase Order
+Description of Goods/
+Services
+Qty.UOMRateTotal Value
+1A330B1-DI04-000-0
+87085000
+10135062/
+1721B-1020-001-1
+DIFF., PINION,  A330B1-DI04-000-03264.000NOS378.79651236391.78
+2A130B1-DI12-000-3
+87085000
+10014706/
+1721B-1020-001-1
+DIFF., PINION, A130B1-DI12-000-33465.000NOS358.20001241163.00
+3A130A1-DI12-000-5
+87085000
+10021095/
+1721B-1020-001-1
+DIFF., SIDE GEAR, A130A1-DI12-000-52800.000NOS864.15752419641.00
+4A130A6-DI12-000-0
+87085000
+10050029/
+1721B-1020-001-1
+DIFF., SIDE GEAR, A130A6-DI12-000-02000.000NOS864.15751728315.00
+5A130B1-DI23-000-0
+87085000
+10177389/
+1721B-1020-001-1
+DIFF., PINION, A130B1-DI23-000-02808.000NOS757.59302127321.14
+6A130A1-DI23-000-010177388/DIFF., SIDE GEAR, A130A1-DI23-000-0840.000NOS1510.7081268995.14
+For SonaBLW Precision Forgings Ltd.
+Authorised Signatory
+Remarks: 
+REGD.OFFICE: SONA ENCLAVE,  VILLAGE BEGUMPUR KHATOLA, SECTOR 35, GURGAON - 122004 TEL: 91-124-4768200
+(OR)
+Certified that the particulars given above are true and correct and the amount indicated is provisional as
+additional consideration will be received from the buyer on account of price escalation.
+Certified that the Particulars given above are true and correct and the amount indicated represents the price
+actually charged and that there is no flow additional considerations directly or indirectly from the buyer.
+Total16881.0011705811.23
+Total Invoice Value in Words: RUPEES ELEVEN MILLION SEVEN HUNDRED FIVE THOUSAND EIGHT HUNDRED ELEVEN and
+TWENTY-THREE PAISE
+This shipment is carried out according to our general terms of Supply and Payment. Property and title to all goods supplied remain with us until we
+have received payment in full.
+No. of Boxes
+Our IEC
+GSTIN
+PAN
+Vendor Code
+:29 
+:0597006504
+:06AABCS4786P1ZN
+:AABCS4786P
+:
+Net/Gross Weight
+CIN
+END USE CODE
+DUTY DRAWBACK SR. NO.
+EPCG Lic No.
+:18510.067 KG 19534.786        KG
+:L27300HR1995PLC083037
+:GNX 200
+:8708
+:
+Supply meant for Export under Bond or Letter of Undertaking without Payment of Integrated Tax (IGST) & LUT No. (ARN) AD0603250162969 Dated 24/03/2025 
+Our Bank Details:STATE BANK OF INDIA, Industrial Finance Branch, 14-15 Floor, Jawahar Vyapar Bhawan,
+SWIFT Code: SBININBB132  AD Code: 0009601 Pay to Account No: 10277792289
+Drive axles with differential whether or not provided with other transmission components non driving axles and parts thereof We intend to claim rewards under
+Merchandise Exports from India Scheme (MEIS) & under Remission of Duties and Taxes on Exported Products(RoDTEP) Scheme.
+Mode of Transport :        Vehicle Number :
+
+(Issued under Section 31 of the CGST Act read with Rule 46 of the CGST Rules)
+IRN NO.:5975eb2aff8756e86da5fd6a28ccc80cfea5a948dc00e58bb19b80b65795a70e
+Ack. No:132524994251326   ACK. Date:2025-12-20 18:53:00 E-way:
+COMMERCIAL INVOICE (EXPORT)
+SONA BLW PRECISION FORGINGS LTD. 
+Unit-II, Sona Enclave, Village Begumpur Khatola,Sector-35 Post Box No. 90
+Gurugram-122004
+Haryana India
+Ph.No:01244768200
+Details of Receiver(Bill To)Details of Receive (Ship To)
+Name:Dana Commercial Vehicle Manufacturing, LLCName:SOLO SHELBYVILLE 
+Address:1491 DANA DRIVE HENDERSON, KY 42420 
+USA  42420 USA
+VAT No : 
+Address:Solo Warehouse 2000 Isaac Shelby Drive, Shelbyville, KY 40065,
+USA 
+Kentucky  40065 USA
+Country of Origin
+Mode of Transport
+Port of Loading
+Port of Discharge
+Place of Delivery
+:India
+:BY SEA
+:Mumbai Nhava Sheva
+:LOUISVILLE
+:Henderson USA
+Eway Bill No & Date .
+Invoice No.
+Invoice Date
+Payment Terms
+Invoice Currency
+Incoterms
+:2610028928 / Ref. No. : 9300001083
+:20.12.2025
+:62 DAYS NET
+:INR
+:delivery at place
+Sr.
+No.
+Sona Part No. &
+HSN code
+Customer Part No./
+Purchase Order
+Description of Goods/
+Services
+Qty.UOMRateTotal Value
+870850001721B-1020-001-15
+7A130B1-DI25-000-0
+87085000
+95218/
+1721B-1020-001
+DIFF., PINION, A130B1-DI25-000-01320.000NOS528.3450697415.40
+8A130A1-DI25-000-0
+87085000
+78911/
+1721B-1020-001
+DIFF., SIDE GEAR, A130A1-DI25-000-0384.000NOS2569.189
+5
+986568.77
+For SonaBLW Precision Forgings Ltd.
+Authorised Signatory
+Remarks: 
+REGD.OFFICE: SONA ENCLAVE,  VILLAGE BEGUMPUR KHATOLA, SECTOR 35, GURGAON - 122004 TEL: 91-124-4768200
+(OR)
+Certified that the particulars given above are true and correct and the amount indicated is provisional as
+additional consideration will be received from the buyer on account of price escalation.
+Certified that the Particulars given above are true and correct and the amount indicated represents the price
+actually charged and that there is no flow additional considerations directly or indirectly from the buyer.
+Total16881.0011705811.23
+Total Invoice Value in Words: RUPEES ELEVEN MILLION SEVEN HUNDRED FIVE THOUSAND EIGHT HUNDRED ELEVEN and
+TWENTY-THREE PAISE
+This shipment is carried out according to our general terms of Supply and Payment. Property and title to all goods supplied remain with us until we
+have received payment in full.
+No. of Boxes
+Our IEC
+GSTIN
+PAN
+Vendor Code
+:29 
+:0597006504
+:06AABCS4786P1ZN
+:AABCS4786P
+:
+Net/Gross Weight
+CIN
+END USE CODE
+DUTY DRAWBACK SR. NO.
+EPCG Lic No.
+:18510.067 KG 19534.786        KG
+:L27300HR1995PLC083037
+:GNX 200
+:8708
+:
+Supply meant for Export under Bond or Letter of Undertaking without Payment of Integrated Tax (IGST) & LUT No. (ARN) AD0603250162969 Dated 24/03/2025 
+Our Bank Details:STATE BANK OF INDIA, Industrial Finance Branch, 14-15 Floor, Jawahar Vyapar Bhawan,
+SWIFT Code: SBININBB132  AD Code: 0009601 Pay to Account No: 10277792289
+Drive axles with differential whether or not provided with other transmission components non driving axles and parts thereof We intend to claim rewards under
+Merchandise Exports from India Scheme (MEIS) & under Remission of Duties and Taxes on Exported Products(RoDTEP) Scheme.
+Mode of Transport :        Vehicle Number :

@@ -1,0 +1,27 @@
+FILENAME: DB_aabhggbdfcja0x0864.pdf
+CATEGORY: booking_confirmation
+========================================
+
+
+
+PRICE OVERVIEW BOOKING CONFIRMATION
+FMC_ReferenceFMC_Reference
+Booking No.:
+263368698
+2025-12-19 09:08 UTC
+Print Date:
+Q_11426625;P_7862356837_P026b24oj/40HDRY:1;
+Rate_ID
+Price Overview
+DescriptionCurrencyCharge PerUnitContainer TypeQuantity SumRateTotal_Rounded
+Basic Ocean FreightU.S. DOLLARPer Container40 DRY1471471
+Container Protect UnlimitedU.S. DOLLARPer Container40 DRY12020
+Documentation Fee - OriginINDIAN RUPEEPer Documentation Fee151005100
+Equipment Positioning Service - 
+Export (CY)
+U.S. DOLLARPer Container40 DRY14040
+Export ServiceU.S. DOLLARPer Container40 DRY11111
+Terminal Handling Service - 
+Destination
+U.S. DOLLARPer Container40 DRY1855855
+Terminal Handling Service - OriginINDIAN RUPEEPer Container40 DRY11570015700

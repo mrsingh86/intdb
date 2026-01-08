@@ -1,0 +1,25 @@
+FILENAME: DB_aabhggeaijfd0x0F69.pdf
+CATEGORY: booking_confirmation
+========================================
+
+
+
+PRICE OVERVIEW BOOKING CONFIRMATION
+FMC_ReferenceFMC_Reference
+Booking No.:
+263455422
+2025-12-22 13:09 UTC
+Print Date:
+Q_11438395;P_7862355402_P027r5kdi/20DRY:1;
+Rate_ID
+Price Overview
+DescriptionCurrencyCharge PerUnitContainer TypeQuantity SumRateTotal_Rounded
+Basic Ocean FreightU.S. DOLLARPer Container20 DRY1329329
+Container Protect UnlimitedU.S. DOLLARPer Container20 DRY12020
+Documentation Fee - OriginUAE-DIRHAMPer Documentation Fee1575575
+Emergency Risk SurchargeU.S. DOLLARPer Container20 DRY1100100
+Export ServiceUAE-DIRHAMPer Container20 DRY14545
+Gulf Emergency Risk SurchargeU.S. DOLLARPer Container20 DRY14242
+Terminal Handling Service - 
+Destination
+U.S. DOLLARPer Container20 DRY1755755

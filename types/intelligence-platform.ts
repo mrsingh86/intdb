@@ -164,6 +164,10 @@ export interface DocumentLifecycle {
   revision_count: number
   created_at: string
   updated_at: string
+  // Registry integration fields (links lifecycle to document registry)
+  document_id?: string           // FK to documents table (document registry)
+  source_email_id?: string       // Email that triggered this lifecycle
+  source_attachment_id?: string  // Attachment that triggered this lifecycle
 }
 
 export interface StatusHistoryEntry {

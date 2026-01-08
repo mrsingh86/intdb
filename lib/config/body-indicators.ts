@@ -14,18 +14,58 @@ export interface BodyIndicator {
 }
 
 export const BODY_INDICATORS: BodyIndicator[] = [
-  // ===== SHIPPING INSTRUCTION =====
-  { pattern: /please\s*find\s*(attached\s*)?(the\s*)?SI\b/i, type: 'si_draft', priority: 90 },
-  { pattern: /PFA\s*(the\s*)?SI\b/i, type: 'si_draft', priority: 90 },
-  { pattern: /attached\s*(is\s*)?(the\s*)?shipping\s*instruction/i, type: 'si_draft', priority: 89 },
-  { pattern: /kindly\s*find\s*(the\s*)?SI\b/i, type: 'si_draft', priority: 88 },
-
-  // ===== INVOICE =====
+  // ===== INVOICE - CONTENT DETECTION (not just attachments) =====
+  // Actual invoice content patterns
+  { pattern: /total\s*(amount|charges?)\s*:?\s*\$?\s*[\d,]+/i, type: 'invoice', priority: 92 },
+  { pattern: /invoice\s*(total|amount)\s*:?\s*\$?\s*[\d,]+/i, type: 'invoice', priority: 92 },
+  { pattern: /please\s*(pay|remit)\s*(the\s*)?(amount|invoice)/i, type: 'invoice', priority: 90 },
+  { pattern: /balance\s+due\s*:?\s*\$?\s*[\d,]+/i, type: 'invoice', priority: 91 },
+  { pattern: /payment\s+due\s+by/i, type: 'invoice', priority: 89 },
+  // Attachment patterns
   { pattern: /please\s*find\s*(attached\s*)?(the\s*)?invoice/i, type: 'invoice', priority: 88 },
   { pattern: /PFA\s*(the\s*)?invoice/i, type: 'invoice', priority: 88 },
   { pattern: /attached\s*(is\s*)?(the\s*)?invoice/i, type: 'invoice', priority: 87 },
   { pattern: /kindly\s*find\s*duty\s*invoice/i, type: 'duty_invoice', priority: 90 },
   { pattern: /PFA\s*(the\s*)?duty\s*invoice/i, type: 'duty_invoice', priority: 90 },
+
+  // ===== COST APPROVAL / SOB CONFIRMATION THREAD RESPONSES =====
+  // These are common responses in SOB CONFIRMATION threads but are NOT sob_confirmations
+  { pattern: /\b(approved|ok|okay)\b.*\b(cost|charges?|invoice|amount)/i, type: 'cost_approval', priority: 93 },
+  { pattern: /\b(cost|charges?|invoice|amount)\b.*\b(approved|ok|okay)\b/i, type: 'cost_approval', priority: 93 },
+  { pattern: /please\s*(approve|confirm)\s*(the\s*)?(cost|charges?|invoice)/i, type: 'cost_approval_request', priority: 91 },
+  { pattern: /additional\s*(cost|charges?)\s*(of\s*)?\$?\s*[\d,]+/i, type: 'cost_approval_request', priority: 90 },
+  { pattern: /kindly\s*approve/i, type: 'cost_approval_request', priority: 88 },
+
+  // ===== SHORT APPROVAL RESPONSES (common in threads) =====
+  // Very short bodies that are just approvals - catch these to prevent inheriting thread subject
+  { pattern: /^(?:approved|ok|okay|noted|thanks|confirm(?:ed)?|go\s*ahead)[\.\!\s]*$/im, type: 'acknowledgement', priority: 85 },
+  { pattern: /^\s*(?:approved|ok|okay|noted)[\.\!\s]*thanks/im, type: 'acknowledgement', priority: 86 },
+
+  // ===== PAYMENT RECEIPT / CONFIRMATION =====
+  { pattern: /payment\s*(has\s*been\s*)?(done|made|completed|received)/i, type: 'payment_receipt', priority: 92 },
+  { pattern: /paid\s*(against|for)\s*(invoice|charges)/i, type: 'payment_receipt', priority: 91 },
+  { pattern: /remittance\s*(advice|details)/i, type: 'payment_receipt', priority: 90 },
+  { pattern: /transaction\s*id\s*:?\s*[A-Z0-9]+/i, type: 'payment_receipt', priority: 89 },
+
+  // ===== ACTUAL SOB CONFIRMATION (shipped on board) =====
+  { pattern: /container\s*(has\s*)?(been\s*)?loaded\s*(on|aboard)/i, type: 'sob_confirmation', priority: 94 },
+  { pattern: /shipment\s*(has\s*)?(been\s*)?shipped/i, type: 'sob_confirmation', priority: 93 },
+  { pattern: /cargo\s*(has\s*)?(been\s*)?loaded/i, type: 'sob_confirmation', priority: 93 },
+  { pattern: /vessel\s*(has\s*)?(departed|sailed)/i, type: 'sob_confirmation', priority: 92 },
+  { pattern: /on\s*board\s*date\s*:?\s*\d/i, type: 'sob_confirmation', priority: 94 },
+  { pattern: /shipped\s*on\s*board/i, type: 'sob_confirmation', priority: 95 },
+
+  // ===== WORK ORDER RESPONSES =====
+  { pattern: /container\s*(is\s*)?(out|picked|delivered)/i, type: 'delivery_confirmation', priority: 91 },
+  { pattern: /pickup\s*(is\s*)?(scheduled|confirmed|done)/i, type: 'pickup_confirmation', priority: 90 },
+  { pattern: /LFD\s*(is|:)\s*\d{1,2}\/\d{1,2}/i, type: 'work_order', priority: 88 },
+  { pattern: /appointment\s*(is\s*)?(scheduled|confirmed)/i, type: 'delivery_appointment', priority: 89 },
+
+  // ===== SHIPPING INSTRUCTION =====
+  { pattern: /please\s*find\s*(attached\s*)?(the\s*)?SI\b/i, type: 'si_draft', priority: 90 },
+  { pattern: /PFA\s*(the\s*)?SI\b/i, type: 'si_draft', priority: 90 },
+  { pattern: /attached\s*(is\s*)?(the\s*)?shipping\s*instruction/i, type: 'si_draft', priority: 89 },
+  { pattern: /kindly\s*find\s*(the\s*)?SI\b/i, type: 'si_draft', priority: 88 },
 
   // ===== POD =====
   { pattern: /PFA\s*(the\s*)?POD\b/i, type: 'proof_of_delivery', priority: 92 },

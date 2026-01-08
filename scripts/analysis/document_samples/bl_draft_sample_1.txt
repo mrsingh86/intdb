@@ -1,0 +1,123 @@
+FILENAME: 3147-DRAFT.pdf
+CATEGORY: bl_draft
+========================================
+
+
+
+BILL OF LADING
+Bill/Lading Number
+UFLEX LIMITED
+FILMS DIVISION, A-1,SECTOR-60, GAUTAM BUDH NAGAR, NOIDA 
+U.P
+201301, INDIA TEL: +91 120 4002121
+GSTIN NO: 09AAACF0109J1ZY
+PAN NO: AAACF0109J
+CIN NO: L74899DL1988PLC032166
+SE1225003147
+EXPRESS
+EXPRESS BILL OF LADING
+FLEX FILMS (USA) INC.
+1221, NORTH BLACK BRANCH ROAD, ELIZABETHTOWN
+KENTUCKY, KY, 42701
+UNITED STATES OF AMERICA
+PHONE: +1 270 982 3456 EXT. 8802
+FAX: +1 270 982 3457
+FLEX FILMS (USA) INC.
+1221, NORTH BLACK BRANCH ROAD, ELIZABETHTOWN
+KENTUCKY, KY, 42701
+UNITED STATES OF AMERICA
+PHONE: +1 270 982 3456 EXT. 8802
+FAX: +1 270 982 3457
+NAGOYA EXPRESS / 5152 (Main)
+MUNDRA, INDIA
+RAIL (OnForwarding)
+NORFOLK, UNITED STATESCHICAGO, UNITED STATESMUNDRA, INDIA0 (ZERO)
+512600201-001 to               1 x 40HC CONTAINER                                          19777.6 KG           
+512600201-030                  30 Package(s)                                                                    
+                               THIRTY PACKAGES ONLY                                                             
+CONTAINER NO.:                                                                                                  
+FANU3190317/40'HQ                                                                                               
+L.SEAL NO.: HLK2758121         EASY TEAR TRANSPARENT COATED                                                     
+C.SEAL NO.: BOLT51793492       POLYESTER (PET) FILM                                                             
+                               12 MIC GRADE- F-ETC                                                              
+                                                                                                                
+                               INV. NO: 25010110300222 DT. 20-DEC-25                                            
+DESTINATION AGENT :            SB NO.: 8054440 DT. 20-DEC-25                                                    
+INTOGLO TECHNOLOGIES INC.      H.S.CODE NO: 39206220                                                            
+4047 LONG AVE TRACY, CA 95377  BUYER'S PO NO: PO-047280                                                         
+EMAIL - NAM@INTOGLO.COM;       NET WEIGHT : 17832.9 KGS                                                         
+OPS@INTOGLO.COM                                                                                                 
+PH - 9176727299                GOODS COLLECTED AS DADRI - STTPL (CFS) - INSTT6                                  
+                               STANDARD 4 DAYS DEMURRAGE &                                                      
+                               3 DAYS DETENTION FREE TIME AT DESTINATION                                        
+                                                                                                                
+                                                                                                                
+                               NOTIFY EMAIL ID                                                                  
+                               SANJOY.CHATTERJEE@FLEXFILM.COM                                                   
+                               LIZETTE.OLIVELLA@FLEXFILM.COM                                                    
+                               The material wrapped on a paper core with ply end
+                               fitments and packed on wooden pallets.                                                                                 
+                               FREIGHT PREPAID                                                                  
+Consol Ref: CSE1225002772*Shipper Load and Count
+INCOTERM: CIFSHIPPED ON BOARD  
+Continuation Page Follows...
+Bill of Lading must be surrendered to:
+MUNDRA, INDIA
+AS CARRIER
+CCLP-DADRI
+CHICAGO IL, MENOMONEE FALLS, WI 53051, USA
+ONE CONTAINER(S)
+LAW AND JURISDICTION CLAUSE
+The Contract evidenced by or contained in this Bill of Lading shall be governed by the law in 
+India and any claim or dispute arising hereunder or in connection herewith shall (without 
+prejudice to the Carrier's rights to commence proceedings in any other jurisdiction) be subject to 
+the jurisdiction of the Courts of India.
+The Merchant's attention is called to the fact that according to Clauses 10, 11 and 12 
+of this Bill of Lading, the liability of the Carrier is, in most cases, limited in the respect 
+of loss of or damage to the goods and delay.
+HBoL-ITC 
+DRAFT
+
+DRAFT
+
+CONTINUATION PAGEBILL OF LADING - SE1225003147
+ConsignorConsignee
+UFLEX LIMITED
+FILMS DIVISION, A-1,SECTOR-60, GAUTAM BUDH NAGAR, 
+NOIDA U.P
+201301, INDIA TEL: +91 120 4002121
+GSTIN NO: 09AAACF0109J1ZY
+PAN NO: AAACF0109J
+CIN NO: L74899DL1988PLC032166
+FLEX FILMS (USA) INC.
+1221, NORTH BLACK BRANCH ROAD, ELIZABETHTOWN
+KENTUCKY, KY, 42701
+UNITED STATES OF AMERICA
+PHONE: +1 270 982 3456 EXT. 8802
+FAX: +1 270 982 3457
+Notify Party
+Goods Collected FromETD01-Jan-26
+FLEX FILMS (USA) INC.
+1221, NORTH BLACK BRANCH ROAD, ELIZABETHTOWN
+KENTUCKY, KY, 42701
+UNITED STATES OF AMERICA
+PHONE: +1 270 982 3456 EXT. 8802
+FAX: +1 270 982 3457
+CCLP-DADRI
+Goods Delivered ToETA10-Feb-26
+CHICAGO IL, MENOMONEE FALLS, WI 53051, USA
+Gross WeightVolume
+19777.6 KG
+Phone: 
+Package Quantity
+Fax: 30 PKG (OUTER)
+                                                                                 
+DRAFT
+
+═══════════════════════════════════════
+EXTRACTED KEY FIELDS (UNKNOWN)
+═══════════════════════════════════════
+Container: FANU3190317
+Shipper: Load and Count
+Consignee: UFLEX LIMITED
+Weight: 17832.9

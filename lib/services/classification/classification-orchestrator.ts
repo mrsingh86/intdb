@@ -67,6 +67,11 @@ import {
   getAIClassificationService,
   AIClassificationResult,
 } from './ai-classification-service';
+import {
+  identifySenderTypeFull,
+  validateSenderForDocumentType,
+  SenderType,
+} from '../../config/content-classification-config';
 
 // =============================================================================
 // TYPES
@@ -86,6 +91,10 @@ export interface ClassificationInput {
 
   // PDF content (if available)
   pdfContent?: string;
+
+  // Thread context (for deduplication)
+  isResponse?: boolean;
+  existingDocTypesInThread?: string[];
 }
 
 export interface ClassificationOutput {
@@ -339,6 +348,10 @@ export class ClassificationOrchestrator {
 
   /**
    * Classify document type (PDF content → email content fallback).
+   *
+   * THREAD DEDUPLICATION: If this is a RE:/FW: email and the thread already
+   * has this document type, downgrade to general_correspondence to prevent
+   * duplicate state transitions in the workflow journey.
    */
   private classifyDocument(
     input: ClassificationInput,
@@ -352,6 +365,16 @@ export class ClassificationOrchestrator {
     matchedMarkers?: string[];
     matchedPattern?: string;
   } {
+    let candidateDocType: string | null = null;
+    let candidateResult: {
+      documentType: string;
+      confidence: number;
+      method: 'pdf_content' | 'email_content' | 'fallback';
+      source: 'pdf' | 'attachment' | 'subject' | 'body' | 'unknown';
+      matchedMarkers?: string[];
+      matchedPattern?: string;
+    } | null = null;
+
     // Try PDF content classification first (primary method)
     if (input.pdfContent) {
       const pdfResult = this.documentClassifier.classify({
@@ -359,7 +382,8 @@ export class ClassificationOrchestrator {
       });
 
       if (pdfResult && pdfResult.confidence >= MIN_CONFIDENCE_THRESHOLD) {
-        return {
+        candidateDocType = pdfResult.documentType;
+        candidateResult = {
           documentType: pdfResult.documentType,
           confidence: pdfResult.confidence,
           method: 'pdf_content',
@@ -369,29 +393,84 @@ export class ClassificationOrchestrator {
       }
     }
 
-    // Fallback to email content classification
-    const emailResult = this.emailContentClassifier.classify({
-      threadContext,
-      attachmentFilenames: input.attachmentFilenames,
-    });
-
-    if (emailResult && emailResult.confidence >= MIN_CONFIDENCE_THRESHOLD) {
-      // Check for thread reply issues (inherited subject from non-carrier)
-      const shouldSkip = this.emailContentClassifier.shouldSkipThreadReply(
+    // Fallback to email content classification if no PDF result
+    if (!candidateResult) {
+      const emailResult = this.emailContentClassifier.classify({
         threadContext,
-        isCarrierSender(directionResult.trueSender),
-        emailResult.documentType
-      );
+        attachmentFilenames: input.attachmentFilenames,
+      });
 
-      if (!shouldSkip) {
+      if (emailResult && emailResult.confidence >= MIN_CONFIDENCE_THRESHOLD) {
+        // Check for thread reply issues (inherited subject from non-carrier)
+        const shouldSkip = this.emailContentClassifier.shouldSkipThreadReply(
+          threadContext,
+          isCarrierSender(directionResult.trueSender),
+          emailResult.documentType
+        );
+
+        if (!shouldSkip) {
+          candidateDocType = emailResult.documentType;
+          candidateResult = {
+            documentType: emailResult.documentType,
+            confidence: emailResult.confidence,
+            method: 'email_content',
+            source: emailResult.source,
+            matchedPattern: emailResult.matchedPattern,
+          };
+        }
+      }
+    }
+
+    // THREAD DEDUPLICATION CHECK
+    // If this is a RE:/FW: email and the thread already has this document type,
+    // downgrade to general_correspondence to prevent duplicate state transitions
+    if (candidateResult && candidateDocType && input.isResponse) {
+      const existingTypes = input.existingDocTypesInThread || [];
+
+      if (existingTypes.includes(candidateDocType)) {
+        console.log(
+          `[Classification] Thread dedup: ${candidateDocType} already exists in thread, ` +
+          `downgrading RE:/FW: email to general_correspondence`
+        );
         return {
-          documentType: emailResult.documentType,
-          confidence: emailResult.confidence,
-          method: 'email_content',
-          source: emailResult.source,
-          matchedPattern: emailResult.matchedPattern,
+          documentType: 'general_correspondence',
+          confidence: 70,
+          method: candidateResult.method,
+          source: candidateResult.source,
+          matchedPattern: `thread_dedup:${candidateDocType}`,
         };
       }
+    }
+
+    // SENDER VALIDATION CHECK
+    // Validate that the sender type is allowed to issue this document type
+    // e.g., shipper cannot issue MBL (only shipping_line can)
+    if (candidateResult && candidateDocType) {
+      const senderType = identifySenderTypeFull(
+        directionResult.trueSender,
+        input.senderName
+      );
+
+      const validation = validateSenderForDocumentType(candidateDocType, senderType);
+
+      if (!validation.valid) {
+        console.log(
+          `[Classification] Sender validation failed: ${validation.reason}. ` +
+          `Downgrading ${candidateDocType} to general_correspondence`
+        );
+        return {
+          documentType: 'general_correspondence',
+          confidence: 50, // Lower confidence due to sender mismatch
+          method: candidateResult.method,
+          source: candidateResult.source,
+          matchedPattern: `sender_invalid:${candidateDocType}:${senderType}`,
+        };
+      }
+    }
+
+    // Return candidate result or unknown
+    if (candidateResult) {
+      return candidateResult;
     }
 
     // No confident classification

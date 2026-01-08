@@ -44,6 +44,15 @@ const CARRIER_SENDER_PATTERNS = [
   /@service\.hlag/i,
 ];
 
+/**
+ * Direction-aware document type to workflow state mapping.
+ *
+ * Uses CONTENT CLASSIFICATION types from content-classification-config.ts
+ * NOT the deprecated unified-classification types.
+ *
+ * INBOUND = email received from external party (not @intoglo.com)
+ * OUTBOUND = email sent by Intoglo team (sender @intoglo.com or @intoglo.in)
+ */
 const DIRECTION_WORKFLOW_MAPPING: Record<string, string> = {
   // ===== PRE_DEPARTURE =====
   // Booking stage
@@ -60,99 +69,82 @@ const DIRECTION_WORKFLOW_MAPPING: Record<string, string> = {
   'commercial_invoice:inbound': 'commercial_invoice_received',
   'packing_list:inbound': 'packing_list_received',
 
-  // SI flow - NOTE: shipping_instruction and si_draft are handled specially
-  // by checkSISenderType() to distinguish shipper vs carrier
-  // These are fallback mappings:
+  // SI flow
+  'si_draft:inbound': 'si_draft_received',
   'si_draft:outbound': 'si_draft_sent',
-  'si_submission:outbound': 'si_submitted',
   'si_confirmation:inbound': 'si_confirmed',
   'si_confirmation:outbound': 'si_confirmed',
+  'shipping_instruction:inbound': 'si_submitted',
+  'shipping_instruction:outbound': 'si_submitted',
 
   // Checklist flow (export - India CHA)
   'checklist:inbound': 'checklist_received',
   'checklist:outbound': 'checklist_shared',
   'shipping_bill:inbound': 'shipping_bill_received',
   'leo_copy:inbound': 'shipping_bill_received',
-  'bill_of_entry:inbound': 'customs_import_filed',
 
-  // VGM
-  'vgm_submission:inbound': 'vgm_confirmed',
-  'vgm_submission:outbound': 'vgm_submitted',
+  // VGM (content classification uses vgm_confirmation only)
   'vgm_confirmation:inbound': 'vgm_confirmed',
-  'vgm_reminder:inbound': 'vgm_pending',
+  'vgm_confirmation:outbound': 'vgm_submitted',
 
   // Gate-in & SOB
   'gate_in_confirmation:inbound': 'container_gated_in',
   'sob_confirmation:inbound': 'sob_received',
 
-  // Departure
-  'departure_notice:inbound': 'vessel_departed',
-  'sailing_confirmation:inbound': 'vessel_departed',
-
   // ===== IN_TRANSIT =====
   // ISF (US import)
-  'isf_submission:outbound': 'isf_filed',
-  'isf_confirmation:inbound': 'isf_confirmed',
   'isf_filing:inbound': 'isf_filed',
+  'isf_filing:outbound': 'isf_filed',
 
-  // MBL Draft (Proforma BL from carrier - INBOUND)
-  // NOTE: bill_of_lading:inbound is handled specially by getBLStateFromSender()
-  // to distinguish carrier (bl_received) vs other (forwarded docs)
-  'mbl_draft:inbound': 'mbl_draft_received',
+  // MBL (content classification types: mbl, draft_mbl)
+  'mbl:inbound': 'bl_received',
+  'draft_mbl:inbound': 'mbl_draft_received',
+  'draft_mbl:outbound': 'mbl_draft_received',
 
-  // HBL Draft (Intoglo creates and sends - OUTBOUND)
-  'hbl_draft:outbound': 'hbl_draft_sent',
-  'hbl_release:outbound': 'hbl_released',
-  // NOTE: bill_of_lading:outbound is handled specially by getBLStateFromSender()
-  // to distinguish hbl_shared (to customer) vs hbl_released (release notification)
-  'house_bl:outbound': 'hbl_released',
+  // HBL (content classification types: hbl, draft_hbl)
+  'hbl:inbound': 'hbl_received',
+  'hbl:outbound': 'hbl_shared',
+  'draft_hbl:inbound': 'hbl_draft_received',
+  'draft_hbl:outbound': 'hbl_draft_sent',
 
   // Invoice
   'freight_invoice:outbound': 'invoice_sent',
   'freight_invoice:inbound': 'commercial_invoice_received',
   'invoice:outbound': 'invoice_sent',
-  'payment_confirmation:inbound': 'invoice_paid',
+  'payment_receipt:inbound': 'invoice_paid',
 
   // ===== PRE_ARRIVAL (US Customs) =====
   // From Customs Broker (INBOUND)
-  'draft_entry:inbound': 'entry_draft_received',       // Broker sends draft for review
-  'entry_summary:inbound': 'entry_summary_received',   // Broker sends 7501 entry summary
+  'draft_entry:inbound': 'entry_draft_received',
+  'entry_summary:inbound': 'entry_summary_received',
+  'entry_immediate_delivery:inbound': 'entry_summary_received',
   // Shared with Customer (OUTBOUND)
-  'draft_entry:outbound': 'entry_draft_shared',        // Intoglo shares draft with customer
-  'entry_summary:outbound': 'entry_summary_shared',    // Intoglo shares 7501 with customer
+  'draft_entry:outbound': 'entry_draft_shared',
+  'entry_summary:outbound': 'entry_summary_shared',
 
   // ===== ARRIVAL =====
   'arrival_notice:inbound': 'arrival_notice_received',
   'arrival_notice:outbound': 'arrival_notice_shared',
-  'shipment_notice:inbound': 'arrival_notice_received',
+  // NOTE: shipment_status does NOT trigger arrival - it's just a status update
+  // 'shipment_status:inbound': no mapping - informational only
 
   // Customs Clearance
-  'customs_clearance:inbound': 'customs_cleared',
-  'customs_clearance:outbound': 'customs_cleared',
-  'customs_document:inbound': 'duty_invoice_received',
   'duty_invoice:inbound': 'duty_invoice_received',
   'duty_invoice:outbound': 'duty_summary_shared',
-  'customs_document:outbound': 'duty_summary_shared',
-  'duty_summary:outbound': 'duty_summary_shared',
-
-  // Exam/Hold
-  'exam_notice:inbound': 'customs_hold',
 
   // Delivery Order
   'delivery_order:inbound': 'delivery_order_received',
   'delivery_order:outbound': 'delivery_order_shared',
 
-  // ===== DELIVERY =====
+  // Container Release
   'container_release:inbound': 'container_released',
-  'dispatch_notice:inbound': 'out_for_delivery',
-  'delivery_confirmation:inbound': 'delivered',
-  'pod:inbound': 'pod_received',
+
+  // ===== DELIVERY =====
   'proof_of_delivery:inbound': 'pod_received',
   'empty_return:inbound': 'empty_returned',
-  'empty_return_confirmation:inbound': 'empty_returned',
 
-  // Certificates (generic document receipt)
-  'certificate:inbound': 'documents_received',
+  // General correspondence - no workflow transition
+  // 'general_correspondence:inbound': no mapping - informational only
 };
 
 // =============================================================================

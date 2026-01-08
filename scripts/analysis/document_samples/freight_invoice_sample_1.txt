@@ -1,0 +1,240 @@
+FILENAME: IN03-202512-180450-6439083510-CIEX242512004199-invoice.pdf
+CATEGORY: freight_invoice
+========================================
+
+
+
+ 
+AABCC9418Q
+24GUJARAT24AABCC9418Q1Z8
+U35100MH2002PTC137751
+CIEX242512004199
+INTOGLO PRIVATE LIMITED
+AAGCI5321M
+24/12/2025
+Plot No. 72, B-2/106, MILAN VIHAR APARTMENTS, 
+PATPARGANJ, Indraprastha Extension, New Delhi, East 
+Delhi, Delhi, 110092
+NO SEZ
+COSU6439083510
+XIN FU ZHOU 095E
+24/12/2025
+26,700.000 KGS
+General Cargo / FCL / FCL
+TampaMundra
+Tampa / United States
+1 X 40HQ
+FFAU6935349
+INR TWENTY NINE THOUSAND SEVEN HUNDRED SEVEN ONLY
+of
+12
+Page
+COSCO SHIPPING LINES (INDIA) PRIVATE LIMITED
+Registration Address: Shop No 20, Shradha Complex, Near HDFC Bank, Zero Point, Mundra, Kachchh, Gujarat, 
+370421.
+Tel.: 022-61247300 E-mail: INDEXPINV@coscon.com
+PAN No.:CIN No.:
+State:GSTIN:State Code:
+Tax Invoice (Original for recipient)
+Invoice No.:
+Party Name:
+Party Pan No.
+Invoice Date:
+Address:
+28f79f3b81c908e226d5d37a655ca9bb0a30a7f92744be9017e1a30302007304IRN No.:
+State Code:07 - Delhi07AAGCI5321M1ZF07GSTIN:Place Of Supply :
+Vessel/Voy:
+MB/L.:
+Vessel ETD Date:
+Cargo Weight:
+Cargo Type:
+POL:
+POD:
+FPD:
+Cont.no./Size:
+Container No(s).:
+Total Amt in
+Charge Curr
+Rate per
+Unit
+Quantity
+(Units)
+Ex.Rate
+Curr.
+Charge Name
+Taxable
+HSN/SAC
+30.00
+4000.00
+17800.00
+170.00
+5.00
+1.000
+1.000
+1.000
+1.000
+1.000
+2,747.00
+4,000.00
+17,800.00
+170.00
+458.00
+996759
+996759
+996751
+996759
+996759
+91.55
+1.00
+1.00
+1.00
+91.55
+USD
+INR
+INR
+INR
+USD
+Advance Manifest Security Charge for Auto NVOCC
+ORIGIN DOC FEE
+ORIG TRML HANDLG
+Mandatory User Charge
+Seal Fee
+30.00
+4,000.00
+17,800.00
+170.00
+5.00
+INRTotal
+INR25,175.00Gross
+4,531.50INTEGRATED GST 18.00 %
+29,707.00
+NET Amount :
+Amount in Words:
+Container 
+Availability
+Free time Start
+ContainerClock EndSurchargesChargesGate out DateFree time ExpiryGate in Date
+Note:
+1. All NEFT/RTGS should be drawn in favour of "COSCO SHIPPING LINES (INDIA) PRIVATE 
+LIMITED".
+2. Invoice Valid subject to Exch. Rate prevailing at time of releasing B/L.
+3. Jurisdiction: Dispute if any shall be subject to the Jurisdiction of Mumbai Courts Only.
+4. All overdue payments shall bear interest @18% per annum.
+5. Any Discrepancy in the Invoice to be notified within 24 hours otherwise the Invoice 
+would be considered as Correct.
+6. TDS is not applicable as per circular number 723 dated 19/09/1995.
+Our Bank Details for INR NEFT / RTGS 
+JPMorgan Chase Bank, N.A.
+JP Morgan Towers, Off CST Road, 
+Kalina, Mumbai - 400098
+Account No. - 5622417375
+IFSC Code- CHAS0INBX01
+https://formbuilder.ccavenue.com/live/ccavenue/cosco-shipping-lines-india-private-limited
+
+GUJARAT
+24AABCC9418Q1Z8
+24
+AABCC9418Q
+U35100MH2002PTC137751
+CIEX242512004199
+INTOGLO PRIVATE LIMITED
+24/12/2025
+AAGCI5321M
+Plot No. 72, B-2/106, MILAN VIHAR APARTMENTS, 
+PATPARGANJ, Indraprastha Extension, New Delhi, East 
+Delhi, Delhi, 110092
+28f79f3b81c908e226d5d37a655ca9bb0a30a7f92744be9017e1a30302007304
+NO SEZ
+XIN FU ZHOU 095E
+COSU6439083510
+24/12/2025
+26,700.000 KGS
+General Cargo / FCL / FCL
+Tampa
+Mundra
+Tampa / United States
+1 X 40HQ
+FFAU6935349
+Note:
+1. All NEFT/RTGS should be drawn in favour of "COSCO SHIPPING LINES (INDIA) PRIVATE LIMITED".
+2. Invoice Valid subject to Exch. Rate prevailing at time of releasing B/L.
+3. Jurisdiction: Dispute if any shall be subject to the Jurisdiction of Mumbai Courts Only.
+4. All overdue payments shall bear interest @18% per annum.
+5. Any Discrepancy in the Invoice to be notified within 24 hours otherwise the Invoice would be considered as Correct.
+6. TDS is not applicable as per circular number 723 dated 19/09/1995.
+Our Bank Details for INR NEFT / RTGS 
+JPMorgan Chase Bank, N.A.
+JP Morgan Towers, Off CST Road, 
+Kalina, Mumbai - 400098
+Account No. - 5622417375
+IFSC Code- CHAS0INBX01
+E & O.E.
+of
+22
+Page
+GSTIN:
+State:
+CIN No.:PAN No.:
+State Code:
+Tax Invoice (Original for recipient)
+Invoice No.:
+Party Name:
+Invoice Date:
+Party Pan No.
+Address:
+IRN No.:
+07AAGCI5321M1ZF0707 - DelhiGSTIN:State Code:Place Of Supply :
+Vessel/Voy:
+MB/L.:
+Vessel ETD Date:
+Cargo Weight:
+Cargo Type:
+POL:
+POD:
+FPD:
+Cont.no./Size:
+Container No(s).:
+Quantity
+(Units)
+Ex.RateCurr.
+Rate per
+Unit
+Total Amt in
+Charge Curr
+Non-TaxableTaxable
+Charge Name
+HSN/SAC
+TOTAL :
+HSN/SAC
+Reverse Charge Amount :
+REMARKS :
+For COSCO SHIPPING LINES (INDIA) PRIVATE LIMITED
+Agents
+SGST
+IGSTUTGST
+CGST
+Total
+Amount
+Taxable Value
+RateRateRateRateAmountAmountAmountAmount
+996759
+996751
+18.00
+18.00
+1,327.50
+3,204.00
+1,327.50
+3,204.00
+7,375.00
+17,800.00
+4,531.50
+4,531.50
+Tax Amount in Words:
+INR FOUR THOUSAND FIVE HUNDRED THIRTY ONE AND PAISE FIFTY ONLY
+https://formbuilder.ccavenue.com/live/ccavenue/cosco-shipping-lines-india-private-limited
+
+═══════════════════════════════════════
+EXTRACTED KEY FIELDS (COSCO)
+═══════════════════════════════════════
+Container: FFAU6935349
+Amount: 25,175.00, 996759

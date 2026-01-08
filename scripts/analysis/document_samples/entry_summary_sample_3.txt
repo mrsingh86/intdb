@@ -1,0 +1,134 @@
+FILENAME: 04211614 DRAFT_ (1).pdf
+CATEGORY: entry_summary
+========================================
+
+DEPARTMENT OF HOMELAND SECURITY
+U.S. Customs and Border Protection
+ENTRY SUMMARY
+OMB APPROVAL NO. 1651-0022
+EXPIRATION DATE 03/31/2025
+ 1. Filer Code/Entry No. 2. Entry Type 3. Summary Date
+ 4. Surety No. 5. Bond Type 6. Port Code 7. Entry Date
+ 8. Importing Carrier 9. Mode of Transport 10. Country of Origin 11. Import Date
+ 15. Export Date 14. Exporting Country 12. B/L or AWB No. 13. Manufacturer ID
+ 20. U.S. Port of Unlading
+ 24. Reference No
+ 19. Foreign Port of Lading
+ 23. Importer No.
+ 16. I.T. No.
+ 21. Location of Goods/G.O. No.
+ 17. I.T. date 18. Missing Docs
+ 22. Consignee No.
+ 25. Ultimate Consignee Name and Address 26. Importer of Record Name and Address
+ City StateZip City StateZip
+9JW  042116140112/09/2025
+03683901
+MAERSK PITTSBURGH11IN12/02/2025
+MAEU260616575INARGLIM36HARIN10/29/2025
+V071021198312/02/2025533064601
+CSX INTERMODEL INC 59TH13-417544100205301-06723
+CARGO PARTNER INC
+515 E TOUHY AVE
+DES PLAINES-60018
+IL, UNITED STATES OF AMERICA
+DES PLAINESIL60018
+ARGL LIMITED
+111 MANESAR ROAD
+GURGAON-
+,
+GURGAON
+ 28. Description of Merchandise 27.
+ Line
+No.
+ 29. 30. 31.
+A. HTSUS No.
+B. ADA/CVD No.
+A. Gross Weight
+B. Manifest Qty.
+Net Quantity in
+HTSUS Units
+ 32.
+ A. Entered Value
+ B. CHGS
+ C. Relationship
+ 33.
+ A. HTSUS Rate
+ B. ADA/CVD Rate
+ C. IRC Rate
+ D. Visa No.
+ 34.
+ Duty and I.R.  Tax
+DollarsCents
+1
+SE1025002857
+32
+ADDTL BL'S:
+PKG
+9817006000
+8483905080
+INV
+NDC/DC
+EV
+RING GEAR CHP98
+INARGLIM36HAR
+114306
+114306.24
+0.0
+114306
+C  200
+Not Related
+FREE
+2.5 %
+Harbor Maintenance Fee
+0.0
+0.0
+0.125%$ 142.88
+18350.08KG
+19693.57
+ 36.DECLARATION OF IMPORTER OF RECORD (OWNER
+ OR PURCHASER) OR AUTHORIZED AGENT
+ D. Ascertained Other
+ E. Anscertained Total
+ 39. Other
+ 40. Total
+ I declare that I am the
+purchaser, or consignee for CBP purposes is as shown above,
+ Importer of record and that the actual owner
+ owner
+or purchaser or agent thereof. I further declare that the merchandise was obtained pursuant to a purchase or agreement to purchase and that the
+prices set forth in the invoices are true, was not obtained pursuant to a purchase or agreement to purchase and the statements in the invoices as
+to value or price are true to the best of my knowledge and belief.I also declare that the statements in the documents herein filed fully disclose to the best
+of my knowledge and belief the true prices, values, quantities, rebates, drawbacks, fees, commissions, and royalties and are true and correct, and that all
+goods or services provided to the seller of the merchandise either free or at reduced cost are fully disclosed.
+I will immediately furnish to the appropriate CBP officer any information showing a different statement of facts.
+ 41. DECLARANT NAMETITLE
+SIGNATURE
+DATE
+42. Broker/Filer Information (Name, address, phone number) 43. Broker/Importer File No
+  Other Fee Summary for Block 39 35. Total Entered Value
+  CBP USE ONLY
+ TOTALS
+ Total Other Fees
+ A. LIQ CODE
+ B. Ascertained Duty
+ C. Ascertained Tax
+ 37. Duty
+ 38. Tax
+ REASON CODE
+HMF501142.88
+$ 114306.00
+$ 142.88
+$ .00
+$ 0.00
+$ 142.88
+$ 142.88
+12/09/2025
+ATTORNEY-IN-FACTJametha Joe Young
+OR
+OR
+The Artemus Group LLC
+ 207 Business Park Drive Suite 204
+ Virginia Beach VA 23462 1-866-744-7101
+CBP Form 7501 (5/22)
+ 9JW  04211614
+Invoice No. 2630200198

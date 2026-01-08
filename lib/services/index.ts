@@ -12,6 +12,52 @@
 export { EmailIntelligenceService } from './email-intelligence-service';
 export type { EmailIntelligenceFilters } from './email-intelligence-service';
 
+// Email Flagging Service (computes all derived flags on raw_emails)
+export {
+  EmailFlaggingService,
+  createEmailFlaggingService,
+} from './email-flagging-service';
+export type {
+  EmailFlags,
+  FlaggingResult,
+} from './email-flagging-service';
+
+// Attachment Flagging Service (signature detection, business document classification)
+export {
+  AttachmentFlaggingService,
+  createAttachmentFlaggingService,
+} from './attachment-flagging-service';
+export type {
+  AttachmentData,
+  AttachmentFlags,
+  FlaggingResult as AttachmentFlaggingResult,
+} from './attachment-flagging-service';
+
+// Flagging Orchestrator (coordinates email + attachment flagging in parallel)
+export {
+  FlaggingOrchestrator,
+  createFlaggingOrchestrator,
+} from './flagging-orchestrator';
+export type {
+  FlaggingInput,
+  FlaggingOutput,
+  BatchFlaggingResult,
+} from './flagging-orchestrator';
+
+// Document Registry Service (tracks unique documents and versions)
+export {
+  DocumentRegistryService,
+  createDocumentRegistryService,
+} from './document-registry-service';
+export type {
+  DocumentType,
+  DocumentStatus,
+  ExtractedReferences,
+  DocumentMatch,
+  RegistrationResult,
+  ClassificationInput as RegistryClassificationInput,
+} from './document-registry-service';
+
 // ============================================================================
 // Layer 2: Classification & Extraction
 // ============================================================================
@@ -82,7 +128,7 @@ export { EmailIngestionService } from './email-ingestion-service';
 export type {
   RawEmail,
   Classification,
-  DocumentType,
+  DocumentType as IngestionDocumentType,
   Entity,
   IngestResult,
   ProcessingOptions
@@ -183,3 +229,128 @@ export { EmailFilteringService } from './email-filtering-service';
 // ============================================================================
 
 export { DocumentComparisonService } from './document-comparison-service';
+
+// ============================================================================
+// Enhanced Extraction (Regex-First + AI + LLM Judge)
+// ============================================================================
+
+// Values and Classes
+export {
+  // Pattern Definitions
+  CONFIDENCE_THRESHOLDS,
+  CRITICAL_FIELDS,
+  IMPORTANT_FIELDS,
+  // Regex Extractors
+  RegexExtractor,
+  CarrierDetector,
+  IdentifierExtractor,
+  DateExtractor,
+  CutoffExtractor as RegexCutoffExtractor,
+  PortExtractor,
+  VesselVoyageExtractor,
+  regexExtractor,
+  // Layered Extraction Service
+  LayeredExtractionService,
+  // LLM Judge
+  LLMJudge,
+  BatchJudge,
+} from './extraction';
+
+// Types
+export type {
+  // Pattern types
+  PatternDefinition,
+  DatePatternDefinition,
+  // Extraction types
+  ExtractionResult as RegexExtractionResult,
+  DateExtractionResult,
+  CutoffExtractionResult as RegexCutoffResult,
+  ExtractorInput,
+  RegexExtractionResults,
+  // Layered Extraction types
+  LayeredExtractionInput,
+  LayeredExtractionResult,
+  ExtractedData,
+  ExtractionMetadata,
+  // LLM Judge types
+  JudgementInput,
+  JudgementResult,
+  FieldEvaluation,
+  JudgementIssue,
+} from './extraction';
+
+// ============================================================================
+// Intelligence Services (AI Analysis)
+// ============================================================================
+
+export {
+  EmailIntelligenceService as EmailIntelligenceExtractor,
+  createEmailIntelligenceService,
+  ShipmentIntelligenceService,
+  createShipmentIntelligenceService,
+} from './intelligence';
+export type {
+  EmailIntelligence,
+  ShipmentIntelligence,
+  SentimentTrend,
+  ExtractionOptions as IntelligenceExtractionOptions,
+} from './intelligence';
+
+// ============================================================================
+// Registry Services (Unified Data Flow)
+// ============================================================================
+
+// Registry Orchestrator (coordinates all registries)
+export {
+  RegistryOrchestrator,
+  createRegistryOrchestrator,
+} from './registry-orchestrator';
+export type {
+  RegistryOrchestratorInput,
+  RegistryOrchestratorResult,
+} from './registry-orchestrator';
+
+// Email Registry
+export {
+  EmailRegistryService,
+  createEmailRegistryService,
+} from './registry';
+export type {
+  EmailRegistryInput,
+  EmailRegistryResult,
+  EmailSender,
+} from './registry';
+
+// Stakeholder Registry
+export {
+  StakeholderRegistryService,
+  createStakeholderRegistryService,
+} from './registry';
+export type {
+  PartyInfo as StakeholderPartyInfo,
+  StakeholderRegistryInput,
+  StakeholderRegistryResult,
+} from './registry';
+
+// Shipment Registry
+export {
+  ShipmentRegistryService,
+  createShipmentRegistryService,
+} from './registry';
+export type {
+  ShipmentRegistryInput,
+  ShipmentRegistryResult,
+} from './registry';
+
+// Workstate Registry
+export {
+  WorkstateRegistryService,
+  createWorkstateRegistryService,
+  STATE_ORDER,
+  DOCUMENT_TO_STATE_MAP,
+} from './registry';
+export type {
+  WorkstateRegistryInput,
+  WorkstateRegistryResult,
+  StateHistoryEntry,
+} from './registry';

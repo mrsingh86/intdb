@@ -57,6 +57,10 @@ export class EmailTypeClassificationService {
   /**
    * Classify email by type (intent/action).
    *
+   * For thread replies: Body content determines intent more accurately
+   * than inherited subject line. The subject carries thread topic,
+   * but body shows what this specific email is trying to achieve.
+   *
    * @param input - Email data with ThreadContext
    * @returns Email type classification or null if no confident match
    */
@@ -67,6 +71,7 @@ export class EmailTypeClassificationService {
     // Use clean subject from ThreadContext (no RE:/FW: prefixes)
     const subject = threadContext.cleanSubject.toUpperCase();
     const freshBody = (threadContext.freshBody || bodyText || '').toUpperCase();
+    const isReply = threadContext.isReply || threadContext.isForward;
 
     let bestMatch: EmailTypeResult | null = null;
 
@@ -78,34 +83,71 @@ export class EmailTypeClassificationService {
         }
       }
 
-      // Try subject patterns
-      const subjectResult = this.matchPatterns(subject, config.subjectPatterns);
-      if (subjectResult && subjectResult.confidence >= MIN_CONFIDENCE_THRESHOLD) {
-        if (!bestMatch || subjectResult.confidence > bestMatch.confidence) {
-          bestMatch = {
-            emailType: config.type,
-            category: config.category,
-            confidence: subjectResult.confidence,
-            matchedPatterns: subjectResult.matchedPatterns,
-            senderCategory,
-          };
+      // For replies: Check body FIRST (actual intent), then subject as fallback
+      // For original emails: Check subject FIRST (more reliable), then body
+      if (isReply) {
+        // REPLY: Body patterns first (actual intent of this email)
+        if (config.bodyPatterns) {
+          const bodyResult = this.matchPatterns(freshBody, config.bodyPatterns);
+          if (bodyResult && bodyResult.confidence >= MIN_CONFIDENCE_THRESHOLD) {
+            if (!bestMatch || bodyResult.confidence > bestMatch.confidence) {
+              bestMatch = {
+                emailType: config.type,
+                category: config.category,
+                confidence: bodyResult.confidence,
+                matchedPatterns: bodyResult.matchedPatterns,
+                senderCategory,
+              };
+            }
+          }
         }
-      }
 
-      // Try body patterns (if available and no subject match)
-      if (config.bodyPatterns && (!bestMatch || bestMatch.confidence < 85)) {
-        const bodyResult = this.matchPatterns(freshBody, config.bodyPatterns);
-        if (bodyResult && bodyResult.confidence >= MIN_CONFIDENCE_THRESHOLD) {
-          // Body patterns are slightly less confident
-          const adjustedConfidence = Math.min(bodyResult.confidence - 5, 90);
-          if (!bestMatch || adjustedConfidence > bestMatch.confidence) {
+        // REPLY: Subject patterns as fallback (may be inherited, lower confidence)
+        if (!bestMatch || bestMatch.confidence < 80) {
+          const subjectResult = this.matchPatterns(subject, config.subjectPatterns);
+          if (subjectResult && subjectResult.confidence >= MIN_CONFIDENCE_THRESHOLD) {
+            // Reduce confidence for subject-based classification on replies
+            const adjustedConfidence = Math.max(subjectResult.confidence - 15, 60);
+            if (!bestMatch || adjustedConfidence > bestMatch.confidence) {
+              bestMatch = {
+                emailType: config.type,
+                category: config.category,
+                confidence: adjustedConfidence,
+                matchedPatterns: subjectResult.matchedPatterns,
+                senderCategory,
+              };
+            }
+          }
+        }
+      } else {
+        // ORIGINAL EMAIL: Subject patterns first (reliable)
+        const subjectResult = this.matchPatterns(subject, config.subjectPatterns);
+        if (subjectResult && subjectResult.confidence >= MIN_CONFIDENCE_THRESHOLD) {
+          if (!bestMatch || subjectResult.confidence > bestMatch.confidence) {
             bestMatch = {
               emailType: config.type,
               category: config.category,
-              confidence: adjustedConfidence,
-              matchedPatterns: bodyResult.matchedPatterns,
+              confidence: subjectResult.confidence,
+              matchedPatterns: subjectResult.matchedPatterns,
               senderCategory,
             };
+          }
+        }
+
+        // ORIGINAL EMAIL: Body patterns as supplement
+        if (config.bodyPatterns && (!bestMatch || bestMatch.confidence < 85)) {
+          const bodyResult = this.matchPatterns(freshBody, config.bodyPatterns);
+          if (bodyResult && bodyResult.confidence >= MIN_CONFIDENCE_THRESHOLD) {
+            const adjustedConfidence = Math.min(bodyResult.confidence - 5, 90);
+            if (!bestMatch || adjustedConfidence > bestMatch.confidence) {
+              bestMatch = {
+                emailType: config.type,
+                category: config.category,
+                confidence: adjustedConfidence,
+                matchedPatterns: bodyResult.matchedPatterns,
+                senderCategory,
+              };
+            }
           }
         }
       }

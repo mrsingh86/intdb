@@ -1,0 +1,131 @@
+FILENAME: MDRA0101_949592360.pdf
+CATEGORY: delivery_order
+========================================
+
+MTD17312 (FB; ; ; ; )
+Carrier:
+Hapag-Lloyd Aktiengesellschaft, Hamburg
+Bill of Lading
+Multimodal Transport or Port to Port Shipment
+Shipper:
+Consignee (not negotiable unless consigned to order): 
+Notify Address (Carrier not responsible for failure to notify; see clause 20 (1) hereof):  
+Vessel(s):Voyage-No.:
+Port of Loading:
+Port of Discharge:
+Carrier’s Reference:B/L-No.:Page:
+Export References:
+Forwarding Agent:
+Consignee’s Reference:
+Place of Receipt:
+Place of Delivery:
+Container Nos., Seal Nos.; Marks and Nos.Number and Kind of Packages, Description of GoodsGross Weight:Measurement:
+Ballindamm 25 - D-20095 Hamburg
+VAT-ID-No: DE813960018
+Above Particulars as declared by Shipper. Without responsibility 
+or warranty as to correctness by Carrier [see clause 11]
+Total No. of Containers received by the Carrier:
+Packages received by the Carrier:
+Shipper’s declared Value [see clause 7(2) and 7(3)]
+Movement:Currency:
+ChargeRate
+Basis
+Wt/Vol/ValP/CAmount
+Total Freight PrepaidTotal Freight CollectTotal Freight 
+Place and date of issue:
+Freight payable at:
+Number of original Bs/L:
+RECEIVED by the Carrier from the Shipper in apparent good order and condition (unless otherwise 
+noted herein) the total number or quantity of Containers or other packages or units indicated in the box 
+opposite entitled “Total No. of Containers/Packages received by the Carrier” for Carriage subject to all 
+the terms and conditions hereof (INCLUDING THE TERMS AND CONDITIONS ON THE REVERSE 
+HEREOF AND THE TERMS AND CONDITIONS OF THE CARRIER’S APPLICABLE TARIFF) from the 
+Place of Receipt or the Port of Loading, whichever is applicable, to the Port of Discharge or the Place of 
+Delivery, whichever is applicable. One original Bill of Lading, duly endorsed, must be surrendered by the 
+Merchant to the Carrier in exchange for the Goods or a delivery order. In accepting this Bill of Lading the 
+Merchant expressly accepts and agrees to all its terms and conditions whether printed, stamped or 
+written, or otherwise incorporated, notwithstanding the non-signing of this Bill of Lading by the Merchant. 
+IN WITNESS WHEREOF the number of original Bills of Lading stated below all of this tenor and date 
+has been signed, one of which being accomplished the others to stand void.
+                                                                               
+                                                                               
+     INTOGLO PRIVATE LIMITED                                                   
+     PATPARGANJ INDRAPRASTHA EXTENSION                                         
+     NEW DELHI-110092 INDIA                                                    
+                                                                               
+                                          90502048  HLCUBO12512AVUE0   2 / 3   
+                                                                               
+                                                                               
+     INTOGLO TECHNOLOGIES INC.                                                 
+     4047, LONG AVE TRACY CA 95377                                             
+     UNITED STATES                                                             
+     NAM@INTOGLO.COM                                                           
+     OPS@INTOGLO.COM                                                           
+                                                                               
+                                                                               
+     INTOGLO TECHNOLOGIES INC.                                                 
+     4047, LONG AVE TRACY CA 95377                                             
+     UNITED STATES                                                             
+     NAM@INTOGLO.COM                                                           
+     OPS@INTOGLO.COM                                                           
+                                                                               
+                                                                               
+     TUCAPEL                        5150                                       
+                                                                               
+                                                                               
+     MUNDRA                                                                    
+                                                                               
+     SAVANNAH, GA                                                              
+                                                                               
+                       1 CONT. 20'X8'6" GENERAL PURPOSE CONT. SLAC*            
+     TLLU  2553681     20 PACKAGES                         20100.000           
+     SEAL:             TWENTY PACKAGES ONLY CONTAINING OF        KGS           
+     HLK2813041        INDIAN LONG GRAIN WHITE RICE        20000.000           
+     MARKS & NOS:      100% SORTEX CLEANED, CROP 2024-2025   NET KGS           
+     01 TO 20 PKGS     SB NO.: 7909892 DT. 16-DEC-2025                         
+                       SCAC: INWF                                              
+                       HSN CODE: 10063099                                      
+                       NET WT.: 20000.000 KGS                                  
+                                                                               
+     *SLAC = Shipper's Load, Stow, Weight and Count                            
+                                                                               
+     SHIPPED ON BOARD, DATE : 18-DEC-2025                                      
+     PORT OF LOADING: MUNDRA                                                   
+     VESSEL NAME: TUCAPEL VOYAGE: 5150                                         
+                                                                               
+     ORIGIN PORT CHARGE PREPAID                                                
+     SEA FREIGHT COLLECT                                                       
+     DESTINATION PORT CHARGE COLLECT                                           
+                                                                               
+                                                                     DRAFT     
+                     1                                                         
+                                                                               
+               FCL/FCL                                                         
+                                                                               
+                                                                               
+                                                                               
+                                                                               
+                                         DELHI             18-DEC-2025         
+                                                                               
+                                         DESTINATION       THREE               
+                                                                               
+                                         
+                                         
+FOR ABOVE NAMED CARRIER              
+HAPAG-LLOYD INDIA PVT. LTD.          
+(AS AGENT)                           
+
+Hapag-Lloyd Aktiengesellschaft, Hamburg
+                         Page 3 / 3                                            
+                                                   B/L-No. HLCUBO12512AVUE0    
+                                                                               
+     -----------------------------------------------------------------------   
+     Cont/Seals/Marks  Packages/Description of Goods         Weight  Measure   
+                                                                               
+     The Merchant undertakes and warrants that, under no circumstances,        
+     shall the Goods and/or Containers listed in this Bill of Lading (i)       
+     originate from, be stuffed in, or be on-carried from the territory of     
+     the Russian Federation or the Republic of Belarus prior to loading at     
+     the port of loading, nor (ii) be destined for or on-carried to the        
+     territory of the Russian Federation or the Republic of Belarus            
+     following unloading at the port of discharge.

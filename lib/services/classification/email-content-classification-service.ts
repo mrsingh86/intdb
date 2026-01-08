@@ -1,22 +1,22 @@
 /**
  * Email Content Classification Service
  *
- * Classifies emails by subject, body, and attachment filenames.
- * Uses ThreadContext for clean inputs (no RE:/FW:, no quoted content).
+ * Classifies emails by attachment filenames, body, and subject.
+ * Uses ThreadContext for clean inputs (no RE:/FW: prefixes, no quoted content).
  *
- * Single Responsibility: Classify by email metadata only.
- * - Subject patterns (clean subject from ThreadContext)
- * - Body patterns (fresh body from ThreadContext)
- * - Attachment filename patterns
- *
- * Deep Module: Simple interface, complex pattern matching hidden.
- * Input: ThreadContext + attachment filenames
- * Output: Classification result or null if no confident match
+ * CRITICAL: Subject patterns are ONLY used for ORIGINAL emails.
+ * RE:/FW: emails inherit the original subject, which doesn't reflect
+ * the current email's content. Using subject for replies causes
+ * misclassification (e.g., "Re: Arrival Notice" classified as arrival_notice
+ * when it's just a reply discussing the arrival notice).
  *
  * Priority order:
- * 1. Attachment filename patterns (highest priority)
- * 2. Subject line patterns
- * 3. Body content patterns
+ * 1. Attachment filename patterns (highest priority - always used)
+ * 2. For ORIGINAL emails: Subject patterns, then body patterns
+ * 3. For RE:/FW: emails: Body patterns ONLY (no subject)
+ *
+ * Single Responsibility: Classify by email metadata only.
+ * Deep Module: Simple interface, complex pattern matching hidden.
  */
 
 import { ThreadContext } from './thread-context-service';
@@ -240,13 +240,17 @@ export class EmailContentClassificationService {
   /**
    * Classify email by content (subject, body, attachments).
    *
+   * For thread replies: Prioritize body content over inherited subject.
+   * The subject in replies often contains the original thread topic,
+   * not the current email's actual content.
+   *
    * @param input - Email content with ThreadContext
    * @returns Classification result or null if no confident match
    */
   classify(input: EmailContentInput): EmailContentResult | null {
     const { threadContext, attachmentFilenames } = input;
 
-    // Priority 1: Attachment filename patterns (strongest signal)
+    // Priority 1: Attachment filename patterns (strongest signal - always first)
     if (attachmentFilenames && attachmentFilenames.length > 0) {
       const attachmentResult = this.classifyByAttachment(attachmentFilenames);
       if (attachmentResult) {
@@ -254,17 +258,33 @@ export class EmailContentClassificationService {
       }
     }
 
-    // Priority 2: Subject patterns (using clean subject)
-    const subjectResult = this.classifyBySubject(threadContext.cleanSubject);
-    if (subjectResult) {
-      return subjectResult;
-    }
+    // For thread replies: ONLY use body patterns, SKIP subject entirely
+    // Subject in RE:/FW: emails is inherited from original - doesn't reflect current content
+    if (threadContext.isReply || threadContext.isForward) {
+      // Only use body patterns for replies
+      if (threadContext.freshBody) {
+        const bodyResult = this.classifyByBody(threadContext.freshBody);
+        if (bodyResult) {
+          return bodyResult;
+        }
+      }
 
-    // Priority 3: Body patterns (using fresh body, not quoted content)
-    if (threadContext.freshBody) {
-      const bodyResult = this.classifyByBody(threadContext.freshBody);
-      if (bodyResult) {
-        return bodyResult;
+      // NO subject fallback for replies - subject is inherited, not meaningful
+      return null;
+    } else {
+      // For original emails (not replies): Subject is reliable
+      // Priority 2B: Subject patterns (using clean subject)
+      const subjectResult = this.classifyBySubject(threadContext.cleanSubject);
+      if (subjectResult) {
+        return subjectResult;
+      }
+
+      // Priority 3B: Body patterns
+      if (threadContext.freshBody) {
+        const bodyResult = this.classifyByBody(threadContext.freshBody);
+        if (bodyResult) {
+          return bodyResult;
+        }
       }
     }
 
