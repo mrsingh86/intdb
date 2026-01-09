@@ -2,7 +2,31 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { ShipmentRepository, EmailShipmentLinkRepository } from '@/lib/repositories';
 import { withAuth } from '@/lib/auth/server-auth';
-import { detectOutboundActions } from '@/lib/services/outbound-action-detector';
+
+/**
+ * Detect outbound workflow states from email subjects
+ * (Inline implementation - replaced lib/services/outbound-action-detector)
+ */
+function detectOutboundActions(emails: { sender_email: string; subject: string }[]): string[] {
+  const states = new Set<string>();
+  const patterns: Record<string, RegExp> = {
+    'si_submitted': /shipping instruction|si submitted|si sent/i,
+    'booking_requested': /booking request|book.*request/i,
+    'docs_submitted': /document.*submit|docs.*sent/i,
+    'payment_made': /payment.*made|remittance/i,
+  };
+
+  for (const email of emails) {
+    if (!email.subject) continue;
+    for (const [state, pattern] of Object.entries(patterns)) {
+      if (pattern.test(email.subject)) {
+        states.add(state);
+      }
+    }
+  }
+
+  return Array.from(states);
+}
 
 /**
  * GET /api/shipments/[id]

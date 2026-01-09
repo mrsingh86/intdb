@@ -61,19 +61,19 @@ export type {
 // TYPES
 // ============================================================================
 
-export {
-  // Types
+// Types (must use 'export type' for isolatedModules)
+export type {
   ProcessedEmail,
   ProcessedAttachment,
   ShippingAnalysis,
   ChronicleRecord,
   ChronicleProcessResult,
   ChronicleBatchResult,
+} from './types';
 
-  // Schema
+// Schema and Helpers (values, not types)
+export {
   analyzeShippingCommunicationSchema,
-
-  // Helpers
   detectDirection,
   detectPartyType,
   extractTrueSender,

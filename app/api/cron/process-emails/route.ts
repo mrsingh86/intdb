@@ -1,31 +1,32 @@
 /**
- * Cron Job: Process Emails
+ * Cron Job: Process Emails (Chronicle Pipeline)
  *
- * Automated email processing pipeline:
- * 1. Fetch pending emails from raw_emails
- * 2. Classify document type
- * 3. Extract entities
- * 4. Link to shipments (create from direct carrier BCs only)
- * 5. Track document lifecycle
+ * Automated email processing using Chronicle Intelligence System:
+ * 1. Fetch emails from Gmail (last 24 hours)
+ * 2. AI-powered extraction (4-point routing, cutoffs, identifiers)
+ * 3. Store in chronicle table
+ * 4. Auto-link to shipments
  *
  * Schedule: Every 5 minutes (via Vercel cron or external scheduler)
  *
  * Principles:
  * - Cron job < 50 lines (orchestrates deep services)
- * - Idempotent (safe to run multiple times)
+ * - Idempotent (gmail_message_id deduplication)
  * - Fail Gracefully (continue on individual failures)
  */
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { EmailProcessingOrchestrator } from '@/lib/services/email-processing-orchestrator';
+import {
+  ChronicleService,
+  createChronicleGmailService,
+} from '@/lib/chronicle';
 
 // Configuration
-const MAX_EMAILS_PER_RUN = 50;
-const BATCH_SIZE = 10;
+const HOURS_TO_FETCH = 24;
+const MAX_EMAILS_PER_RUN = 100;
 
 export async function GET(request: Request) {
-  // Verify cron secret
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 
@@ -34,90 +35,50 @@ export async function GET(request: Request) {
   }
 
   const startTime = Date.now();
-  const stats = {
-    emails_found: 0,
-    emails_processed: 0,
-    shipments_created: 0,
-    shipments_linked: 0,
-    errors: 0,
-    first_error: null as string | null,
-  };
 
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl || !supabaseKey) {
-      return NextResponse.json(
-        { error: 'Missing environment configuration' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Missing Supabase config' }, { status: 500 });
     }
 
-    // Initialize orchestrator (AI extraction deprecated - now uses schema/regex at $0 cost)
-    const orchestrator = new EmailProcessingOrchestrator(
-      supabaseUrl,
-      supabaseKey
-    );
-    await orchestrator.initialize();
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const gmailService = createChronicleGmailService();
+    const chronicleService = new ChronicleService(supabase, gmailService);
 
-    // Get emails needing processing
-    const emailIds = await orchestrator.getEmailsNeedingProcessing(MAX_EMAILS_PER_RUN);
-    stats.emails_found = emailIds.length;
+    const after = new Date(Date.now() - HOURS_TO_FETCH * 60 * 60 * 1000);
+    const result = await chronicleService.fetchAndProcess({
+      after,
+      maxResults: MAX_EMAILS_PER_RUN,
+    });
 
-    if (emailIds.length === 0) {
-      console.log('[Cron:ProcessEmails] No emails need processing');
-      return NextResponse.json({
-        success: true,
-        message: 'No emails need processing',
-        duration_ms: Date.now() - startTime,
-        stats,
-      });
-    }
-
-    console.log(`[Cron:ProcessEmails] Processing ${emailIds.length} emails...`);
-
-    // Process in batches to avoid timeout
-    for (let i = 0; i < emailIds.length; i += BATCH_SIZE) {
-      const batch = emailIds.slice(i, i + BATCH_SIZE);
-      const results = await orchestrator.processBatch(batch);
-
-      for (const result of results) {
-        if (result.success) {
-          stats.emails_processed++;
-          if (result.shipmentId) {
-            stats.shipments_linked++;
-          }
-        } else {
-          stats.errors++;
-          if (!stats.first_error) {
-            stats.first_error = result.error || 'Unknown error';
-          }
-          console.error(`[Cron:ProcessEmails] Error for ${result.emailId}:`, result.error);
-        }
-      }
-    }
-
-    const duration = Date.now() - startTime;
-    console.log(`[Cron:ProcessEmails] Completed in ${duration}ms:`, stats);
+    console.log(`[Cron:Chronicle] Completed in ${result.totalTimeMs}ms:`, {
+      processed: result.processed,
+      succeeded: result.succeeded,
+      failed: result.failed,
+      linked: result.linked,
+    });
 
     return NextResponse.json({
       success: true,
-      duration_ms: duration,
-      stats,
+      duration_ms: Date.now() - startTime,
+      stats: {
+        emails_fetched: result.processed,
+        emails_processed: result.succeeded,
+        shipments_linked: result.linked,
+        errors: result.failed,
+      },
     });
   } catch (error) {
-    console.error('[Cron:ProcessEmails] Fatal error:', error);
+    console.error('[Cron:Chronicle] Fatal error:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        stats,
-      },
+      { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
 }
 
 export const runtime = 'nodejs';
-export const maxDuration = 300; // 5 minutes max
+export const maxDuration = 300;
