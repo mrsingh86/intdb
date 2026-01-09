@@ -160,3 +160,14 @@ export type {
   SectionDefinition,
   TableDefinition,
 } from './schema-repository';
+
+export {
+  ClassificationConfigRepository,
+  createClassificationConfigRepository,
+} from './classification-config-repository';
+export type {
+  SenderPattern,
+  ContentMarker,
+  ContentMatchResult,
+  SenderType,
+} from './classification-config-repository';

@@ -48,3 +48,11 @@ export {
   type AIClassificationInput,
   type AIClassificationResult,
 } from './ai-classification-service';
+
+export {
+  DatabaseClassificationService,
+  createDatabaseClassificationService,
+  getDatabaseClassificationService,
+  type SenderClassificationResult,
+  type ContentClassificationResult,
+} from './database-classification-service';

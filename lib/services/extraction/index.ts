@@ -288,3 +288,14 @@ export {
   UnifiedExtractionService,
   createUnifiedExtractionService,
 } from './unified-extraction-service';
+
+// =============================================================================
+// NEW: Database-Driven Schema Service
+// =============================================================================
+
+// Database Schema Service - Classes and Functions
+export {
+  DatabaseSchemaService,
+  createDatabaseSchemaService,
+  getDatabaseSchemaService,
+} from './database-schema-service';
