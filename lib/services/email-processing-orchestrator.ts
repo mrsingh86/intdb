@@ -710,6 +710,9 @@ export class EmailProcessingOrchestrator {
         durationMs: timer(),
       });
 
+      // Flush logs to database
+      await this.logger.flush();
+
       return {
         emailId,
         success: true,
@@ -726,6 +729,8 @@ export class EmailProcessingOrchestrator {
         error instanceof Error ? error : undefined,
         { stage: 'extraction' }
       );
+      // Flush logs even on error
+      await this.logger.flush();
       return { emailId, success: false, stage: 'extraction', error: error.message };
     }
   }

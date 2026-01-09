@@ -113,6 +113,7 @@ export class LoggingService {
       minLevel?: LogLevel;
       bufferSize?: number;
       flushIntervalMs?: number;
+      sharedBuffer?: LogBuffer; // Allow sharing buffer across context instances
     } = {}
   ) {
     this.supabase = supabase;
@@ -121,14 +122,15 @@ export class LoggingService {
     this.enableDatabase = options.enableDatabase ?? true;
     this.minLevel = options.minLevel ?? 'info';
 
-    this.buffer = {
+    // Use shared buffer if provided, otherwise create new
+    this.buffer = options.sharedBuffer || {
       entries: [],
       maxSize: options.bufferSize ?? 50,
       flushInterval: null,
     };
 
-    // Auto-flush every 5 seconds if buffering
-    if (this.enableDatabase && options.flushIntervalMs) {
+    // Auto-flush every 5 seconds if buffering (only for root logger)
+    if (this.enableDatabase && options.flushIntervalMs && !options.sharedBuffer) {
       this.buffer.flushInterval = setInterval(
         () => this.flush(),
         options.flushIntervalMs
@@ -142,6 +144,7 @@ export class LoggingService {
 
   /**
    * Create a new logger with additional context
+   * Shares the same buffer so flush() works across all instances
    */
   withContext(context: LogContext): LoggingService {
     return new LoggingService(this.supabase, {
@@ -149,6 +152,7 @@ export class LoggingService {
       enableConsole: this.enableConsole,
       enableDatabase: this.enableDatabase,
       minLevel: this.minLevel,
+      sharedBuffer: this.buffer, // Share buffer for unified flushing
     });
   }
 
