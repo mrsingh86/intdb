@@ -106,6 +106,38 @@ CRITICAL RULES FOR IDENTIFICATION:
    - customs_broker: CHB, customs house brokers
    - nvocc: Non-vessel operating carriers (forwarders with their own BLs)
 
+9. STAKEHOLDER EXTRACTION (CRITICAL):
+   Extract shipper, consignee, and notify party from BL drafts, SI, and booking confirmations:
+
+   SHIPPER (Exporter):
+   - shipper_name: Full company name of the exporter/seller
+   - shipper_address: Complete address (street, city, country)
+   - shipper_contact: Contact person, phone, or email if mentioned
+   - Usually appears at top of BL/SI under "SHIPPER" or "EXPORTER"
+   - May be labeled: "Shipper", "Exporter", "Seller", "From"
+
+   CONSIGNEE (Importer):
+   - consignee_name: Full company name of the importer/buyer
+   - consignee_address: Complete address (street, city, country)
+   - consignee_contact: Contact person, phone, or email if mentioned
+   - Usually appears under "CONSIGNEE" or "IMPORTER"
+   - May be labeled: "Consignee", "Importer", "Buyer", "To", "Deliver To"
+   - "TO ORDER" or "TO ORDER OF [BANK]" = use that as consignee_name
+
+   NOTIFY PARTY:
+   - notify_party_name: Full company name to notify on arrival
+   - notify_party_address: Complete address
+   - notify_party_contact: Contact details
+   - Usually appears under "NOTIFY PARTY" or "NOTIFY"
+   - Often same as consignee but can be different (e.g., customs broker, agent)
+
+   RULES:
+   - Extract EXACTLY as written in document (preserve formatting)
+   - Include full address with postal code if available
+   - If party has "C/O" (care of), include that
+   - Skip internal Intoglo references (we want the real customer parties)
+   - On freight forwarder BLs, shipper may be the actual customer, not the forwarder
+
 6. DATES - Use correct fields:
 
    DEPARTURE/ARRIVAL:
@@ -249,6 +281,21 @@ export const ANALYZE_TOOL_SCHEMA: Anthropic.Tool = {
       weight: { type: 'string', nullable: true },
       pieces: { type: 'number', nullable: true },
       commodity: { type: 'string', nullable: true },
+
+      // Stakeholders - Shipper
+      shipper_name: { type: 'string', nullable: true, description: 'Full company name of exporter/seller' },
+      shipper_address: { type: 'string', nullable: true, description: 'Complete shipper address' },
+      shipper_contact: { type: 'string', nullable: true, description: 'Shipper contact person/phone/email' },
+
+      // Stakeholders - Consignee
+      consignee_name: { type: 'string', nullable: true, description: 'Full company name of importer/buyer' },
+      consignee_address: { type: 'string', nullable: true, description: 'Complete consignee address' },
+      consignee_contact: { type: 'string', nullable: true, description: 'Consignee contact person/phone/email' },
+
+      // Stakeholders - Notify Party
+      notify_party_name: { type: 'string', nullable: true, description: 'Company to notify on arrival' },
+      notify_party_address: { type: 'string', nullable: true, description: 'Notify party address' },
+      notify_party_contact: { type: 'string', nullable: true, description: 'Notify party contact details' },
 
       // Financial
       invoice_number: { type: 'string', nullable: true },

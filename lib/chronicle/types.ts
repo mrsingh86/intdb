@@ -118,6 +118,25 @@ export const analyzeShippingCommunicationSchema = z.object({
   ]),
 
   // =========================================================================
+  // STAKEHOLDERS - Extracted from BL/SI documents
+  // =========================================================================
+
+  // Shipper (Exporter)
+  shipper_name: z.string().nullish().describe('Full company name of exporter/seller'),
+  shipper_address: z.string().nullish().describe('Complete shipper address'),
+  shipper_contact: z.string().nullish().describe('Shipper contact person/phone/email'),
+
+  // Consignee (Importer)
+  consignee_name: z.string().nullish().describe('Full company name of importer/buyer'),
+  consignee_address: z.string().nullish().describe('Complete consignee address'),
+  consignee_contact: z.string().nullish().describe('Consignee contact person/phone/email'),
+
+  // Notify Party
+  notify_party_name: z.string().nullish().describe('Company to notify on arrival'),
+  notify_party_address: z.string().nullish().describe('Notify party address'),
+  notify_party_contact: z.string().nullish().describe('Notify party contact details'),
+
+  // =========================================================================
   // LOCATIONS - 4-Point Routing (Industry Standard)
   // POR → POL → POD → POFD
   // =========================================================================
@@ -329,6 +348,17 @@ export interface ChronicleRecord {
   originType?: string;
   destinationLocation?: string;
   destinationType?: string;
+
+  // Stakeholders
+  shipperName?: string;
+  shipperAddress?: string;
+  shipperContact?: string;
+  consigneeName?: string;
+  consigneeAddress?: string;
+  consigneeContact?: string;
+  notifyPartyName?: string;
+  notifyPartyAddress?: string;
+  notifyPartyContact?: string;
 
   // Vessel/Carrier
   vesselName?: string;

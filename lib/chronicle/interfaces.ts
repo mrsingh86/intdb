@@ -173,6 +173,17 @@ export interface ChronicleInsertData {
   pieces: number | null;
   commodity: string | null;
 
+  // Stakeholders
+  shipper_name: string | null;
+  shipper_address: string | null;
+  shipper_contact: string | null;
+  consignee_name: string | null;
+  consignee_address: string | null;
+  consignee_contact: string | null;
+  notify_party_name: string | null;
+  notify_party_address: string | null;
+  notify_party_contact: string | null;
+
   // Financial
   invoice_number: string | null;
   amount: number | null;

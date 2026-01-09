@@ -247,6 +247,17 @@ export class ChronicleService implements IChronicleService {
       pieces: analysis.pieces || null,
       commodity: analysis.commodity || null,
 
+      // Stakeholders
+      shipper_name: analysis.shipper_name || null,
+      shipper_address: analysis.shipper_address || null,
+      shipper_contact: analysis.shipper_contact || null,
+      consignee_name: analysis.consignee_name || null,
+      consignee_address: analysis.consignee_address || null,
+      consignee_contact: analysis.consignee_contact || null,
+      notify_party_name: analysis.notify_party_name || null,
+      notify_party_address: analysis.notify_party_address || null,
+      notify_party_contact: analysis.notify_party_contact || null,
+
       // Financial
       invoice_number: analysis.invoice_number || null,
       amount: analysis.amount || null,
