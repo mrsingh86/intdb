@@ -201,7 +201,8 @@ export const BL_SCHEMA: DocumentExtractionSchema = {
       type: 'string',
       required: false,
       labelPatterns: [
-        /BOOKING\s*(?:NO|NUMBER|#|REF)?[:\s]*/i,
+        /BOOKING\s+(?:NO|NUMBER|#|REF)[.:\s]*/i,  // Require NO/NUMBER/# suffix
+        /BOOKING[.:\s]+$/im,  // Or BOOKING followed by punctuation at end of line
         /BKG\s*(?:NO|#)?[:\s]*/i,
       ],
       valuePatterns: [PATTERNS.BOOKING_NUMBER],
@@ -247,6 +248,27 @@ export const BL_SCHEMA: DocumentExtractionSchema = {
         /OCEAN\s*VESSEL[:\s]*/i,
         /MOTHER\s*VESSEL[:\s]*/i,
       ],
+      // CMA CGM format: "CMA CGM VERDI / 0INLRW1MAVessel/Voyage:" (value BEFORE label)
+      // Standard format: after label like "VESSEL: CMA CGM VERDI"
+      // NOTE: Use [A-Z ] (space only) not [A-Z\s] to avoid matching across lines
+      valuePatterns: [
+        // CMA CGM reversed format: vessel name before " / " and voyage code followed by Vessel/Voyage
+        /([A-Z][A-Z ]{2,}[A-Z])\s*\/\s*[A-Z0-9]+\s*(?:Vessel|Voyage)/i,
+        // With prefix like "Name-CORNELIA MAERSK-546"
+        /Name[-:\s]*([A-Z][A-Z \-]+[A-Z])/i,
+        // After VESSEL label: extract 2-4 word names
+        /VESSEL[:\s]+([A-Z][A-Z \-\.]{2,25}[A-Z])/i,
+      ],
+      validate: (value: string) => {
+        // Reject obvious garbage
+        if (!value || value.length < 3) return false;
+        if (/^[\/\s]+$/.test(value)) return false;
+        if (/Voyage|IMO|Lloyds|Carrier|Load|Disch|ETA|ETD|DATA/i.test(value)) return false;
+        if (/OCEAN BILL|HOUSE BILL|LADING/i.test(value)) return false;
+        // Must be mostly letters (vessel names are words)
+        const letterRatio = (value.match(/[A-Za-z]/g) || []).length / value.length;
+        return letterRatio > 0.7;
+      },
     },
     {
       name: 'voyage_number',
@@ -256,6 +278,21 @@ export const BL_SCHEMA: DocumentExtractionSchema = {
         /VOYAGE\s*(?:NO|NUMBER|#)?[:\s]*/i,
         /VOY(?:AGE)?[:\s]*/i,
       ],
+      // CMA CGM format: "CMA CGM VERDI / 0INLRW1MAVessel/Voyage:" - voyage is alphanumeric code
+      valuePatterns: [
+        // CMA CGM reversed format: alphanumeric code before "Vessel/Voyage:" (no space)
+        /\/\s*([A-Z0-9]{6,12})(?:Vessel|Voyage)/i,
+        // After VOYAGE label
+        /VOYAGE[:\s#]+([A-Z0-9]{4,15})/i,
+        // Hyphenated like "-546" or "-722"
+        /[-](\d{3,6})(?:\s|$)/,
+      ],
+      validate: (value: string) => {
+        // Voyage numbers are short alphanumeric codes
+        if (!value || value.length < 3 || value.length > 20) return false;
+        if (/Vessel|IMO|Lloyds|Carrier/i.test(value)) return false;
+        return /^[A-Z0-9\-]+$/i.test(value);
+      },
     },
     {
       name: 'port_of_loading',
@@ -1987,10 +2024,19 @@ export const BOOKING_CONFIRMATION_SCHEMA: DocumentExtractionSchema = {
       type: 'string',
       required: true,
       labelPatterns: [
-        /BOOKING\s*(?:NO|NUMBER|#|REF(?:ERENCE)?)?[:\s]*/i,
+        /BOOKING\s+(?:NO|NUMBER|#|REF(?:ERENCE)?)[.:\s]*/i,  // Require suffix
+        /BOOKING[.:\s]+$/im,  // Or BOOKING at end of line with punctuation
         /BKG\s*(?:NO|#)?[:\s]*/i,
         /REFERENCE[:\s]*/i,
       ],
+      // Validate booking number format - reject garbage like "Bkg Pty Ref:"
+      validate: (value: string) => {
+        // Reject obvious non-booking values
+        if (/^(Bkg|Pty|Ref|Reference|Party|Number)[:\s]*$/i.test(value)) return false;
+        if (value.includes(':') && value.length < 10) return false;
+        // Must have at least some alphanumeric content
+        return /^[A-Z0-9]{5,}$/i.test(value.replace(/[-\s]/g, ''));
+      },
     },
     {
       name: 'shipper',
@@ -2017,6 +2063,28 @@ export const BOOKING_CONFIRMATION_SCHEMA: DocumentExtractionSchema = {
         /VESSEL[:\s]*/i,
         /SHIP\s*NAME[:\s]*/i,
       ],
+      // CMA CGM format: "CMA CGM VERDI / 0INLRW1MAVessel/Voyage:" (value BEFORE label)
+      // NOTE: Use [A-Z ] (space only) not [A-Z\s] to avoid matching across lines
+      valuePatterns: [
+        // CMA CGM reversed format: vessel name before " / " and voyage code followed by Vessel/Voyage
+        /([A-Z][A-Z ]{2,}[A-Z])\s*\/\s*[A-Z0-9]+\s*(?:Vessel|Voyage)/i,
+        // With prefix like "Name-CORNELIA MAERSK-546"
+        /Name[-:\s]*([A-Z][A-Z \-]+[A-Z])/i,
+        // After VESSEL label: extract 2-4 word names
+        /VESSEL[:\s]+([A-Z][A-Z \-\.]{2,25}[A-Z])/i,
+      ],
+      validate: (value: string) => {
+        // Reject obvious garbage
+        if (!value || value.length < 3) return false;
+        if (/^[\/\s]+$/.test(value)) return false;
+        // Reject common non-vessel terms
+        if (/Voyage|IMO|Lloyds|Carrier|Load|Disch|ETA|ETD|DATA/i.test(value)) return false;
+        if (/OCEAN BILL|HOUSE BILL|LADING/i.test(value)) return false;
+        if (/cut\s*off|Connecting|Feeder|Receipt|Delivery/i.test(value)) return false;
+        // Must be mostly letters (vessel names are words)
+        const letterRatio = (value.match(/[A-Za-z]/g) || []).length / value.length;
+        return letterRatio > 0.7;
+      },
     },
     {
       name: 'voyage_number',
@@ -2026,6 +2094,21 @@ export const BOOKING_CONFIRMATION_SCHEMA: DocumentExtractionSchema = {
         /VOYAGE[:\s]*/i,
         /VOY[:\s]*/i,
       ],
+      // CMA CGM format: "CMA CGM VERDI / 0INLRW1MAVessel/Voyage:" - voyage is alphanumeric code
+      valuePatterns: [
+        // CMA CGM reversed format: alphanumeric code before "Vessel/Voyage:" (no space)
+        /\/\s*([A-Z0-9]{6,12})(?:Vessel|Voyage)/i,
+        // After VOYAGE label
+        /VOYAGE[:\s#]+([A-Z0-9]{4,15})/i,
+        // Hyphenated like "-546" or "-722"
+        /[-](\d{3,6})(?:\s|$)/,
+      ],
+      validate: (value: string) => {
+        // Voyage numbers are short alphanumeric codes
+        if (!value || value.length < 3 || value.length > 20) return false;
+        if (/Vessel|IMO|Lloyds|Carrier/i.test(value)) return false;
+        return /^[A-Z0-9\-]+$/i.test(value);
+      },
     },
     {
       name: 'port_of_loading',

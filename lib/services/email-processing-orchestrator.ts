@@ -22,6 +22,7 @@ import {
   createClassificationOrchestrator,
   ClassificationOutput,
 } from './classification';
+import { LoggingService, createLoggingService } from './logging-service';
 // NOTE: ShipmentExtractionService (AI) DEPRECATED - now using UnifiedExtractionService (regex/schema)
 // Cost savings: ~$0.002/email → $0/email
 import { WorkflowStateService } from './workflow-state-service';
@@ -80,6 +81,40 @@ const MINIMUM_CONFIDENCE_FOR_SHIPMENT_CREATION = 70;
  * Below this, the email is marked as needing manual review.
  */
 const MINIMUM_CONFIDENCE_FOR_PROCESSING = 50;
+
+/**
+ * Validate if a string is a valid date/timestamp
+ * Prevents garbage extraction values from being inserted as dates
+ */
+function isValidDateString(value: string | undefined): boolean {
+  if (!value) return false;
+
+  // Reject values that are too long (dates shouldn't exceed ~30 chars)
+  if (value.length > 35) return false;
+
+  // Reject values with obvious non-date keywords
+  const garbagePatterns = [
+    /Reference/i, /Number/i, /smart/i, /follow/i, /please/i,
+    /delay/i, /arrival/i, /vessel/i, /berth/i, /schedule/i,
+    /containers?/i, /result/i, /may/i, /change/i,
+  ];
+  if (garbagePatterns.some(p => p.test(value))) return false;
+
+  // Must contain a REALISTIC year (2020-2030 range)
+  const hasRealisticYear = /20(2[0-9]|30)/.test(value);
+
+  // OR must match common date formats
+  const dateFormats = [
+    /^\d{4}-\d{2}-\d{2}/, // ISO: 2026-01-15
+    /^\d{2}[-\/]\d{2}[-\/]\d{4}/, // DD-MM-YYYY or DD/MM/YYYY
+    /^\d{2}[-\/]\d{2}[-\/]\d{2}$/, // DD-MM-YY
+    /^\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/i, // 15 Jan 2026
+    /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}/i, // Jan 15, 2026
+  ];
+  const matchesDateFormat = dateFormats.some(f => f.test(value.trim()));
+
+  return hasRealisticYear || matchesDateFormat;
+}
 
 // Types
 interface ProcessingResult {
@@ -172,10 +207,14 @@ export class EmailProcessingOrchestrator {
   // Linking repositories (split)
   private emailShipmentLinkRepository: EmailShipmentLinkRepository;
   private attachmentShipmentLinkRepository: AttachmentShipmentLinkRepository;
+  // Logging service for pipeline observability
+  private logger: LoggingService;
 
   constructor(supabaseUrl: string, supabaseKey: string, _anthropicKey?: string) {
     // NOTE: anthropicKey no longer required - AI extraction deprecated in favor of schema/regex
     this.supabase = createClient(supabaseUrl, supabaseKey);
+    // Initialize logging service for pipeline observability
+    this.logger = createLoggingService(this.supabase);
     // Initialize repositories (split architecture)
     this.shipmentRepository = new ShipmentRepository(this.supabase);
     this.emailRepository = new EmailRepository(this.supabase);
@@ -258,7 +297,10 @@ export class EmailProcessingOrchestrator {
       // Add common variations
       if (lower.includes('hapag')) this.carrierIdMap.set('hapag-lloyd', c.id);
       if (lower.includes('maersk')) this.carrierIdMap.set('maersk', c.id);
-      if (lower.includes('cma')) this.carrierIdMap.set('cma cgm', c.id);
+      if (lower.includes('cma')) {
+        this.carrierIdMap.set('cma cgm', c.id);
+        this.carrierIdMap.set('cma-cgm', c.id);  // detectCarrier returns 'cma-cgm' with hyphen
+      }
       if (lower.includes('cosco')) this.carrierIdMap.set('cosco', c.id);
       if (lower.includes('msc')) this.carrierIdMap.set('msc', c.id);
     });
@@ -299,7 +341,13 @@ export class EmailProcessingOrchestrator {
    * CONVERGENCE POINT: Steps 6-9 converge email + attachment paths at shipment level
    */
   async processEmail(emailId: string): Promise<ProcessingResult> {
+    // Create email-scoped logger with context
+    const emailLogger = this.logger.withContext({ emailId });
+    const timer = emailLogger.startTimer();
+
     try {
+      await emailLogger.info('workflow', 'start', 'Starting email processing pipeline');
+
       // 1. Get email
       const { data: email } = await this.supabase
         .from('raw_emails')
@@ -308,18 +356,23 @@ export class EmailProcessingOrchestrator {
         .single();
 
       if (!email) {
+        await emailLogger.warn('workflow', 'skip', 'Email not found in database');
         return { emailId, success: false, stage: 'classification', error: 'Email not found' };
       }
+
+      // Update logger with thread context
+      const threadLogger = emailLogger.withContext({ threadId: email.thread_id });
 
       // 1a. FLAG email and attachments (parallel processing)
       // Sets: is_response, clean_subject, email_direction, true_sender_email, thread_position
       // Sets: is_signature_image, is_business_document on attachments
+      await threadLogger.info('flagging', 'start', 'Flagging email and attachments');
       const flaggingResult = await this.flaggingOrchestrator.flagEmail({ emailId });
       if (!flaggingResult.success) {
-        console.warn(`[Orchestrator] Flagging failed for ${emailId}: ${flaggingResult.error}`);
+        await threadLogger.warn('flagging', 'error', `Flagging failed: ${flaggingResult.error}`);
         // Continue anyway - flagging is not critical
       } else {
-        console.log(`[Orchestrator] Flagged: ${flaggingResult.businessAttachmentIds.length} business docs, ${flaggingResult.signatureImageIds.length} signature images filtered`);
+        await threadLogger.info('flagging', 'complete', `Flagged: ${flaggingResult.businessAttachmentIds.length} business docs, ${flaggingResult.signatureImageIds.length} signature images filtered`);
       }
 
       // 2. Get email content including PDF attachments (needed for classification)
@@ -337,7 +390,7 @@ export class EmailProcessingOrchestrator {
       let classificationResult: ClassificationOutput | undefined;
 
       if (!existingEmailClass) {
-        console.log(`[Orchestrator] No classification for email ${emailId.substring(0, 8)}... - classifying now`);
+        await threadLogger.info('classification', 'start', 'No existing classification - classifying now');
 
         // Get attachment filenames and PDF content for classification
         const { data: attachments } = await this.supabase
@@ -367,7 +420,14 @@ export class EmailProcessingOrchestrator {
         classificationConfidence = classificationResult.documentConfidence;
 
         // Log parallel classification results
-        console.log(`[Orchestrator] Classified - Document: ${documentType} (${classificationConfidence}%), Email Type: ${classificationResult.emailType} (${classificationResult.emailTypeConfidence}%), Sentiment: ${classificationResult.sentiment}${classificationResult.isUrgent ? ' [URGENT]' : ''}`);
+        await threadLogger.info('classification', 'complete', `Document: ${documentType} (${classificationConfidence}%), Email Type: ${classificationResult.emailType} (${classificationResult.emailTypeConfidence}%)`, {
+          documentType,
+          documentConfidence: classificationConfidence,
+          emailType: classificationResult.emailType,
+          emailTypeConfidence: classificationResult.emailTypeConfidence,
+          sentiment: classificationResult.sentiment,
+          isUrgent: classificationResult.isUrgent,
+        });
 
         // Save classification to database (legacy + new parallel tables)
         await this.saveClassificationResult(emailId, classificationResult, {
@@ -385,7 +445,11 @@ export class EmailProcessingOrchestrator {
         const hasValidEmailType = emailTypeConfidence >= 70;
 
         if (classificationConfidence < MINIMUM_CONFIDENCE_FOR_PROCESSING && !hasValidEmailType) {
-          console.log(`[Orchestrator] Confidence ${classificationConfidence}% below minimum ${MINIMUM_CONFIDENCE_FOR_PROCESSING}% and email type confidence ${emailTypeConfidence}% insufficient - marking for manual review`);
+          await threadLogger.warn('classification', 'skip', `Confidence ${classificationConfidence}% below minimum - marking for manual review`, {
+            documentConfidence: classificationConfidence,
+            emailTypeConfidence,
+            threshold: MINIMUM_CONFIDENCE_FOR_PROCESSING,
+          });
           await this.supabase
             .from('raw_emails')
             .update({ processing_status: 'manual_review' })
@@ -394,7 +458,7 @@ export class EmailProcessingOrchestrator {
         }
 
         if (hasValidEmailType && classificationConfidence < MINIMUM_CONFIDENCE_FOR_PROCESSING) {
-          console.log(`[Orchestrator] Low document confidence (${classificationConfidence}%) but valid email type (${classificationResult?.emailType} at ${emailTypeConfidence}%) - continuing processing`);
+          await threadLogger.info('classification', 'validate', `Low document confidence (${classificationConfidence}%) but valid email type (${classificationResult?.emailType}) - continuing`);
         }
       }
 
@@ -403,6 +467,7 @@ export class EmailProcessingOrchestrator {
 
       // 5. Extract data using UnifiedExtractionService (schema + regex based, $0 cost)
       // NOTE: AI extraction (ShipmentExtractionService) DEPRECATED for cost savings
+      await threadLogger.info('extraction', 'start', `Extracting entities for ${documentType || 'unknown'} document`);
       const pdfContent = await this.getPdfContent(emailId);
 
       // Get first PDF attachment ID for document extraction
@@ -425,7 +490,12 @@ export class EmailProcessingOrchestrator {
         carrier,
       });
 
-      console.log(`[Orchestrator] Unified extraction: ${unifiedResult.emailExtractions} email, ${unifiedResult.documentExtractions} doc entities (confidence: ${unifiedResult.schemaConfidence})`);
+      await threadLogger.info('extraction', 'complete', `Extracted ${unifiedResult.emailExtractions} email, ${unifiedResult.documentExtractions} doc entities`, {
+        emailExtractions: unifiedResult.emailExtractions,
+        documentExtractions: unifiedResult.documentExtractions,
+        schemaConfidence: unifiedResult.schemaConfidence,
+        carrier,
+      });
 
       // Map unified extraction results to ExtractedBookingData for downstream processing
       const extractedData = this.mapUnifiedToExtractedBookingData(unifiedResult.entities, carrier);
@@ -511,6 +581,7 @@ export class EmailProcessingOrchestrator {
       }
 
       // 6. Process based on document type
+      await threadLogger.info('linking', 'start', `Processing ${documentType || 'unknown'} document for linking`);
       let shipmentId: string | undefined;
       let fieldsExtracted = 0;
 
@@ -610,6 +681,23 @@ export class EmailProcessingOrchestrator {
         .update({ processing_status: 'processed' })
         .eq('id', emailId);
 
+      // Log successful completion with duration
+      const durationMs = timer();
+      const shipmentLogger = shipmentId
+        ? threadLogger.withContext({ shipmentId })
+        : threadLogger;
+
+      await shipmentLogger.info('workflow', 'complete', `Email processing completed successfully`, {
+        durationMs,
+        shipmentId,
+        documentType,
+        fieldsExtracted,
+        carrier,
+      });
+
+      // Flush logs to database
+      await this.logger.flush();
+
       return {
         emailId,
         success: true,
@@ -619,7 +707,11 @@ export class EmailProcessingOrchestrator {
       };
 
     } catch (error: any) {
-      console.error(`[Orchestrator] Error processing email ${emailId}:`, error);
+      // Log error with full context
+      await emailLogger.error('workflow', 'error', `Email processing failed: ${error.message}`, error, {
+        durationMs: timer(),
+      });
+      await this.logger.flush();
       return { emailId, success: false, stage: 'extraction', error: error.message };
     }
   }
@@ -987,6 +1079,20 @@ export class EmailProcessingOrchestrator {
       return { fieldsUpdated: 0 };
     }
 
+    // Validate booking number format - reject garbage like "Bkg Pty Ref:", "Pty Ref:", etc.
+    const isValidBookingNumber = (bn: string): boolean => {
+      // Reject obvious garbage values
+      if (/^(Bkg|Pty|Ref|Reference|Party|Number)[:\s]*$/i.test(bn)) return false;
+      if (bn.includes(':') && bn.length < 10) return false;
+      // Must have alphanumeric pattern typical of booking numbers
+      return /^[A-Z0-9]{5,}$/i.test(bn.replace(/[-\s]/g, ''));
+    };
+
+    if (!isValidBookingNumber(bookingNumber)) {
+      console.log(`[Orchestrator] Invalid booking number format: "${bookingNumber}" - skipping shipment creation`);
+      return { fieldsUpdated: 0 };
+    }
+
     // Use override if provided, otherwise check sender domains
     const isDirectCarrier = isCarrierEmailOverride !== undefined
       ? isCarrierEmailOverride
@@ -1008,18 +1114,20 @@ export class EmailProcessingOrchestrator {
     if (carrierId) { shipmentData.carrier_id = carrierId; fieldsUpdated++; }
     if (data.vessel_name) { shipmentData.vessel_name = data.vessel_name; fieldsUpdated++; }
     if (data.voyage_number) { shipmentData.voyage_number = data.voyage_number; fieldsUpdated++; }
-    if (data.etd) { shipmentData.etd = data.etd; fieldsUpdated++; }
-    if (data.eta) { shipmentData.eta = data.eta; fieldsUpdated++; }
+    // Validate date fields to prevent garbage extraction values from breaking inserts
+    if (isValidDateString(data.etd)) { shipmentData.etd = data.etd; fieldsUpdated++; }
+    if (isValidDateString(data.eta)) { shipmentData.eta = data.eta; fieldsUpdated++; }
     if (data.port_of_loading) { shipmentData.port_of_loading = data.port_of_loading; fieldsUpdated++; }
     if (data.port_of_loading_code) { shipmentData.port_of_loading_code = data.port_of_loading_code; }
     if (data.port_of_discharge) { shipmentData.port_of_discharge = data.port_of_discharge; fieldsUpdated++; }
     if (data.port_of_discharge_code) { shipmentData.port_of_discharge_code = data.port_of_discharge_code; }
     if (data.final_destination) { shipmentData.final_destination = data.final_destination; }
-    if (data.si_cutoff) { shipmentData.si_cutoff = data.si_cutoff; fieldsUpdated++; }
-    if (data.vgm_cutoff) { shipmentData.vgm_cutoff = data.vgm_cutoff; fieldsUpdated++; }
-    if (data.cargo_cutoff) { shipmentData.cargo_cutoff = data.cargo_cutoff; fieldsUpdated++; }
-    if (data.gate_cutoff) { shipmentData.gate_cutoff = data.gate_cutoff; fieldsUpdated++; }
-    if (data.doc_cutoff) { shipmentData.doc_cutoff = data.doc_cutoff; fieldsUpdated++; }
+    // Validate cutoff dates (common source of garbage extraction values)
+    if (isValidDateString(data.si_cutoff)) { shipmentData.si_cutoff = data.si_cutoff; fieldsUpdated++; }
+    if (isValidDateString(data.vgm_cutoff)) { shipmentData.vgm_cutoff = data.vgm_cutoff; fieldsUpdated++; }
+    if (isValidDateString(data.cargo_cutoff)) { shipmentData.cargo_cutoff = data.cargo_cutoff; fieldsUpdated++; }
+    if (isValidDateString(data.gate_cutoff)) { shipmentData.gate_cutoff = data.gate_cutoff; fieldsUpdated++; }
+    if (isValidDateString(data.doc_cutoff)) { shipmentData.doc_cutoff = data.doc_cutoff; fieldsUpdated++; }
     // NOTE: Do NOT set shipper_name/consignee_name from booking_confirmation
     // Booking confirmations (MBL level) have Intoglo as shipper
     // Real customer stakeholders come from HBL/SI documents

@@ -146,7 +146,34 @@ export class DocumentTypeExtractor {
     text: string,
     lines: string[]
   ): ExtractedValue | null {
-    // Try each label pattern
+    // Helper to validate and return result
+    const validateAndReturn = (
+      value: string,
+      confidence: number,
+      rawText: string
+    ): ExtractedValue | null => {
+      const normalized = this.normalizeValue(value, fieldDef.type);
+      // Apply validation if defined
+      if (fieldDef.validate && !fieldDef.validate(String(normalized))) {
+        return null;
+      }
+      return { value: normalized, confidence, source: 'pattern', rawText };
+    };
+
+    // FIRST: Try value patterns globally (handles CMA CGM reversed format)
+    // This catches cases where value appears BEFORE the label
+    if (fieldDef.valuePatterns && fieldDef.valuePatterns.length > 0) {
+      for (const valuePattern of fieldDef.valuePatterns) {
+        const globalMatch = text.match(valuePattern);
+        if (globalMatch) {
+          const extracted = globalMatch[1] || globalMatch[0];
+          const result = validateAndReturn(extracted, 0.85, globalMatch[0]);
+          if (result) return result;
+        }
+      }
+    }
+
+    // SECOND: Try label-based extraction
     for (const labelPattern of fieldDef.labelPatterns) {
       // Find line containing label
       const matchingLine = lines.find(line => labelPattern.test(line));
@@ -158,29 +185,24 @@ export class DocumentTypeExtractor {
 
       const afterLabel = matchingLine.slice(labelMatch.index! + labelMatch[0].length).trim();
 
-      // If we have value patterns, use them
+      // If we have value patterns, use them on afterLabel
       if (fieldDef.valuePatterns && fieldDef.valuePatterns.length > 0) {
         for (const valuePattern of fieldDef.valuePatterns) {
-          const valueMatch = afterLabel.match(valuePattern) || matchingLine.match(valuePattern);
+          const valueMatch = afterLabel.match(valuePattern);
           if (valueMatch) {
-            return {
-              value: this.normalizeValue(valueMatch[1] || valueMatch[0], fieldDef.type),
-              confidence: 0.9,
-              source: 'pattern',
-              rawText: matchingLine,
-            };
+            const extracted = valueMatch[1] || valueMatch[0];
+            const result = validateAndReturn(extracted, 0.9, matchingLine);
+            if (result) return result;
           }
         }
       }
 
-      // If no value patterns, use the text after label
-      if (afterLabel) {
-        return {
-          value: this.normalizeValue(afterLabel, fieldDef.type),
-          confidence: 0.7,
-          source: 'pattern',
-          rawText: matchingLine,
-        };
+      // If no value patterns defined, use text after label (with length limit)
+      if (afterLabel && !fieldDef.valuePatterns) {
+        // Limit to reasonable length to avoid capturing garbage
+        const truncated = afterLabel.length > 50 ? afterLabel.slice(0, 50) : afterLabel;
+        const result = validateAndReturn(truncated, 0.7, matchingLine);
+        if (result) return result;
       }
 
       // Check next line for value
@@ -189,27 +211,8 @@ export class DocumentTypeExtractor {
         const nextLine = lines[lineIndex + 1];
         // Skip if next line looks like another label
         if (!this.looksLikeLabel(nextLine)) {
-          return {
-            value: this.normalizeValue(nextLine, fieldDef.type),
-            confidence: 0.6,
-            source: 'pattern',
-            rawText: nextLine,
-          };
-        }
-      }
-    }
-
-    // Try global search with value patterns for container, BL numbers etc.
-    if (fieldDef.valuePatterns) {
-      for (const valuePattern of fieldDef.valuePatterns) {
-        const globalMatch = text.match(valuePattern);
-        if (globalMatch) {
-          return {
-            value: this.normalizeValue(globalMatch[1] || globalMatch[0], fieldDef.type),
-            confidence: 0.5,
-            source: 'pattern',
-            rawText: globalMatch[0],
-          };
+          const result = validateAndReturn(nextLine, 0.6, nextLine);
+          if (result) return result;
         }
       }
     }

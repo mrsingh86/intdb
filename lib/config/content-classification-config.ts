@@ -374,16 +374,20 @@ export const DOCUMENT_TYPE_CONFIGS: DocumentTypeConfig[] = [
       {
         required: ['BOOKING CONFIRMATION'],
         optional: ['BOOKING NUMBER', 'VESSEL', 'VOYAGE', 'ETD'],
+        // NOTE: Removed 'CANCEL' from exclude - it appears in T&C boilerplate text
+        // and was incorrectly excluding legitimate booking confirmations.
+        // Booking cancellations are identified by 'booking_cancellation' pattern instead.
+        exclude: ['BOOKING AMENDMENT', 'BOOKING CANCELLED'],
         confidence: 95
       },
       {
         required: ['BOOKING', 'CONFIRMED'],
         optional: ['CONTAINER', 'VESSEL'],
-        exclude: ['AMENDMENT', 'CANCEL'],
+        exclude: ['BOOKING AMENDMENT', 'BOOKING CANCELLED'],
         confidence: 85
       }
     ],
-    filenamePatterns: [/booking.?confirm/i, /BC_/i],
+    filenamePatterns: [/booking.?confirm/i, /BC_/i, /BKGCONF/i],
     expectedSenders: ['shipping_line', 'freight_forwarder'],
     description: 'Carrier booking confirmation with vessel and schedule details'
   },
@@ -433,9 +437,22 @@ export const DOCUMENT_TYPE_CONFIGS: DocumentTypeConfig[] = [
     category: 'documentation',
     contentMarkers: [
       {
-        required: ['SHIPPING INSTRUCTION'],
-        optional: ['SI SUB TYPE', 'TRANSPORT DOCUMENT', 'SHIPPER', 'CONSIGNEE'],
+        // High confidence: SI with specific SI markers
+        required: ['SHIPPING INSTRUCTION', 'SI SUB TYPE'],
+        optional: ['TRANSPORT DOCUMENT', 'SHIPPER', 'CONSIGNEE'],
         confidence: 95
+      },
+      {
+        // Medium confidence: SI with B/L type indicator (common in SI docs)
+        required: ['SHIPPING INSTRUCTION', 'B/L TYPE'],
+        optional: ['SHIPPER', 'CONSIGNEE'],
+        confidence: 90
+      },
+      {
+        // Lower confidence: SI header with transport doc reference
+        required: ['SHIPPING INSTRUCTION', 'TRANSPORT DOCUMENT'],
+        optional: ['SHIPPER', 'CONSIGNEE'],
+        confidence: 85
       }
     ],
     filenamePatterns: [/SI_/i, /shipping.?instruction/i],

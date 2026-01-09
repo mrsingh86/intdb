@@ -120,8 +120,15 @@ export class UnifiedExtractionService {
         emailExtractions = saveResult.savedCount;
 
         // Track extracted entities
+        // For key linking identifiers (booking_number, bl_number, container_number),
+        // email subject extraction is MORE RELIABLE than PDF schema extraction
+        // because PDF text often has OCR artifacts that produce garbage values
+        const priorityFields = ['booking_number', 'bl_number', 'mbl_number', 'hbl_number', 'container_number'];
         for (const e of emailResults) {
-          if (!entities[e.entityType]) {
+          // Override document extraction for priority fields (email subject is more reliable)
+          if (priorityFields.includes(e.entityType)) {
+            entities[e.entityType] = e.entityValue;
+          } else if (!entities[e.entityType]) {
             entities[e.entityType] = e.entityValue;
           }
         }
