@@ -139,3 +139,24 @@ export type { LinkDocumentInput, CreateOrphanInput } from './shipment-document-r
  * This combined repository will be removed.
  */
 export { ExtractionRepository, createExtractionRepository } from './extraction-repository';
+
+// ============================================================================
+// Configuration Repositories (Database-Driven Patterns & Schemas)
+// ============================================================================
+
+export { PatternRepository } from './pattern-repository';
+export type {
+  DetectionPattern,
+  PatternType,
+  CompiledPattern,
+  PatternMatchResult,
+} from './pattern-repository';
+
+export { SchemaRepository, createSchemaRepository } from './schema-repository';
+export type {
+  ExtractionSchema,
+  FieldDefinition,
+  FieldType,
+  SectionDefinition,
+  TableDefinition,
+} from './schema-repository';

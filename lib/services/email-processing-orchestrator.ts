@@ -207,14 +207,12 @@ export class EmailProcessingOrchestrator {
   // Linking repositories (split)
   private emailShipmentLinkRepository: EmailShipmentLinkRepository;
   private attachmentShipmentLinkRepository: AttachmentShipmentLinkRepository;
-  // Logging service for pipeline observability
+  // Logging service for structured pipeline logging
   private logger: LoggingService;
 
   constructor(supabaseUrl: string, supabaseKey: string, _anthropicKey?: string) {
     // NOTE: anthropicKey no longer required - AI extraction deprecated in favor of schema/regex
     this.supabase = createClient(supabaseUrl, supabaseKey);
-    // Initialize logging service for pipeline observability
-    this.logger = createLoggingService(this.supabase);
     // Initialize repositories (split architecture)
     this.shipmentRepository = new ShipmentRepository(this.supabase);
     this.emailRepository = new EmailRepository(this.supabase);
@@ -251,6 +249,8 @@ export class EmailProcessingOrchestrator {
     // ShipmentRegistry/StakeholderRegistry skipped - handled by existing services
     this.emailRegistryService = createEmailRegistryService(this.supabase);
     this.workstateRegistryService = createWorkstateRegistryService(this.supabase);
+    // Logging service for structured pipeline logging (writes to processing_logs table)
+    this.logger = createLoggingService(this.supabase);
   }
 
   /**
@@ -318,7 +318,7 @@ export class EmailProcessingOrchestrator {
         .map(pattern => pattern.toLowerCase())
         .filter((domain, index, self) => self.indexOf(domain) === index); // Dedupe
 
-      console.log(`[EmailProcessingOrchestrator] Loaded ${this.carrierDomains.length} carrier domains from database`);
+      await this.logger.info('system', 'start', `Loaded ${this.carrierDomains.length} carrier domains from database`);
     }
   }
 
@@ -341,12 +341,12 @@ export class EmailProcessingOrchestrator {
    * CONVERGENCE POINT: Steps 6-9 converge email + attachment paths at shipment level
    */
   async processEmail(emailId: string): Promise<ProcessingResult> {
-    // Create email-scoped logger with context
+    // Create context-bound logger for this email
     const emailLogger = this.logger.withContext({ emailId });
     const timer = emailLogger.startTimer();
 
     try {
-      await emailLogger.info('workflow', 'start', 'Starting email processing pipeline');
+      await emailLogger.info('email_ingestion', 'start', 'Starting email processing');
 
       // 1. Get email
       const { data: email } = await this.supabase
@@ -356,17 +356,16 @@ export class EmailProcessingOrchestrator {
         .single();
 
       if (!email) {
-        await emailLogger.warn('workflow', 'skip', 'Email not found in database');
+        await emailLogger.warn('email_ingestion', 'skip', 'Email not found');
         return { emailId, success: false, stage: 'classification', error: 'Email not found' };
       }
 
-      // Update logger with thread context
+      // Add thread context to logger
       const threadLogger = emailLogger.withContext({ threadId: email.thread_id });
 
       // 1a. FLAG email and attachments (parallel processing)
       // Sets: is_response, clean_subject, email_direction, true_sender_email, thread_position
       // Sets: is_signature_image, is_business_document on attachments
-      await threadLogger.info('flagging', 'start', 'Flagging email and attachments');
       const flaggingResult = await this.flaggingOrchestrator.flagEmail({ emailId });
       if (!flaggingResult.success) {
         await threadLogger.warn('flagging', 'error', `Flagging failed: ${flaggingResult.error}`);
@@ -448,7 +447,7 @@ export class EmailProcessingOrchestrator {
           await threadLogger.warn('classification', 'skip', `Confidence ${classificationConfidence}% below minimum - marking for manual review`, {
             documentConfidence: classificationConfidence,
             emailTypeConfidence,
-            threshold: MINIMUM_CONFIDENCE_FOR_PROCESSING,
+            minRequired: MINIMUM_CONFIDENCE_FOR_PROCESSING,
           });
           await this.supabase
             .from('raw_emails')
@@ -458,7 +457,11 @@ export class EmailProcessingOrchestrator {
         }
 
         if (hasValidEmailType && classificationConfidence < MINIMUM_CONFIDENCE_FOR_PROCESSING) {
-          await threadLogger.info('classification', 'validate', `Low document confidence (${classificationConfidence}%) but valid email type (${classificationResult?.emailType}) - continuing`);
+          await threadLogger.info('classification', 'complete', `Low document confidence but valid email type - continuing`, {
+            documentConfidence: classificationConfidence,
+            emailType: classificationResult?.emailType,
+            emailTypeConfidence,
+          });
         }
       }
 
@@ -467,7 +470,6 @@ export class EmailProcessingOrchestrator {
 
       // 5. Extract data using UnifiedExtractionService (schema + regex based, $0 cost)
       // NOTE: AI extraction (ShipmentExtractionService) DEPRECATED for cost savings
-      await threadLogger.info('extraction', 'start', `Extracting entities for ${documentType || 'unknown'} document`);
       const pdfContent = await this.getPdfContent(emailId);
 
       // Get first PDF attachment ID for document extraction
@@ -547,7 +549,14 @@ export class EmailProcessingOrchestrator {
                 versionId: result.versionId,
                 isDuplicate: result.isDuplicate,
               });
-              console.log(`[Orchestrator] Registered doc: ${result.isNewDocument ? 'NEW' : result.isNewVersion ? 'VERSION' : result.isDuplicate ? 'DUP' : 'LINKED'} - ${att.filename.substring(0, 30)}`);
+              const status = result.isNewDocument ? 'NEW' : result.isNewVersion ? 'VERSION' : result.isDuplicate ? 'DUP' : 'LINKED';
+              await threadLogger.info('registry', 'complete', `Registered doc: ${status} - ${att.filename.substring(0, 30)}`, {
+                status,
+                documentId: result.documentId,
+                versionId: result.versionId,
+                isDuplicate: result.isDuplicate,
+                filename: att.filename,
+              });
             }
           }
         }
@@ -573,22 +582,29 @@ export class EmailProcessingOrchestrator {
         });
 
         if (emailRegistryResult.success) {
-          console.log(`[Orchestrator] EmailRegistry: sender=${emailRegistryResult.isNewSender ? 'NEW' : 'EXIST'} (${emailRegistryResult.senderDomain})`);
+          await threadLogger.info('registry', 'complete', `EmailRegistry: sender=${emailRegistryResult.isNewSender ? 'NEW' : 'EXIST'}`, {
+            isNewSender: emailRegistryResult.isNewSender,
+            senderDomain: emailRegistryResult.senderDomain,
+          });
         }
       } catch (emailRegError) {
         // Registry errors should not block main processing
-        console.error(`[Orchestrator] EmailRegistry error (non-blocking):`, emailRegError);
+        await threadLogger.warn('registry', 'error', 'EmailRegistry error (non-blocking)', {
+          error: emailRegError instanceof Error ? emailRegError.message : String(emailRegError),
+        });
       }
 
       // 6. Process based on document type
-      await threadLogger.info('linking', 'start', `Processing ${documentType || 'unknown'} document for linking`);
       let shipmentId: string | undefined;
       let fieldsExtracted = 0;
 
       if (documentType === 'booking_confirmation') {
         // CHECK: Only create shipments if confidence is above threshold
         if (classificationConfidence < MINIMUM_CONFIDENCE_FOR_SHIPMENT_CREATION) {
-          console.log(`[Orchestrator] Booking confirmation confidence ${classificationConfidence}% below ${MINIMUM_CONFIDENCE_FOR_SHIPMENT_CREATION}% threshold - skipping shipment creation`);
+          await threadLogger.warn('linking', 'skip', `Booking confirmation confidence ${classificationConfidence}% below threshold - skipping shipment creation`, {
+            confidence: classificationConfidence,
+            threshold: MINIMUM_CONFIDENCE_FOR_SHIPMENT_CREATION,
+          });
           // Mark for manual review but don't create shipment
           await this.supabase
             .from('raw_emails')
@@ -660,11 +676,17 @@ export class EmailProcessingOrchestrator {
           });
 
           if (workstateResult.transitionRecorded) {
-            console.log(`[Orchestrator] WorkstateRegistry: ${workstateResult.previousState || 'none'} → ${workstateResult.currentState}`);
+            await threadLogger.info('workflow', 'complete', `WorkstateRegistry: ${workstateResult.previousState || 'none'} → ${workstateResult.currentState}`, {
+              previousState: workstateResult.previousState,
+              currentState: workstateResult.currentState,
+              shipmentId,
+            });
           }
         } catch (workstateError) {
           // Registry errors should not block main processing
-          console.error(`[Orchestrator] WorkstateRegistry error (non-blocking):`, workstateError);
+          await threadLogger.warn('workflow', 'error', 'WorkstateRegistry error (non-blocking)', {
+            error: workstateError instanceof Error ? workstateError.message : String(workstateError),
+          });
         }
       }
 
@@ -682,21 +704,11 @@ export class EmailProcessingOrchestrator {
         .eq('id', emailId);
 
       // Log successful completion with duration
-      const durationMs = timer();
-      const shipmentLogger = shipmentId
-        ? threadLogger.withContext({ shipmentId })
-        : threadLogger;
-
-      await shipmentLogger.info('workflow', 'complete', `Email processing completed successfully`, {
-        durationMs,
+      await threadLogger.info('email_ingestion', 'complete', `Email processed successfully`, {
         shipmentId,
-        documentType,
         fieldsExtracted,
-        carrier,
+        durationMs: timer(),
       });
-
-      // Flush logs to database
-      await this.logger.flush();
 
       return {
         emailId,
@@ -707,11 +719,13 @@ export class EmailProcessingOrchestrator {
       };
 
     } catch (error: any) {
-      // Log error with full context
-      await emailLogger.error('workflow', 'error', `Email processing failed: ${error.message}`, error, {
-        durationMs: timer(),
-      });
-      await this.logger.flush();
+      await emailLogger.error(
+        'email_ingestion',
+        'error',
+        `Error processing email: ${error.message}`,
+        error instanceof Error ? error : undefined,
+        { stage: 'extraction' }
+      );
       return { emailId, success: false, stage: 'extraction', error: error.message };
     }
   }
@@ -1089,7 +1103,7 @@ export class EmailProcessingOrchestrator {
     };
 
     if (!isValidBookingNumber(bookingNumber)) {
-      console.log(`[Orchestrator] Invalid booking number format: "${bookingNumber}" - skipping shipment creation`);
+      await this.logger.withContext({ emailId }).warn('linking', 'skip', `Invalid booking number format: "${bookingNumber}"`, { bookingNumber });
       return { fieldsUpdated: 0 };
     }
 
@@ -1145,7 +1159,7 @@ export class EmailProcessingOrchestrator {
       return { shipmentId: existing.id, fieldsUpdated };
     } else if (isDirectCarrier) {
       // CREATE new shipment - from direct carrier emails OR forwarded emails with carrier content
-      console.log(`[Orchestrator] Creating new shipment for booking ${bookingNumber} from ${carrier}`);
+      await this.logger.withContext({ emailId }).info('linking', 'create', `Creating new shipment for booking ${bookingNumber}`, { bookingNumber, carrier });
 
       try {
         const newShipment = await this.shipmentRepository.create({
@@ -1157,7 +1171,7 @@ export class EmailProcessingOrchestrator {
           is_direct_carrier_confirmed: true, // Mark as confirmed for dashboard visibility
         });
 
-        console.log(`[Orchestrator] Created shipment ${newShipment.id} for booking ${bookingNumber}`);
+        await this.logger.withContext({ emailId, shipmentId: newShipment.id }).info('linking', 'complete', `Created shipment for booking ${bookingNumber}`, { bookingNumber, carrier });
 
         // Link email to newly created shipment with enhanced workflow transition
         await this.linkEmailToShipment(emailId, newShipment.id, 'booking_confirmation', classificationResult, emailSubject);
@@ -1167,22 +1181,30 @@ export class EmailProcessingOrchestrator {
         try {
           const backfillResult = await this.backfillService.linkRelatedEmails(newShipment.id);
           if (backfillResult.emails_linked > 0) {
-            console.log(`[Orchestrator] Auto-backfill: Linked ${backfillResult.emails_linked} related emails to new shipment ${newShipment.id}`);
+            await this.logger.withContext({ emailId, shipmentId: newShipment.id }).info('linking', 'complete', `Auto-backfill: Linked ${backfillResult.emails_linked} related emails`, { emailsLinked: backfillResult.emails_linked });
           }
         } catch (backfillError) {
           // Don't fail the whole process if backfill fails
-          console.error(`[Orchestrator] Auto-backfill failed for shipment ${newShipment.id}:`, backfillError);
+          await this.logger.withContext({ emailId, shipmentId: newShipment.id }).warn('linking', 'error', 'Auto-backfill failed (non-blocking)', {
+            error: backfillError instanceof Error ? backfillError.message : String(backfillError),
+          });
         }
 
         return { shipmentId: newShipment.id, fieldsUpdated };
       } catch (error) {
-        console.error(`[Orchestrator] Failed to create shipment for ${bookingNumber}:`, error);
+        await this.logger.withContext({ emailId }).error(
+          'linking',
+          'error',
+          `Failed to create shipment for ${bookingNumber}`,
+          error instanceof Error ? error : undefined,
+          { bookingNumber, carrier }
+        );
         return { fieldsUpdated: 0 };
       }
     } else {
       // NOT direct carrier and no existing shipment - just store entities, don't create
       // The direct carrier email may arrive later and create the shipment
-      console.log(`[Orchestrator] Booking ${bookingNumber} from forward - no shipment created (waiting for direct carrier email)`);
+      await this.logger.withContext({ emailId }).info('linking', 'skip', `Booking ${bookingNumber} from forward - waiting for direct carrier email`, { bookingNumber });
       await this.storeEntitiesForLaterLinking(emailId, data);
       return { fieldsUpdated: 0 };
     }
@@ -1228,9 +1250,13 @@ export class EmailProcessingOrchestrator {
         const result = await this.enhancedWorkflowService.transitionFromClassification(transitionInput);
 
         if (result.success) {
-          console.log(`[Orchestrator] Enhanced workflow transition: ${result.previousState} → ${result.newState} (triggered by: ${result.triggeredBy})`);
+          await this.logger.withContext({ emailId, shipmentId }).info('workflow', 'complete', `Enhanced workflow transition: ${result.previousState} → ${result.newState}`, {
+            previousState: result.previousState,
+            newState: result.newState,
+            triggeredBy: result.triggeredBy,
+          });
         } else if (result.skippedReason) {
-          console.log(`[Orchestrator] Workflow transition skipped: ${result.skippedReason}`);
+          await this.logger.withContext({ emailId, shipmentId }).info('workflow', 'skip', `Workflow transition skipped: ${result.skippedReason}`, { reason: result.skippedReason });
         }
       } else {
         // Fallback to original document-only workflow service
@@ -1241,7 +1267,9 @@ export class EmailProcessingOrchestrator {
         );
       }
     } catch (error) {
-      console.error(`[Orchestrator] Failed to transition workflow for ${shipmentId}:`, error);
+      await this.logger.withContext({ emailId, shipmentId }).warn('workflow', 'error', 'Failed to transition workflow (non-blocking)', {
+        error: error instanceof Error ? error.message : String(error),
+      });
       // Don't throw - document is still linked, workflow transition is secondary
     }
   }
@@ -1288,7 +1316,7 @@ export class EmailProcessingOrchestrator {
       // Use EmailExtractionRepository (split architecture) instead of direct Supabase call
       const result = await this.emailExtractionRepository.upsert(emailId, entities);
       if (result.errors?.length) {
-        console.warn(`[Orchestrator] Failed to store some entities for ${emailId}:`, result.errors);
+        await this.logger.withContext({ emailId }).warn('extraction', 'error', 'Failed to store some entities', { errors: result.errors });
       }
     }
   }
@@ -1406,7 +1434,10 @@ export class EmailProcessingOrchestrator {
       if (documentType) {
         // Get the booking number from entities or extracted data for logging
         const bookingRef = data.booking_number || 'unknown';
-        console.log(`[Orchestrator] No shipment found for ${documentType} (booking: ${bookingRef}) - creating orphan document`);
+        await this.logger.withContext({ emailId }).info('linking', 'skip', `No shipment found for ${documentType} - creating orphan document`, {
+          documentType,
+          bookingNumber: bookingRef,
+        });
         await this.createOrphanDocument(emailId, documentType, data);
       }
       return {};
@@ -1414,7 +1445,7 @@ export class EmailProcessingOrchestrator {
 
     const existing = shipment;
     if (matchedBy) {
-      console.log(`[Orchestrator] Matched email ${emailId.substring(0, 8)} via ${matchedBy}`);
+      await this.logger.withContext({ emailId, shipmentId: existing.id }).info('linking', 'match', `Matched email via ${matchedBy}`, { matchedBy });
     }
 
     if (existing) {
@@ -1454,7 +1485,10 @@ export class EmailProcessingOrchestrator {
           updateData.updated_at = new Date().toISOString();
           await this.shipmentRepository.update(existing.id, updateData);
 
-          console.log(`[Orchestrator] Updated stakeholders from ${documentType} for shipment ${existing.id}`);
+          await this.logger.withContext({ emailId, shipmentId: existing.id }).info('linking', 'update', `Updated stakeholders from ${documentType}`, {
+            documentType,
+            updatedFields: Object.keys(updateData).filter(k => k !== 'updated_at'),
+          });
         }
       }
 
@@ -1462,7 +1496,7 @@ export class EmailProcessingOrchestrator {
       // This was missing - documents were found but not linked!
       if (documentType) {
         await this.linkEmailToShipment(emailId, existing.id, documentType, classificationResult, emailSubject);
-        console.log(`[Orchestrator] Linked ${documentType} email to shipment ${existing.id}`);
+        await this.logger.withContext({ emailId, shipmentId: existing.id }).info('linking', 'complete', `Linked ${documentType} email to shipment`, { documentType });
       }
 
       return { shipmentId: existing.id };
@@ -1545,10 +1579,15 @@ export class EmailProcessingOrchestrator {
         status: 'orphan',
       });
 
-      console.log(`[Orchestrator] Created orphan email link: ${documentType} (booking: ${data.booking_number || 'none'})`);
+      await this.logger.withContext({ emailId }).info('linking', 'create', `Created orphan email link: ${documentType}`, {
+        documentType,
+        bookingNumber: data.booking_number,
+      });
     } catch (error) {
       // Don't fail the process, just log
-      console.error(`[Orchestrator] Failed to create orphan document for ${emailId}:`, error instanceof Error ? error.message : 'Unknown error');
+      await this.logger.withContext({ emailId }).warn('linking', 'error', 'Failed to create orphan document (non-blocking)', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -1671,7 +1710,9 @@ export class EmailProcessingOrchestrator {
 
     // Log registry linkage for debugging
     if (documentId) {
-      console.log(`[Orchestrator] Lifecycle created for shipment ${shipmentId.substring(0, 8)}, doc: ${documentId.substring(0, 8)}`);
+      await this.logger.withContext({ shipmentId }).debug('registry', 'complete', `Lifecycle created with document registry link`, {
+        documentId,
+      });
     }
   }
 
@@ -1724,7 +1765,9 @@ export class EmailProcessingOrchestrator {
         received_at: emailContext.receivedAt,
       });
     } catch (error) {
-      console.error(`[Orchestrator] Failed to save email_classification for ${emailId}:`, error);
+      await this.logger.withContext({ emailId }).warn('classification', 'error', 'Failed to save email_classification', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
     // 2. Save to attachment_classifications ONLY when attachments exist AND document classified from PDF
@@ -1758,7 +1801,10 @@ export class EmailProcessingOrchestrator {
             received_at: emailContext.receivedAt,
           });
         } catch (error) {
-          console.error(`[Orchestrator] Failed to save attachment_classification for ${attachment.id}:`, error);
+          await this.logger.withContext({ emailId }).warn('classification', 'error', 'Failed to save attachment_classification', {
+            attachmentId: attachment.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
     }

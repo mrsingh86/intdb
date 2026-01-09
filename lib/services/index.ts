@@ -354,3 +354,19 @@ export type {
   WorkstateRegistryResult,
   StateHistoryEntry,
 } from './registry';
+
+// ============================================================================
+// Logging Service (Pipeline Observability)
+// ============================================================================
+
+export {
+  LoggingService,
+  createLoggingService,
+} from './logging-service';
+export type {
+  LogLevel,
+  LogSection,
+  LogAction,
+  LogContext,
+  LogEntry,
+} from './logging-service';
