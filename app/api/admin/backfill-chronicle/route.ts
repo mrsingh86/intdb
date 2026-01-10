@@ -10,7 +10,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
-import { FREIGHT_FORWARDER_PROMPT } from '@/lib/chronicle/prompts/freight-forwarder.prompt';
+import { FREIGHT_FORWARDER_PROMPT, ANALYZE_TOOL_SCHEMA } from '@/lib/chronicle/prompts/freight-forwarder.prompt';
 
 // Configuration
 const BATCH_SIZE = 50;
@@ -217,8 +217,9 @@ ${data.attachmentText ? `Attachments:\n${data.attachmentText}` : ''}
     const response = await anthropic.messages.create({
       model: 'claude-3-5-haiku-latest',
       max_tokens: 2000,
-      tools: [FREIGHT_FORWARDER_PROMPT],
-      tool_choice: { type: 'tool', name: 'analyze_shipping_email' },
+      system: FREIGHT_FORWARDER_PROMPT,
+      tools: [ANALYZE_TOOL_SCHEMA],
+      tool_choice: { type: 'tool', name: 'analyze_freight_communication' },
       messages: [
         {
           role: 'user',
