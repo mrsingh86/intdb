@@ -94,11 +94,25 @@ CRITICAL RULES FOR IDENTIFICATION:
    - For trucking-only (road mode): use por_location and pofd_location only
 
 4. DOCUMENT TYPE CLUES:
-   - "Delivery Order" / "DO" for trucking = delivery_order (road mode)
-   - "Booking Confirmation" from carrier = booking_confirmation (ocean mode)
+   - "Booking Confirmation" from carrier = booking_confirmation
+   - "Shipping Instructions" / "SI" = shipping_instructions
+   - "Checklist" / "Document Checklist" = checklist
+   - "Shipping Bill" / "LEO" / "Let Export Order" = shipping_bill or leo_copy
+   - "SI Confirmation" / "Instructions Confirmed" = si_confirmation
+   - "VGM" / "Verified Gross Mass" = vgm_confirmation
+   - "SOB" / "Shipped on Board" / "On Board" = sob_confirmation
+   - "Draft BL" / "BL Draft" = draft_bl
+   - "Final BL" / "Original BL" = final_bl
+   - "House BL" / "HBL" = house_bl
+   - "Arrival Notice" / "AN" = arrival_notice
+   - "Customs Entry" / "Entry Draft" = customs_entry
+   - "Entry Summary" / "7501" = entry_summary
+   - "Cargo Released" / "Container Released" = container_release
+   - "Duty Invoice" / "Customs Duty" = duty_invoice
+   - "Delivery Order" / "DO" = delivery_order
+   - "POD" / "Proof of Delivery" = pod_proof_of_delivery
    - "Work Order" = work_order (road mode)
    - "Invoice" / "Debit Note" = invoice/debit_note (financial)
-   - "POD" / "Proof of Delivery" = pod_proof_of_delivery
 
 5. PARTY IDENTIFICATION:
    - ocean_carrier: Maersk, Hapag-Lloyd, CMA CGM, MSC, OOCL, Evergreen, COSCO, ONE, ZIM
@@ -217,14 +231,23 @@ export const ANALYZE_TOOL_SCHEMA: Anthropic.Tool = {
       document_type: {
         type: 'string',
         enum: [
+          // Pre-shipment
           'rate_request', 'quotation', 'booking_request', 'booking_confirmation', 'booking_amendment',
-          'shipping_instructions', 'si_confirmation', 'draft_bl', 'final_bl', 'telex_release',
+          'shipping_instructions', 'si_confirmation', 'checklist',
+          'shipping_bill', 'leo_copy', 'vgm_confirmation',
+          // In-transit
+          'sob_confirmation', 'draft_bl', 'final_bl', 'house_bl', 'telex_release',
           'sea_waybill', 'air_waybill',
-          'arrival_notice', 'delivery_order', 'release_order', 'gate_pass',
-          'container_release', 'freight_release', 'pod_proof_of_delivery',
+          // Arrival & Customs
+          'arrival_notice', 'customs_entry', 'entry_summary', 'isf_filing',
+          'container_release', 'freight_release', 'duty_invoice',
+          // Delivery
+          'delivery_order', 'release_order', 'gate_pass', 'pod_proof_of_delivery',
+          // Trucking
           'dispatch_order', 'work_order', 'rate_confirmation', 'bol_truck',
-          'vgm_confirmation', 'customs_entry', 'isf_filing', 'duty_invoice',
+          // Financial
           'invoice', 'debit_note', 'credit_note', 'payment_receipt', 'statement',
+          // Updates & General
           'schedule_update', 'tracking_update', 'exception_notice',
           'general_correspondence', 'internal_communication', 'unknown',
         ],

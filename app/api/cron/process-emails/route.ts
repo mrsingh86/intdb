@@ -23,8 +23,10 @@ import {
 } from '@/lib/chronicle';
 
 // Configuration
-const HOURS_TO_FETCH = 24;
-const MAX_EMAILS_PER_RUN = 100;
+// BACKFILL MODE: Temporarily increased to process historical emails (Dec 1 - Jan 10)
+// TODO: Revert to 24 hours and 100 emails after backfill complete
+const HOURS_TO_FETCH = 1000;  // ~42 days (Dec 1 to Jan 10)
+const MAX_EMAILS_PER_RUN = 2000;
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization');

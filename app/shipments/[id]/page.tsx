@@ -12,6 +12,7 @@ import {
   RevisionBadge,
   DateUrgencyBadge,
   ShipmentWorkflowProgress,
+  JourneyTimeline,
 } from '@/components/tracking';
 import {
   History,
@@ -485,6 +486,7 @@ export default function ShipmentDetailPage() {
         <div className="flex items-center gap-4 py-3 border-b border-terminal-border text-xs font-mono flex-wrap">
           <span className="text-terminal-muted">Jump to:</span>
           <a href="#overview" className="text-terminal-blue hover:text-terminal-green transition-colors">[overview]</a>
+          <a href="#journey" className="text-terminal-blue hover:text-terminal-green transition-colors">[journey]</a>
           <a href="#documents" className="text-terminal-blue hover:text-terminal-green transition-colors flex items-center gap-1">
             [documents]
             <span className="text-terminal-muted">({documents.length})</span>
@@ -825,6 +827,14 @@ export default function ShipmentDetailPage() {
                   </div>
                 )}
               </div>
+            </div>
+          </section>
+
+          {/* SECTION: Journey Timeline */}
+          <section id="journey" className="scroll-mt-4">
+            <SectionHeader icon={Ship} title="Journey Timeline" color="purple" />
+            <div className="rounded-lg border border-terminal-border bg-terminal-surface p-4">
+              <JourneyTimeline shipmentId={shipmentId} />
             </div>
           </section>
 

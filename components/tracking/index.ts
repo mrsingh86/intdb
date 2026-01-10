@@ -17,3 +17,7 @@ export type { WorkflowStateInfo, WorkflowProgressProps } from './workflow-progre
 
 export { MilestoneTimeline, CompactMilestoneTimeline } from './milestone-timeline'
 export type { MilestoneData, MilestoneAlert, MilestoneTimelineProps } from './milestone-timeline'
+
+// Journey Timeline - Chronicle-based workflow progression
+export { JourneyTimeline } from './journey-timeline'
+export type { JourneyTimelineProps } from './journey-timeline'
