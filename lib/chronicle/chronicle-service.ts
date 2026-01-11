@@ -34,25 +34,38 @@ import { PdfExtractor } from './pdf-extractor';
 import { AiAnalyzer } from './ai-analyzer';
 import { ChronicleRepository } from './chronicle-repository';
 import { AI_CONFIG } from './prompts/freight-forwarder.prompt';
+import { ChronicleLogger, ShipmentStage } from './chronicle-logger';
 
 // ============================================================================
 // SERVICE IMPLEMENTATION
 // ============================================================================
 
 export class ChronicleService implements IChronicleService {
+  private supabase: SupabaseClient;
   private gmailService: IGmailService;
   private pdfExtractor: IPdfExtractor;
   private aiAnalyzer: IAiAnalyzer;
   private repository: IChronicleRepository;
+  private logger: ChronicleLogger | null = null;
 
   constructor(
     supabase: SupabaseClient,
-    gmailService: ChronicleGmailService
+    gmailService: ChronicleGmailService,
+    logger?: ChronicleLogger
   ) {
+    this.supabase = supabase;
     this.gmailService = gmailService;
     this.pdfExtractor = new PdfExtractor();
     this.aiAnalyzer = new AiAnalyzer();
     this.repository = new ChronicleRepository(supabase);
+    this.logger = logger || null;
+  }
+
+  /**
+   * Set logger for this service (can be set after construction)
+   */
+  setLogger(logger: ChronicleLogger): void {
+    this.logger = logger;
   }
 
   /**
@@ -65,16 +78,45 @@ export class ChronicleService implements IChronicleService {
     query?: string;
   }): Promise<ChronicleBatchResult> {
     const emails = await this.gmailService.fetchEmailsByTimestamp(options);
-    return this.processBatch(emails);
+    return this.processBatch(emails, options.after, options.maxResults);
   }
 
   /**
-   * Process a batch of emails
+   * Process a batch of emails with full logging lifecycle
    */
-  async processBatch(emails: ProcessedEmail[]): Promise<ChronicleBatchResult> {
+  async processBatch(
+    emails: ProcessedEmail[],
+    queryAfter?: Date,
+    maxResults?: number
+  ): Promise<ChronicleBatchResult> {
     const startTime = Date.now();
-    const results = await this.processEmailsSequentially(emails);
-    return this.aggregateBatchResults(emails.length, results, startTime);
+
+    // Start logging run if logger is present
+    if (this.logger) {
+      await this.logger.startRun({
+        queryAfter,
+        maxResults,
+        emailsTotal: emails.length,
+      });
+    }
+
+    try {
+      const results = await this.processEmailsSequentially(emails);
+      const batchResult = this.aggregateBatchResults(emails.length, results, startTime);
+
+      // End logging run
+      if (this.logger) {
+        await this.logger.checkAndReportProgress(true);
+        await this.logger.endRun('completed');
+      }
+
+      return batchResult;
+    } catch (error) {
+      if (this.logger) {
+        await this.logger.endRun('failed');
+      }
+      throw error;
+    }
   }
 
   /**
@@ -83,20 +125,51 @@ export class ChronicleService implements IChronicleService {
   async processEmail(email: ProcessedEmail): Promise<ChronicleProcessResult> {
     // Step 1: Check idempotency
     const existing = await this.checkIfAlreadyProcessed(email.gmailMessageId);
-    if (existing) return existing;
+    if (existing) {
+      this.logger?.logEmailProcessed(true, true); // skipped
+      return existing;
+    }
 
-    // Step 2: Extract attachments
+    // Step 2: Extract attachments (with logging)
     const { attachmentText, attachmentsWithText } = await this.extractAttachments(email);
 
-    // Step 3: Analyze with AI
-    const analysis = await this.aiAnalyzer.analyze(email, attachmentText);
+    // Step 3: Analyze with AI (with logging)
+    const aiStart = this.logger?.logStageStart('ai_analysis') || 0;
+    let analysis: ShippingAnalysis;
+    try {
+      analysis = await this.aiAnalyzer.analyze(email, attachmentText);
+      this.logger?.logStageSuccess('ai_analysis', aiStart);
+    } catch (error) {
+      this.logger?.logStageFailure('ai_analysis', aiStart, error as Error, {
+        gmailMessageId: email.gmailMessageId,
+        subject: email.subject,
+      }, true);
+      this.logger?.logEmailProcessed(false);
+      throw error;
+    }
 
-    // Step 4: Save to database
-    const chronicleId = await this.saveToDatabase(email, analysis, attachmentsWithText);
+    // Step 4: Save to database (with logging)
+    const dbStart = this.logger?.logStageStart('db_save') || 0;
+    let chronicleId: string;
+    try {
+      chronicleId = await this.saveToDatabase(email, analysis, attachmentsWithText);
+      this.logger?.logStageSuccess('db_save', dbStart);
+    } catch (error) {
+      this.logger?.logStageFailure('db_save', dbStart, error as Error, {
+        gmailMessageId: email.gmailMessageId,
+      }, false);
+      this.logger?.logEmailProcessed(false);
+      throw error;
+    }
 
-    // Step 5: Link to shipment
-    const { shipmentId, linkedBy } = await this.repository.linkToShipment(chronicleId);
+    // Step 5: Link to shipment and track stage (with logging)
+    const { shipmentId, linkedBy } = await this.linkAndTrackShipment(
+      chronicleId,
+      analysis,
+      email
+    );
 
+    this.logger?.logEmailProcessed(true);
     return this.createSuccessResult(email.gmailMessageId, chronicleId, shipmentId, linkedBy);
   }
 
@@ -144,21 +217,37 @@ export class ChronicleService implements IChronicleService {
       return null;
     }
 
+    const pdfStart = this.logger?.logStageStart('pdf_extract') || 0;
+
     try {
       const content = await this.gmailService.fetchAttachmentContent(messageId, attachment.attachmentId);
-      if (!content) return null;
+      if (!content) {
+        this.logger?.logStageSkip('pdf_extract', 'No content');
+        return null;
+      }
 
       const text = await this.pdfExtractor.extractText(content, attachment.filename);
-      if (!text) return null;
+      if (!text) {
+        this.logger?.logStageSkip('pdf_extract', 'No text extracted');
+        return null;
+      }
 
       const truncatedText = text.substring(0, AI_CONFIG.maxAttachmentChars);
       const formattedText = `\n=== ${attachment.filename} ===\n${truncatedText}\n`;
+
+      // Detect if OCR was used (PdfExtractor sets this internally)
+      const usedOcr = text.length > 0 && truncatedText.length < 500;
+      this.logger?.logStageSuccess('pdf_extract', pdfStart, usedOcr ? { ocr_count: 1 } : { text_extract: 1 });
 
       return {
         text: formattedText,
         attachment: { ...attachment, extractedText: truncatedText },
       };
     } catch (error) {
+      this.logger?.logStageFailure('pdf_extract', pdfStart, error as Error, {
+        gmailMessageId: messageId,
+        attachmentName: attachment.filename,
+      }, true);
       console.error(`[Chronicle] PDF error ${attachment.filename}:`, error);
       return null;
     }
@@ -174,6 +263,170 @@ export class ChronicleService implements IChronicleService {
     const insertData = this.buildInsertData(email, analysis, fromParty, attachmentsWithText);
     const { id } = await this.repository.insert(insertData);
     return id;
+  }
+
+  /**
+   * Link chronicle to shipment and track stage progression
+   */
+  private async linkAndTrackShipment(
+    chronicleId: string,
+    analysis: ShippingAnalysis,
+    email: ProcessedEmail
+  ): Promise<{ shipmentId?: string; linkedBy?: string }> {
+    const linkStart = this.logger?.logStageStart('linking') || 0;
+
+    try {
+      // Try to link to existing shipment
+      const { shipmentId, linkedBy } = await this.repository.linkToShipment(chronicleId);
+
+      if (shipmentId) {
+        this.logger?.logEmailLinked(shipmentId);
+
+        // Check for stage progression
+        await this.checkAndUpdateShipmentStage(shipmentId, chronicleId, analysis, email);
+      } else if (this.hasIdentifiers(analysis)) {
+        // Create new shipment if we have identifiers
+        const newShipment = await this.createShipmentFromAnalysis(analysis, email);
+        if (newShipment) {
+          await this.linkChronicleToShipment(chronicleId, newShipment.id);
+          this.logger?.logEmailLinked(newShipment.id);
+          this.logger?.logShipmentCreated(
+            newShipment.id,
+            chronicleId,
+            analysis.document_type,
+            email.receivedAt
+          );
+          this.logger?.logStageSuccess('linking', linkStart);
+          return { shipmentId: newShipment.id, linkedBy: 'created' };
+        }
+      }
+
+      // Log actions and issues
+      if (shipmentId) {
+        await this.logActionsAndIssues(shipmentId, chronicleId, analysis, email);
+      }
+
+      this.logger?.logStageSuccess('linking', linkStart);
+      return { shipmentId, linkedBy };
+    } catch (error) {
+      this.logger?.logStageFailure('linking', linkStart, error as Error, {
+        gmailMessageId: email.gmailMessageId,
+      }, true);
+      return {};
+    }
+  }
+
+  private hasIdentifiers(analysis: ShippingAnalysis): boolean {
+    return !!(analysis.booking_number || analysis.mbl_number || analysis.work_order_number);
+  }
+
+  private async checkAndUpdateShipmentStage(
+    shipmentId: string,
+    chronicleId: string,
+    analysis: ShippingAnalysis,
+    email: ProcessedEmail
+  ): Promise<void> {
+    const { data: shipment } = await this.supabase
+      .from('shipments')
+      .select('stage')
+      .eq('id', shipmentId)
+      .single();
+
+    if (!shipment) return;
+
+    const currentStage = (shipment.stage as ShipmentStage) || 'PENDING';
+    const newStage = ChronicleLogger.detectShipmentStage(analysis.document_type);
+
+    if (ChronicleLogger.isStageProgression(currentStage, newStage)) {
+      await this.supabase
+        .from('shipments')
+        .update({ stage: newStage, stage_updated_at: new Date().toISOString() })
+        .eq('id', shipmentId);
+
+      this.logger?.logStageChange(
+        shipmentId,
+        chronicleId,
+        currentStage,
+        newStage,
+        analysis.document_type,
+        email.receivedAt
+      );
+    }
+  }
+
+  private async createShipmentFromAnalysis(
+    analysis: ShippingAnalysis,
+    email: ProcessedEmail
+  ): Promise<{ id: string } | null> {
+    const stage = ChronicleLogger.detectShipmentStage(analysis.document_type);
+
+    const { data, error } = await this.supabase
+      .from('shipments')
+      .insert({
+        booking_number: analysis.booking_number || null,
+        mbl_number: analysis.mbl_number || null,
+        bl_number: analysis.mbl_number || null,
+        intoglo_reference: analysis.work_order_number || null,
+        container_number_primary: analysis.container_numbers?.[0] || null,
+        vessel_name: analysis.vessel_name || null,
+        voyage_number: analysis.voyage_number || null,
+        carrier_name: analysis.carrier_name || null,
+        etd: analysis.etd || null,
+        eta: analysis.eta || null,
+        stage,
+        stage_updated_at: new Date().toISOString(),
+        status: 'draft',
+      })
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('[Chronicle] Shipment create error:', error.message);
+      return null;
+    }
+    return data;
+  }
+
+  private async linkChronicleToShipment(chronicleId: string, shipmentId: string): Promise<void> {
+    await this.supabase
+      .from('chronicle')
+      .update({
+        shipment_id: shipmentId,
+        linked_by: 'created',
+        linked_at: new Date().toISOString(),
+      })
+      .eq('id', chronicleId);
+  }
+
+  private async logActionsAndIssues(
+    shipmentId: string,
+    chronicleId: string,
+    analysis: ShippingAnalysis,
+    email: ProcessedEmail
+  ): Promise<void> {
+    if (analysis.has_action && analysis.action_description) {
+      this.logger?.logActionDetected(
+        shipmentId,
+        chronicleId,
+        analysis.action_owner || null,
+        analysis.action_deadline || null,
+        analysis.action_priority || null,
+        analysis.action_description,
+        analysis.document_type,
+        email.receivedAt
+      );
+    }
+
+    if (analysis.has_issue && analysis.issue_type) {
+      this.logger?.logIssueDetected(
+        shipmentId,
+        chronicleId,
+        analysis.issue_type,
+        analysis.issue_description || '',
+        analysis.document_type,
+        email.receivedAt
+      );
+    }
   }
 
   private buildInsertData(
@@ -302,10 +555,17 @@ export class ChronicleService implements IChronicleService {
       const result = await this.processSingleEmailSafely(email);
       results.push(result);
       processed++;
+
+      // Progress logging
       if (processed % 25 === 0 || processed === total) {
         const succeeded = results.filter(r => r.success && !r.error?.includes('Already')).length;
         const skipped = results.filter(r => r.error?.includes('Already')).length;
         console.log(`[Chronicle] Processed ${processed}/${total} (${Math.round(processed/total*100)}%) - New: ${succeeded}, Skipped: ${skipped}`);
+      }
+
+      // Check for 5-minute progress report
+      if (this.logger) {
+        await this.logger.checkAndReportProgress();
       }
     }
     return results;
@@ -372,7 +632,8 @@ export class ChronicleService implements IChronicleService {
 
 export function createChronicleService(
   supabase: SupabaseClient,
-  gmailService: ChronicleGmailService
+  gmailService: ChronicleGmailService,
+  logger?: ChronicleLogger
 ): ChronicleService {
-  return new ChronicleService(supabase, gmailService);
+  return new ChronicleService(supabase, gmailService, logger);
 }

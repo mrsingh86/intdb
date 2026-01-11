@@ -90,3 +90,18 @@ export {
   ANALYZE_TOOL_SCHEMA,
   buildAnalysisPrompt,
 } from './prompts/freight-forwarder.prompt';
+
+// ============================================================================
+// LOGGING
+// ============================================================================
+
+export {
+  ChronicleLogger,
+} from './chronicle-logger';
+
+export type {
+  LogStage,
+  ShipmentStage,
+  EventType,
+  ErrorSeverity,
+} from './chronicle-logger';

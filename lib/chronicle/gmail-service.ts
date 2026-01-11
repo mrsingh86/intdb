@@ -84,28 +84,46 @@ export class ChronicleGmailService {
     const messageIds = await this.listMessageIds(query, maxResults);
     console.log(`[ChronicleGmail] Found ${messageIds.length} messages`);
 
-    // Fetch full messages with progress logging
+    // Fetch full messages with PARALLEL processing for speed
     const emails: ProcessedEmail[] = [];
     const total = messageIds.length;
     let processed = 0;
+    let oldestDate: Date | null = null;
+    let newestDate: Date | null = null;
+    const CONCURRENCY = 10; // Fetch 10 emails in parallel
 
-    for (const messageId of messageIds) {
-      try {
-        const email = await this.fetchFullMessage(messageId);
-        if (email) {
-          emails.push(email);
-        }
+    // Process in batches for parallelization
+    for (let i = 0; i < messageIds.length; i += CONCURRENCY) {
+      const batch = messageIds.slice(i, i + CONCURRENCY);
+
+      const results = await Promise.allSettled(
+        batch.map(messageId => this.fetchFullMessage(messageId))
+      );
+
+      for (const result of results) {
         processed++;
-        if (processed % 50 === 0 || processed === total) {
-          console.log(`[ChronicleGmail] Fetched ${processed}/${total} emails (${Math.round(processed/total*100)}%)`);
+        if (result.status === 'fulfilled' && result.value) {
+          emails.push(result.value);
+          // Track date range
+          const emailDate = result.value.receivedAt;
+          if (!oldestDate || emailDate < oldestDate) oldestDate = emailDate;
+          if (!newestDate || emailDate > newestDate) newestDate = emailDate;
         }
-      } catch (error) {
-        processed++;
-        console.error(`[ChronicleGmail] Error fetching message ${messageId}:`, error);
+      }
+
+      // Progress logging with date range
+      if (processed % 50 === 0 || processed === total) {
+        const dateRange = oldestDate && newestDate
+          ? `[${oldestDate.toLocaleDateString()} - ${newestDate.toLocaleDateString()}]`
+          : '';
+        console.log(`[ChronicleGmail] Fetched ${processed}/${total} emails (${Math.round(processed/total*100)}%) ${dateRange}`);
       }
     }
 
-    return emails;
+    // IMPORTANT: Process OLDEST emails first for correct shipment journey building
+    // Gmail returns newest first, so we reverse to get oldest first
+    console.log(`[ChronicleGmail] Reversing order to process oldest emails first`);
+    return emails.reverse();
   }
 
   /**
@@ -114,12 +132,15 @@ export class ChronicleGmailService {
   private async listMessageIds(query: string, maxResults: number): Promise<string[]> {
     const messageIds: string[] = [];
     let pageToken: string | undefined;
+    let pageCount = 0;
+
+    console.log(`[ChronicleGmail] Listing message IDs (max: ${maxResults})...`);
 
     while (messageIds.length < maxResults) {
       const response = await this.gmail.users.messages.list({
         userId: 'me',
         q: query,
-        maxResults: Math.min(100, maxResults - messageIds.length),
+        maxResults: Math.min(500, maxResults - messageIds.length), // Use 500 per page for speed
         pageToken,
       });
 
@@ -130,7 +151,14 @@ export class ChronicleGmailService {
         }
       }
 
+      pageCount++;
       pageToken = response.data.nextPageToken || undefined;
+
+      // Log progress every 5 pages or when done
+      if (pageCount % 5 === 0 || !pageToken || messageIds.length >= maxResults) {
+        console.log(`[ChronicleGmail] Listed ${messageIds.length} message IDs (page ${pageCount})${pageToken ? '...' : ' - DONE'}`);
+      }
+
       if (!pageToken) break;
     }
 

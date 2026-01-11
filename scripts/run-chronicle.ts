@@ -2,12 +2,19 @@
  * Chronicle Runner Script
  *
  * Fetches emails from Gmail by timestamp and processes them into chronicle.
+ * Emails are processed OLDEST FIRST to build correct shipment timelines.
  *
  * Usage:
- *   npx ts-node scripts/run-chronicle.ts --hours 24           # Last 24 hours
- *   npx ts-node scripts/run-chronicle.ts --days 7             # Last 7 days
- *   npx ts-node scripts/run-chronicle.ts --after 2026-01-01   # After specific date
- *   npx ts-node scripts/run-chronicle.ts --migrate            # Run migration only
+ *   npx tsx scripts/run-chronicle.ts --hours 24                              # Last 24 hours (max 2000)
+ *   npx tsx scripts/run-chronicle.ts --days 7                                # Last 7 days (max 2000)
+ *   npx tsx scripts/run-chronicle.ts --after 2026-01-01                      # After specific date
+ *   npx tsx scripts/run-chronicle.ts --after 2025-12-01 --before 2025-12-08  # Date range (max 2000)
+ *   npx tsx scripts/run-chronicle.ts --after 2025-12-01 --before 2025-12-08 --all  # ALL emails in range
+ *   npx tsx scripts/run-chronicle.ts --migrate                               # Run migration only
+ *
+ * For backfill:
+ *   Use --all flag to process ALL emails in a bounded date range.
+ *   Without --all, only 2000 most recent emails in range are processed.
  */
 
 import * as dotenv from 'dotenv';
@@ -15,7 +22,7 @@ dotenv.config({ path: '.env' });
 dotenv.config({ path: '.env.local' });
 
 import { createClient } from '@supabase/supabase-js';
-import { createChronicleGmailService, createChronicleService } from '../lib/chronicle/index.js';
+import { createChronicleGmailService, createChronicleService, ChronicleLogger } from '../lib/chronicle';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -42,12 +49,14 @@ function parseArgs(): {
   after?: Date;
   before?: Date;
   maxResults: number;
+  all: boolean;
   query?: string;
 } {
   const args = process.argv.slice(2);
   const result: ReturnType<typeof parseArgs> = {
     migrate: false,
-    maxResults: 50,
+    maxResults: 2000,
+    all: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -55,6 +64,10 @@ function parseArgs(): {
 
     if (arg === '--migrate') {
       result.migrate = true;
+    } else if (arg === '--all') {
+      // Process ALL emails in the date range (no limit)
+      result.all = true;
+      result.maxResults = 50000; // Very high limit for "all"
     } else if (arg === '--hours' && args[i + 1]) {
       const hours = parseInt(args[++i]);
       result.after = new Date(Date.now() - hours * 60 * 60 * 1000);
@@ -146,7 +159,7 @@ async function main() {
   console.log('\nConfiguration:');
   console.log(`  After: ${args.after?.toISOString() || 'not set'}`);
   console.log(`  Before: ${args.before?.toISOString() || 'not set'}`);
-  console.log(`  Max Results: ${args.maxResults}`);
+  console.log(`  Max Results: ${args.all ? 'ALL (no limit)' : args.maxResults}`);
   console.log(`  Additional Query: ${args.query || 'none'}`);
 
   // Initialize services
@@ -171,7 +184,9 @@ async function main() {
     process.exit(1);
   }
 
-  const chronicleService = createChronicleService(supabase, gmailService);
+  // Create logger and service with logging
+  const logger = new ChronicleLogger(supabase);
+  const chronicleService = createChronicleService(supabase, gmailService, logger);
 
   // Check if chronicle table exists
   const { error: tableError } = await supabase.from('chronicle').select('id').limit(1);

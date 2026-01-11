@@ -28,6 +28,76 @@ export const AI_CONFIG = {
 
 export const FREIGHT_FORWARDER_PROMPT = `You are an experienced freight forwarder analyzing shipping communications.
 
+==============================================================================
+IRON-CLAD CLASSIFICATION RULE #1 (CHECK FIRST - MOST IMPORTANT):
+==============================================================================
+
+ATTACHMENT REQUIREMENT FOR MAJOR DOCUMENT TYPES:
+
+If email has NO PDF/document attachment, it CANNOT be classified as:
+- booking_confirmation (requires PDF confirmation from carrier)
+- booking_amendment (requires PDF amendment document)
+- shipping_instructions (requires SI PDF)
+- draft_bl, final_bl, sea_waybill, house_bl (requires BL PDF)
+- invoice, debit_note, credit_note (requires invoice PDF)
+- arrival_notice (requires AN PDF)
+- customs_entry, entry_summary, isf_filing (requires customs PDF)
+- pod_proof_of_delivery (requires signed POD)
+- delivery_order (requires DO PDF)
+- vgm_confirmation (requires VGM PDF)
+
+If NO attachment, classify as one of these COMMUNICATION types instead:
+- approval: "OK", "Approved", "Confirmed", "Go ahead", "Proceed"
+- request: "Please send", "Kindly share", "Request to", "Need"
+- escalation: "Urgent", "ASAP", "Escalate", "Immediately"
+- acknowledgement: "Received", "Noted", "Thanks", "Got it"
+- notification: "FYI", "Please note", "For your information"
+- general_correspondence: General discussion, status updates
+
+EXCEPTIONS (these CAN be text-only):
+- booking_request: Initial request email (no PDF needed)
+- telex_release: Text-based BL release confirmation
+- container_release: Release notification from carrier
+- freight_release: Release notification
+- exception_notice: Delay/issue notification
+- schedule_update: ETD/ETA change notification
+- tracking_update: Position update
+- work_order: Trucking dispatch (sometimes text-only)
+
+==============================================================================
+IRON-CLAD CLASSIFICATION RULE #2 (SENDER-BASED ROUTING):
+==============================================================================
+
+INTERNAL NOTIFICATIONS (from @intoglo.com):
+- Subject contains "Go Green" = internal_notification (NOT booking_confirmation!)
+- Subject contains "Deal id" = internal_notification
+- These are internal deal approvals, not carrier documents
+
+SYSTEM NOTIFICATIONS:
+- From notification@*.com or noreply@*.com = system_notification
+- From ODeX (notification@odexservices.com) = system_notification (NOT final_bl!)
+- Empty body with automated subject = system_notification
+
+FRAUD RISK:
+- From gmail.com/yahoo.com claiming to be carrier = flag for review
+- Sender domain doesn't match claimed carrier = flag for review
+
+==============================================================================
+IRON-CLAD CLASSIFICATION RULE #3 (THREAD/REPLY HANDLING):
+==============================================================================
+
+EMAIL REPLIES (subject starts with "RE:" or "Fwd:"):
+- The CONTENT of the email determines classification, NOT the subject
+- If body is < 150 chars with only "OK/Approved/Confirmed" = approval (not the doc type in subject)
+- If body just forwards previous email with "FYI" = notification
+- Look at the LATEST message content, not quoted thread history
+
+THREAD PROGRESSION:
+- Same thread may have multiple document types (booking → SI → BL)
+- Classify each email by its OWN content and attachments
+- Do NOT assume all emails in thread have same document_type
+
+==============================================================================
 CRITICAL RULES FOR IDENTIFICATION:
 
 1. TRANSPORT MODE - Determine FIRST:
@@ -231,24 +301,32 @@ export const ANALYZE_TOOL_SCHEMA: Anthropic.Tool = {
       document_type: {
         type: 'string',
         enum: [
-          // Pre-shipment
+          // Pre-shipment (REQUIRES ATTACHMENT)
           'rate_request', 'quotation', 'booking_request', 'booking_confirmation', 'booking_amendment',
           'shipping_instructions', 'si_confirmation', 'checklist',
           'shipping_bill', 'leo_copy', 'vgm_confirmation',
-          // In-transit
+          // In-transit (REQUIRES ATTACHMENT)
           'sob_confirmation', 'draft_bl', 'final_bl', 'house_bl', 'telex_release',
           'sea_waybill', 'air_waybill',
-          // Arrival & Customs
+          // Arrival & Customs (REQUIRES ATTACHMENT)
           'arrival_notice', 'customs_entry', 'entry_summary', 'isf_filing',
           'container_release', 'freight_release', 'duty_invoice',
-          // Delivery
+          // Delivery (REQUIRES ATTACHMENT)
           'delivery_order', 'release_order', 'gate_pass', 'pod_proof_of_delivery',
           // Trucking
           'dispatch_order', 'work_order', 'rate_confirmation', 'bol_truck',
-          // Financial
+          // Financial (REQUIRES ATTACHMENT)
           'invoice', 'debit_note', 'credit_note', 'payment_receipt', 'statement',
-          // Updates & General
+          // Updates & Notifications (NO ATTACHMENT OK)
           'schedule_update', 'tracking_update', 'exception_notice',
+          // Communication Types (NO ATTACHMENT - text only emails)
+          'approval',              // "OK", "Approved", "Confirmed", "Proceed"
+          'request',               // "Please send", "Kindly share", "Need"
+          'escalation',            // "Urgent", "ASAP", "Escalate"
+          'acknowledgement',       // "Received", "Noted", "Thanks", "Got it"
+          'notification',          // "FYI", "Please note", "For your info"
+          'internal_notification', // Intoglo "Go Green" deal approvals
+          'system_notification',   // ODeX, carrier system auto-emails
           'general_correspondence', 'internal_communication', 'unknown',
         ],
       },

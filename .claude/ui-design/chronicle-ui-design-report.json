@@ -1,0 +1,1326 @@
+{
+  "schemaVersion": "1.0",
+  "timestamp": "2026-01-11T00:00:00Z",
+  "mode": "research_and_generate",
+  "projectName": "Chronicle Intelligence System",
+  "designPhilosophy": {
+    "coreConcept": "Storytelling Through Documents",
+    "tagline": "Every shipment has a story. Chronicle tells it.",
+    "principles": [
+      {
+        "name": "Progressive Disclosure",
+        "description": "Macro to Micro - Dashboard to Shipment to Document to Chronicle Data",
+        "implementation": "4 distinct levels with clear navigation paths"
+      },
+      {
+        "name": "Action Dots Pattern",
+        "description": "Visual indicators that make problems 'pop out' while normal items recede",
+        "implementation": "Color-coded urgency system with crisis/actionable/neutral states"
+      },
+      {
+        "name": "Storytelling UI",
+        "description": "Each shipment is a journey with chapters (phases), events, and characters (parties)",
+        "implementation": "Timeline-based navigation with chapter metaphor"
+      },
+      {
+        "name": "Simple Yet Brilliant",
+        "description": "Hide complexity, surface insights - users see what matters, complexity is accessible",
+        "implementation": "Deep modules with simple interfaces, drill-down on demand"
+      },
+      {
+        "name": "Role-Based Views",
+        "description": "Different personas need different primary views and quick actions",
+        "implementation": "Departure vs Arrival team views, shipper vs consignee portals"
+      }
+    ]
+  },
+  "informationArchitecture": {
+    "levels": [
+      {
+        "level": 1,
+        "name": "Command Center (Dashboard)",
+        "purpose": "At-a-glance operational view - answer 'How is my operation running?'",
+        "primaryQuestions": [
+          "How many shipments need attention right now?",
+          "What is my throughput by stage?",
+          "Are there any critical exceptions?",
+          "What actions are overdue?"
+        ],
+        "drillDownTo": "Level 2: Shipment List"
+      },
+      {
+        "level": 2,
+        "name": "Shipment List (Fleet View)",
+        "purpose": "Filterable, searchable shipment management - answer 'Which shipments need my focus?'",
+        "primaryQuestions": [
+          "Which shipments are in each stage?",
+          "What needs action today?",
+          "Which shipments have issues?",
+          "How is this customer's cargo moving?"
+        ],
+        "drillDownTo": "Level 3: Shipment Story"
+      },
+      {
+        "level": 3,
+        "name": "Shipment Story (Detail View)",
+        "purpose": "Complete narrative of a single shipment - answer 'What is happening with this shipment?'",
+        "primaryQuestions": [
+          "Where is this shipment in its journey?",
+          "What documents do we have?",
+          "What actions are pending?",
+          "Who are the parties involved?"
+        ],
+        "drillDownTo": "Level 4: Document Chronicle"
+      },
+      {
+        "level": 4,
+        "name": "Document Chronicle (Deep Dive)",
+        "purpose": "AI-extracted intelligence from a single email/document - answer 'What did we learn from this?'",
+        "primaryQuestions": [
+          "What data was extracted?",
+          "How confident is the AI?",
+          "What changed from the previous version?",
+          "What is the source reference?"
+        ],
+        "drillDownTo": null
+      }
+    ],
+    "navigation": {
+      "primary": "Sidebar with stage-based sections",
+      "secondary": "Breadcrumb trail showing hierarchy",
+      "quick": "Command palette (Cmd+K) for instant search",
+      "contextual": "Action buttons contextual to current view"
+    }
+  },
+  "wireframes": {
+    "level1_dashboard": {
+      "name": "Command Center Dashboard",
+      "layout": "grid",
+      "sections": [
+        {
+          "name": "Header Strip",
+          "position": "top",
+          "width": "full",
+          "height": "60px",
+          "components": [
+            "Date/Time Display",
+            "Global Search (Cmd+K)",
+            "Notifications Bell",
+            "User Menu"
+          ]
+        },
+        {
+          "name": "Action Alert Banner",
+          "position": "below-header",
+          "width": "full",
+          "height": "auto",
+          "visibility": "conditional",
+          "components": [
+            "Critical Alerts Count",
+            "Overdue Actions Count",
+            "Quick Action Buttons"
+          ],
+          "designNote": "Red gradient background when critical, amber when warnings only, hidden when clear"
+        },
+        {
+          "name": "Stage Funnel",
+          "position": "main-left",
+          "width": "300px",
+          "height": "fill",
+          "components": [
+            "PENDING Stage Card",
+            "BOOKED Stage Card",
+            "SI_STAGE Stage Card",
+            "BL_ISSUED Stage Card",
+            "ARRIVED Stage Card",
+            "DELIVERED Stage Card"
+          ],
+          "designNote": "Vertical funnel visualization showing count per stage with action dots"
+        },
+        {
+          "name": "KPI Cards Row",
+          "position": "main-top",
+          "width": "fill",
+          "height": "120px",
+          "components": [
+            "Total Active Shipments",
+            "Actions Due Today",
+            "Exceptions Active",
+            "On-Time Performance %"
+          ],
+          "designNote": "4 cards with sparklines and trend indicators"
+        },
+        {
+          "name": "Team Tabs",
+          "position": "main-center",
+          "width": "fill",
+          "height": "fill",
+          "tabs": [
+            {
+              "name": "Departure Team",
+              "focus": "Pre-departure stages",
+              "components": [
+                "Bookings This Week Table",
+                "SI Deadlines Widget",
+                "VGM/Cutoff Alerts",
+                "Departing Vessels Timeline"
+              ]
+            },
+            {
+              "name": "Arrival Team",
+              "focus": "Post-arrival stages",
+              "components": [
+                "Arriving This Week Table",
+                "Customs Clearance Status",
+                "Delivery Schedule",
+                "Free Time Expiry Alerts"
+              ]
+            },
+            {
+              "name": "All Operations",
+              "focus": "Complete view",
+              "components": [
+                "Full Shipment Table",
+                "Global Action Queue",
+                "Issue Tracker"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Quick Actions Sidebar",
+          "position": "right",
+          "width": "280px",
+          "height": "fill",
+          "components": [
+            "Today's Priority Actions List",
+            "Recent Chronicle Updates Feed",
+            "Quick Links Panel"
+          ]
+        }
+      ],
+      "ascii": "See wireframe_ascii field"
+    },
+    "level2_shipment_list": {
+      "name": "Fleet View - Shipment List",
+      "layout": "table-with-filters",
+      "sections": [
+        {
+          "name": "Filter Bar",
+          "position": "top",
+          "components": [
+            "Stage Multi-Select",
+            "Carrier Filter",
+            "Customer Filter",
+            "Date Range Picker",
+            "Has Actions Toggle",
+            "Has Issues Toggle",
+            "Search Input"
+          ]
+        },
+        {
+          "name": "Saved Views Tabs",
+          "position": "below-filters",
+          "components": [
+            "All Shipments",
+            "My Assignments",
+            "Needs Attention",
+            "This Week's Departures",
+            "This Week's Arrivals",
+            "Custom Saved Views"
+          ]
+        },
+        {
+          "name": "Shipment Table",
+          "position": "main",
+          "columns": [
+            {
+              "name": "Stage Progress",
+              "width": "180px",
+              "type": "visual",
+              "description": "Mini horizontal stepper showing current stage in journey"
+            },
+            {
+              "name": "Identifiers",
+              "width": "200px",
+              "type": "stacked",
+              "description": "Booking #, BL #, Container # stacked"
+            },
+            {
+              "name": "Route",
+              "width": "200px",
+              "type": "visual",
+              "description": "POL flag -> POD flag with port codes"
+            },
+            {
+              "name": "Dates",
+              "width": "150px",
+              "type": "stacked",
+              "description": "ETD/ETA with urgency coloring"
+            },
+            {
+              "name": "Customer",
+              "width": "150px",
+              "type": "text",
+              "description": "Shipper/Consignee name"
+            },
+            {
+              "name": "Documents",
+              "width": "120px",
+              "type": "badges",
+              "description": "Document type badges showing what we have"
+            },
+            {
+              "name": "Actions",
+              "width": "80px",
+              "type": "indicator",
+              "description": "Action dot with count"
+            },
+            {
+              "name": "Health",
+              "width": "60px",
+              "type": "indicator",
+              "description": "Sentiment/issue indicator"
+            },
+            {
+              "name": "Last Update",
+              "width": "100px",
+              "type": "timestamp",
+              "description": "Relative time since last chronicle entry"
+            }
+          ],
+          "rowInteractions": [
+            "Click row -> Navigate to Shipment Story",
+            "Hover -> Show quick preview card",
+            "Right-click -> Context menu with quick actions"
+          ]
+        },
+        {
+          "name": "Pagination & Bulk Actions",
+          "position": "bottom",
+          "components": [
+            "Page Navigation",
+            "Items Per Page",
+            "Bulk Selection",
+            "Bulk Action Menu"
+          ]
+        }
+      ]
+    },
+    "level3_shipment_story": {
+      "name": "Shipment Story - Detail View",
+      "layout": "story-with-sidebar",
+      "sections": [
+        {
+          "name": "Story Header",
+          "position": "top",
+          "width": "full",
+          "components": [
+            {
+              "name": "Breadcrumb",
+              "content": "Fleet > [Customer Name] > [Booking #]"
+            },
+            {
+              "name": "Title Block",
+              "content": "Booking number as main title, route as subtitle"
+            },
+            {
+              "name": "Stage Badge",
+              "content": "Current stage with visual indicator"
+            },
+            {
+              "name": "Key Dates Banner",
+              "content": "ETD | ETA | Days to Departure/Arrival countdown"
+            },
+            {
+              "name": "Action Buttons",
+              "content": "Primary: View Documents, Secondary: Add Note, Share"
+            }
+          ]
+        },
+        {
+          "name": "Story Main",
+          "position": "center",
+          "width": "calc(100% - 320px)",
+          "tabs": [
+            {
+              "name": "Journey",
+              "default": true,
+              "components": [
+                {
+                  "name": "Journey Timeline",
+                  "type": "vertical-timeline",
+                  "description": "Full journey from booking to delivery with expandable phases",
+                  "phases": ["Pre-Shipment", "In Transit", "Arrival", "Delivery"],
+                  "features": [
+                    "Achieved states shown with checkmarks and timestamps",
+                    "Pending states shown as upcoming with expected dates",
+                    "Chronicle entries attached to each state transition",
+                    "Issues flagged inline at relevant points"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Documents",
+              "components": [
+                {
+                  "name": "Document Gallery",
+                  "type": "card-grid",
+                  "description": "Visual cards for each document type",
+                  "cardContent": [
+                    "Document type icon",
+                    "Document number",
+                    "Received date",
+                    "Version indicator",
+                    "Quick view button"
+                  ]
+                },
+                {
+                  "name": "Document Timeline",
+                  "type": "alternate-view",
+                  "description": "Chronological list of all documents received"
+                }
+              ]
+            },
+            {
+              "name": "Chronicle",
+              "components": [
+                {
+                  "name": "Email Thread View",
+                  "type": "chat-style",
+                  "description": "All chronicle entries shown as conversation",
+                  "features": [
+                    "Sender party badges (Carrier, Customer, Broker)",
+                    "AI-extracted summary",
+                    "Sentiment indicator",
+                    "Action items inline",
+                    "Expand to see full extraction"
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "Parties",
+              "components": [
+                {
+                  "name": "Party Cards",
+                  "type": "card-list",
+                  "parties": ["Shipper", "Consignee", "Notify Party", "Carrier", "Broker"],
+                  "cardContent": ["Name", "Contact", "Address", "Communication history count"]
+                }
+              ]
+            },
+            {
+              "name": "Containers",
+              "components": [
+                {
+                  "name": "Container List",
+                  "type": "table",
+                  "columns": ["Container #", "Type", "Seal", "Weight", "Status", "Tracking Link"]
+                }
+              ]
+            },
+            {
+              "name": "Financials",
+              "components": [
+                {
+                  "name": "Invoice Summary",
+                  "type": "summary-cards",
+                  "content": ["Total Charges", "Paid", "Pending", "Overdue"]
+                },
+                {
+                  "name": "Invoice List",
+                  "type": "table"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Story Sidebar",
+          "position": "right",
+          "width": "320px",
+          "components": [
+            {
+              "name": "Quick Info Card",
+              "content": [
+                "Vessel/Voyage",
+                "Carrier",
+                "Commodity",
+                "Weight/Volume"
+              ]
+            },
+            {
+              "name": "Actions Card",
+              "content": [
+                "Pending actions list with urgency",
+                "Quick complete buttons",
+                "Add action button"
+              ]
+            },
+            {
+              "name": "AI Insights Card",
+              "content": [
+                "Detected patterns",
+                "Risk indicators",
+                "Recommendations"
+              ]
+            },
+            {
+              "name": "Activity Feed",
+              "content": [
+                "Recent updates mini-feed",
+                "Last 5 chronicle entries summaries"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "level4_document_chronicle": {
+      "name": "Document Chronicle - Deep Dive",
+      "layout": "split-view",
+      "openMethod": "slide-over panel from right (not modal)",
+      "sections": [
+        {
+          "name": "Document Header",
+          "components": [
+            "Document Type Badge",
+            "Document Number",
+            "Received Date/Time",
+            "Source Party Badge",
+            "AI Confidence Score"
+          ]
+        },
+        {
+          "name": "Summary Section",
+          "components": [
+            {
+              "name": "AI Summary",
+              "type": "text-block",
+              "description": "Natural language summary of what this document says"
+            },
+            {
+              "name": "Key Extractions",
+              "type": "key-value-grid",
+              "description": "Main extracted fields in organized grid"
+            }
+          ]
+        },
+        {
+          "name": "Change Detection",
+          "visibility": "if amendment/update",
+          "components": [
+            {
+              "name": "Diff View",
+              "type": "before-after",
+              "description": "Side by side comparison showing what changed",
+              "highlighting": "Changed values highlighted in amber, new in green, removed in red"
+            }
+          ]
+        },
+        {
+          "name": "Full Extraction",
+          "components": [
+            {
+              "name": "Extraction Tree",
+              "type": "expandable-tree",
+              "description": "All extracted data in hierarchical view",
+              "sections": [
+                "Identifiers (Booking, BL, Container)",
+                "Parties (Shipper, Consignee, etc.)",
+                "Routing (Ports, Vessel, Voyage)",
+                "Dates (ETD, ETA, Cutoffs)",
+                "Cargo (Description, Weight, Volume)",
+                "Actions (Detected action items)"
+              ]
+            }
+          ]
+        },
+        {
+          "name": "Source Reference",
+          "components": [
+            {
+              "name": "Email Preview",
+              "type": "expandable",
+              "content": ["Subject", "From", "Date", "Snippet", "View Full Email Link"]
+            },
+            {
+              "name": "Attachment Links",
+              "type": "list",
+              "content": ["PDF attachments with download links"]
+            }
+          ]
+        },
+        {
+          "name": "AI Metadata",
+          "components": [
+            {
+              "name": "Confidence Breakdown",
+              "type": "meter-list",
+              "description": "Per-field confidence scores"
+            },
+            {
+              "name": "Model Info",
+              "type": "technical-details",
+              "content": ["Model used", "Processing time", "Token count"]
+            }
+          ]
+        }
+      ]
+    },
+    "wireframe_ascii": {
+      "level1_dashboard": [
+        "+--------------------------------------------------------------------------------------------------+",
+        "|  Chronicle Intelligence System     [Search... Cmd+K]            [Notifications] [User Menu]     |",
+        "+--------------------------------------------------------------------------------------------------+",
+        "|  [!] 3 Critical Alerts   |   5 Actions Overdue   |   [View All Actions]   [Dismiss Cleared]     |",
+        "+--------------------------------------------------------------------------------------------------+",
+        "|  STAGE FUNNEL  |                           MAIN CONTENT AREA                    | QUICK ACTIONS |",
+        "|                |  +---------------+---------------+---------------+---------------+              |",
+        "|  [PENDING]  12 |  | Active: 156   | Due Today: 8  | Exceptions: 3 | On-Time: 94%  |              |",
+        "|       |        |  +---------------+---------------+---------------+---------------+              |",
+        "|       v        |                                                                  | Today:       |",
+        "|  [BOOKED]  34  |  [ Departure Team ]  [ Arrival Team ]  [ All Operations ]        | - Submit SI  |",
+        "|       |        |  +------------------------------------------------------------+  | - Confirm BL |",
+        "|       v        |  |  SHIPMENTS DEPARTING THIS WEEK                             |  | - Review AN  |",
+        "|  [SI_STAGE] 28 |  |  --------------------------------------------------------  |  |              |",
+        "|       |        |  |  Stage  | Booking      | Route          | ETD    | Actions|  | Recent:      |",
+        "|       v        |  |  [====] | MAEU123456   | INNSA -> USLAX | Jan 15 | (2)    |  | - BL received|",
+        "|  [BL_ISSUED]45 |  |  [===]  | HLCU789012   | INMUN -> GBFXT | Jan 16 | (1)    |  | - ETD update |",
+        "|       |        |  |  [==]   | CMAU345678   | INBOM -> DEHAM | Jan 17 | -      |  | - SI confirm |",
+        "|       v        |  +------------------------------------------------------------+  |              |",
+        "|  [ARRIVED] 23  |                                                                  |              |",
+        "|       |        |  +------------------------------------------------------------+  |              |",
+        "|       v        |  |  SI DEADLINES APPROACHING                                  |  |              |",
+        "|  [DELIVERED]14 |  |  MAEU567890 - SI due in 2 days  [Submit Now]               |  |              |",
+        "|                |  |  HLCU234567 - SI due tomorrow   [Submit Now]               |  |              |",
+        "+----------------+--+------------------------------------------------------------+--+--------------+"
+      ],
+      "level2_shipment_list": [
+        "+--------------------------------------------------------------------------------------------------+",
+        "|  Fleet > All Shipments (156)                                          [+ New Shipment]          |",
+        "+--------------------------------------------------------------------------------------------------+",
+        "|  Stage: [All v]  Carrier: [All v]  Customer: [All v]  [Date Range]  [x] Has Actions  [Search...]|",
+        "+--------------------------------------------------------------------------------------------------+",
+        "|  [All] [My Assignments] [Needs Attention] [Departing This Week] [Arriving This Week] [+ Save]   |",
+        "+--------------------------------------------------------------------------------------------------+",
+        "|  Progress     | Identifiers           | Route              | Dates          | Customer  | Docs  |",
+        "|---------------|----------------------|--------------------| --------------|-----------|-------|",
+        "|  [====|...  ] | MAEU123456789        | INNSA -> USLAX    | ETD: Jan 15   | ABC Corp  | BC SI |",
+        "|  SI_STAGE     | BL: MAEU987654       | Vessel: Ever Given | ETA: Feb 01   |           | (!)2  |",
+        "|---------------|----------------------|--------------------| --------------|-----------|-------|",
+        "|  [======|.. ] | HLCU789012345        | INMUN -> GBFXT    | ETD: Jan 16   | XYZ Ltd   | BC    |",
+        "|  BL_ISSUED    | BL: HLCUBL456789     | Vessel: MSC Oscar  | ETA: Jan 28   |           | -     |",
+        "|---------------|----------------------|--------------------| --------------|-----------|-------|",
+        "|  [========|  ] | CMAU345678901       | INBOM -> DEHAM    | ETD: Jan 12   | DEF Inc   | BC SI |",
+        "|  ARRIVED      | BL: CMAUBL789012     | Vessel: CMA Titan  | ATA: Jan 25   |           | BL AN |",
+        "+--------------------------------------------------------------------------------------------------+",
+        "|  Showing 1-25 of 156                               [< Prev]  Page 1 of 7  [Next >]              |",
+        "+--------------------------------------------------------------------------------------------------+"
+      ],
+      "level3_shipment_story": [
+        "+--------------------------------------------------------------------------------------------------+",
+        "|  Fleet > ABC Corporation > MAEU123456789                              [Documents] [Share] [...]  |",
+        "+--------------------------------------------------------------------------------------------------+",
+        "|  BOOKING MAEU123456789                                                                           |",
+        "|  Mumbai (INMUN) --> Los Angeles (USLAX)                      [ SI_STAGE ]  5 days to departure  |",
+        "|  ETD: Jan 15, 2026  |  ETA: Feb 01, 2026  |  Vessel: Ever Given V.123                           |",
+        "+--------------------------------------------------------------------------------------------------+",
+        "|  [Journey] [Documents] [Chronicle] [Parties] [Containers] [Financials]           | QUICK INFO   |",
+        "|  +------------------------------------------------------------------------+      |              |",
+        "|  |                        SHIPMENT JOURNEY                                |      | Carrier:     |",
+        "|  |                                                                        |      | Maersk Line  |",
+        "|  |  PRE-SHIPMENT (3/4 complete)                                          |      |              |",
+        "|  |  +----------------------------------------------------------------+   |      | Commodity:   |",
+        "|  |  | [x] Booking Confirmed        Jan 10, 2026  [View Chronicle]    |   |      | Garments     |",
+        "|  |  | [x] Container Assigned       Jan 11, 2026  MSKU1234567         |   |      |              |",
+        "|  |  | [x] SI Submitted             Jan 12, 2026  [View Chronicle]    |   |      | Weight:      |",
+        "|  |  | [ ] BL Released              Expected: Jan 14                  |   |      | 18,500 KG    |",
+        "|  |  +----------------------------------------------------------------+   |      |              |",
+        "|  |                                                                        |      +--------------+",
+        "|  |  IN TRANSIT (0/3 complete)                                            |      | ACTIONS (2)  |",
+        "|  |  +----------------------------------------------------------------+   |      |              |",
+        "|  |  | [ ] Vessel Departed          Expected: Jan 15                  |   |      | [!] Submit   |",
+        "|  |  | [ ] In Transit               -                                 |   |      |     VGM      |",
+        "|  |  | [ ] Vessel Arrived           Expected: Feb 01                  |   |      | [!] Confirm  |",
+        "|  |  +----------------------------------------------------------------+   |      |     draft BL |",
+        "|  |                                                                        |      |              |",
+        "|  +------------------------------------------------------------------------+      | [+ Add]      |",
+        "+--------------------------------------------------------------------------------------------------+"
+      ],
+      "level4_document_chronicle": [
+        "+---------------------------------------------+",
+        "|  [<] Back to Shipment                       |",
+        "+---------------------------------------------+",
+        "|  BOOKING CONFIRMATION                       |",
+        "|  Document #: BC-MAEU-123456                 |",
+        "|  Received: Jan 10, 2026 10:34 AM            |",
+        "|  From: Maersk Line (carrier)                |",
+        "|  AI Confidence: 96%                         |",
+        "+---------------------------------------------+",
+        "|  SUMMARY                                    |",
+        "|  Maersk confirmed booking MAEU123456789     |",
+        "|  for 1x40HC from Mumbai to Los Angeles.     |",
+        "|  Vessel: Ever Given voyage 123. ETD Jan 15. |",
+        "+---------------------------------------------+",
+        "|  KEY EXTRACTIONS                            |",
+        "|  +---------------------------------------+  |",
+        "|  | Booking #   | MAEU123456789           |  |",
+        "|  | Container   | MSKU1234567             |  |",
+        "|  | Vessel      | Ever Given              |  |",
+        "|  | Voyage      | 123E                    |  |",
+        "|  | ETD         | Jan 15, 2026            |  |",
+        "|  | ETA         | Feb 01, 2026            |  |",
+        "|  | POL         | INMUN (Mumbai)          |  |",
+        "|  | POD         | USLAX (Los Angeles)     |  |",
+        "|  +---------------------------------------+  |",
+        "|                                             |",
+        "|  [v] View Full Extraction                   |",
+        "|  [v] View Source Email                      |",
+        "|  [v] View AI Metadata                       |",
+        "+---------------------------------------------+"
+      ]
+    }
+  },
+  "visualLanguage": {
+    "colorSystem": {
+      "primary": {
+        "name": "Chronicle Blue",
+        "hex": "#3B82F6",
+        "usage": "Primary actions, links, active states"
+      },
+      "semantic": {
+        "success": {
+          "hex": "#22C55E",
+          "usage": "Completed states, positive sentiment, achieved milestones"
+        },
+        "warning": {
+          "hex": "#F59E0B",
+          "usage": "Approaching deadlines, medium priority, attention needed"
+        },
+        "danger": {
+          "hex": "#EF4444",
+          "usage": "Overdue, critical issues, negative sentiment, urgent"
+        },
+        "info": {
+          "hex": "#3B82F6",
+          "usage": "Informational, neutral updates"
+        }
+      },
+      "stages": {
+        "PENDING": { "bg": "#F3F4F6", "text": "#6B7280", "description": "Neutral gray - waiting" },
+        "BOOKED": { "bg": "#DBEAFE", "text": "#1D4ED8", "description": "Blue - confirmed" },
+        "SI_STAGE": { "bg": "#FEF3C7", "text": "#D97706", "description": "Amber - in progress" },
+        "BL_ISSUED": { "bg": "#E0E7FF", "text": "#4338CA", "description": "Indigo - documentation complete" },
+        "ARRIVED": { "bg": "#F3E8FF", "text": "#7C3AED", "description": "Purple - at destination" },
+        "DELIVERED": { "bg": "#D1FAE5", "text": "#059669", "description": "Green - complete" }
+      },
+      "parties": {
+        "carrier": { "bg": "#DBEAFE", "text": "#1D4ED8", "description": "Blue for shipping lines" },
+        "customer": { "bg": "#FEE2E2", "text": "#DC2626", "description": "Red for customers" },
+        "broker": { "bg": "#FEF3C7", "text": "#D97706", "description": "Amber for customs brokers" },
+        "trucker": { "bg": "#D1FAE5", "text": "#059669", "description": "Green for truckers" },
+        "terminal": { "bg": "#E5E7EB", "text": "#374151", "description": "Gray for terminals" },
+        "intoglo": { "bg": "#E0E7FF", "text": "#4338CA", "description": "Indigo for internal" }
+      }
+    },
+    "typography": {
+      "fontFamily": {
+        "primary": "Inter, system-ui, sans-serif",
+        "mono": "JetBrains Mono, Menlo, monospace"
+      },
+      "scale": {
+        "xs": "0.75rem (12px)",
+        "sm": "0.875rem (14px)",
+        "base": "1rem (16px)",
+        "lg": "1.125rem (18px)",
+        "xl": "1.25rem (20px)",
+        "2xl": "1.5rem (24px)",
+        "3xl": "1.875rem (30px)"
+      },
+      "usage": {
+        "shipmentNumbers": "mono font, uppercase, tracking-wide",
+        "dates": "mono font for consistency",
+        "summaries": "primary font, normal weight",
+        "labels": "primary font, medium weight, uppercase xs",
+        "counts": "mono font, bold"
+      }
+    },
+    "spacing": {
+      "scale": "4px base (0.25rem)",
+      "common": {
+        "card-padding": "16px (1rem)",
+        "section-gap": "24px (1.5rem)",
+        "item-gap": "8px (0.5rem)",
+        "inline-gap": "4px (0.25rem)"
+      }
+    },
+    "shadows": {
+      "card": "0 1px 3px rgba(0,0,0,0.1)",
+      "hover": "0 4px 6px rgba(0,0,0,0.1)",
+      "modal": "0 25px 50px rgba(0,0,0,0.25)"
+    },
+    "borders": {
+      "radius": {
+        "sm": "4px",
+        "md": "8px",
+        "lg": "12px",
+        "full": "9999px"
+      },
+      "width": "1px",
+      "color": "#E5E7EB"
+    },
+    "actionDots": {
+      "description": "Visual indicators for items needing attention",
+      "states": {
+        "crisis": {
+          "color": "#EF4444",
+          "animation": "pulse",
+          "size": "12px",
+          "tooltip": "Critical - requires immediate attention"
+        },
+        "actionable": {
+          "color": "#F59E0B",
+          "animation": "none",
+          "size": "10px",
+          "tooltip": "Action needed"
+        },
+        "neutral": {
+          "color": "none",
+          "description": "No indicator shown - item is fine"
+        }
+      }
+    }
+  },
+  "keyInteractions": {
+    "navigation": [
+      {
+        "action": "Global Search",
+        "trigger": "Cmd+K or click search",
+        "result": "Opens command palette with fuzzy search across all shipments, documents, parties"
+      },
+      {
+        "action": "Quick View",
+        "trigger": "Hover on shipment row for 500ms",
+        "result": "Shows preview card with key details without navigating"
+      },
+      {
+        "action": "Drill Down",
+        "trigger": "Click shipment row",
+        "result": "Navigate to Shipment Story view with smooth transition"
+      },
+      {
+        "action": "Document Quick View",
+        "trigger": "Click document badge or card",
+        "result": "Opens Document Chronicle as slide-over panel (preserves context)"
+      },
+      {
+        "action": "Stage Filter",
+        "trigger": "Click stage in funnel",
+        "result": "Filters shipment list to that stage with animation"
+      }
+    ],
+    "microInteractions": [
+      {
+        "name": "Stage Transition",
+        "description": "When shipment moves to new stage, the stage badge animates with a subtle 'level up' effect",
+        "animation": "Scale up 1.1x, green flash, settle"
+      },
+      {
+        "name": "Action Complete",
+        "description": "When action is marked complete, it fades out with checkmark animation",
+        "animation": "Checkmark draws in, row slides up to remove"
+      },
+      {
+        "name": "New Chronicle Entry",
+        "description": "When new email is processed, entry slides in from top with subtle highlight",
+        "animation": "Slide down, amber highlight pulse, settle to normal"
+      },
+      {
+        "name": "Countdown Urgency",
+        "description": "As deadline approaches, countdown badge pulses more intensely",
+        "animation": "Pulse frequency increases: >7 days (none), 3-7 days (slow), 1-3 days (medium), <1 day (fast)"
+      },
+      {
+        "name": "Confidence Indicator",
+        "description": "AI confidence shown as filling meter",
+        "animation": "Meter fills on load, tooltip shows exact percentage"
+      }
+    ],
+    "gestures": [
+      {
+        "action": "Swipe Right on Action",
+        "platform": "Mobile/Touch",
+        "result": "Quick complete action"
+      },
+      {
+        "action": "Swipe Left on Action",
+        "platform": "Mobile/Touch",
+        "result": "Snooze/Dismiss action"
+      },
+      {
+        "action": "Pull to Refresh",
+        "platform": "Mobile/Touch",
+        "result": "Refresh current view data"
+      }
+    ],
+    "keyboardShortcuts": [
+      { "keys": "Cmd+K", "action": "Open command palette" },
+      { "keys": "Cmd+/", "action": "Show keyboard shortcuts help" },
+      { "keys": "J/K", "action": "Navigate up/down in list" },
+      { "keys": "Enter", "action": "Open selected shipment" },
+      { "keys": "Escape", "action": "Close panel/modal, go back" },
+      { "keys": "1-6", "action": "Filter by stage (1=Pending, 6=Delivered)" },
+      { "keys": "A", "action": "Show actions only" },
+      { "keys": "I", "action": "Show issues only" },
+      { "keys": "Cmd+N", "action": "New shipment" }
+    ]
+  },
+  "mobileConsiderations": {
+    "breakpoints": {
+      "mobile": "< 640px",
+      "tablet": "640px - 1024px",
+      "desktop": "> 1024px"
+    },
+    "adaptations": {
+      "dashboard": {
+        "mobile": [
+          "Stage funnel becomes horizontal scrollable pills",
+          "KPI cards stack vertically",
+          "Team tabs become bottom tab bar",
+          "Quick actions become floating action button (FAB)"
+        ],
+        "tablet": [
+          "2-column layout for KPI cards",
+          "Side-by-side funnel and main content"
+        ]
+      },
+      "shipmentList": {
+        "mobile": [
+          "Table becomes card list",
+          "Each card shows key info with progressive disclosure",
+          "Filters accessible via slide-up sheet",
+          "Swipe actions on cards"
+        ],
+        "tablet": [
+          "Condensed table with horizontal scroll",
+          "Filter bar collapses to icon buttons"
+        ]
+      },
+      "shipmentStory": {
+        "mobile": [
+          "Tabs become bottom navigation",
+          "Sidebar info moves to header accordion",
+          "Timeline becomes full-width vertical",
+          "Actions card becomes sticky bottom bar"
+        ],
+        "tablet": [
+          "Side-by-side layout with narrower sidebar",
+          "Tabs remain at top"
+        ]
+      },
+      "documentChronicle": {
+        "mobile": [
+          "Full-screen view instead of slide-over",
+          "Collapsible sections for all content",
+          "Bottom sheet for actions"
+        ],
+        "tablet": [
+          "Half-screen slide-over from right"
+        ]
+      }
+    },
+    "touchTargets": {
+      "minimum": "44x44px",
+      "recommended": "48x48px"
+    },
+    "offlineSupport": {
+      "strategy": "Read-only cache for recent shipments",
+      "sync": "Queue actions for sync when online"
+    }
+  },
+  "componentHierarchy": {
+    "level1": {
+      "page": "DashboardPage",
+      "components": [
+        {
+          "name": "DashboardHeader",
+          "props": ["currentTime", "notificationCount", "user"],
+          "children": ["GlobalSearch", "NotificationBell", "UserMenu"]
+        },
+        {
+          "name": "AlertBanner",
+          "props": ["criticalAlerts", "overdueActions", "onDismiss"],
+          "visibility": "conditional"
+        },
+        {
+          "name": "StageFunnel",
+          "props": ["stageCounts", "selectedStage", "onStageSelect"],
+          "children": ["StageCard"]
+        },
+        {
+          "name": "KPIRow",
+          "props": ["metrics"],
+          "children": ["KPICard"]
+        },
+        {
+          "name": "TeamTabs",
+          "props": ["activeTab", "onTabChange"],
+          "children": [
+            "DepartureTeamView",
+            "ArrivalTeamView",
+            "AllOperationsView"
+          ]
+        },
+        {
+          "name": "QuickActionsSidebar",
+          "props": ["todayActions", "recentUpdates"],
+          "children": ["ActionItem", "UpdateFeedItem"]
+        }
+      ]
+    },
+    "level2": {
+      "page": "ShipmentListPage",
+      "components": [
+        {
+          "name": "FilterBar",
+          "props": ["filters", "onFilterChange", "savedViews"],
+          "children": ["StageFilter", "CarrierFilter", "CustomerFilter", "DateRangePicker", "SearchInput"]
+        },
+        {
+          "name": "SavedViewsTabs",
+          "props": ["views", "activeView", "onViewChange", "onSaveView"],
+          "children": ["ViewTab"]
+        },
+        {
+          "name": "ShipmentTable",
+          "props": ["shipments", "columns", "sorting", "onSort", "onRowClick"],
+          "children": ["ShipmentRow"]
+        },
+        {
+          "name": "ShipmentRow",
+          "props": ["shipment", "onClick"],
+          "children": [
+            "StageProgressBar",
+            "IdentifierStack",
+            "RouteDisplay",
+            "DateDisplay",
+            "DocumentBadges",
+            "ActionIndicator",
+            "HealthIndicator"
+          ]
+        },
+        {
+          "name": "Pagination",
+          "props": ["currentPage", "totalPages", "onPageChange"]
+        }
+      ]
+    },
+    "level3": {
+      "page": "ShipmentStoryPage",
+      "components": [
+        {
+          "name": "StoryHeader",
+          "props": ["shipment"],
+          "children": ["Breadcrumb", "TitleBlock", "StageBadge", "KeyDatesBanner", "ActionButtons"]
+        },
+        {
+          "name": "StoryTabs",
+          "props": ["activeTab", "onTabChange"],
+          "children": [
+            "JourneyTab",
+            "DocumentsTab",
+            "ChronicleTab",
+            "PartiesTab",
+            "ContainersTab",
+            "FinancialsTab"
+          ]
+        },
+        {
+          "name": "JourneyTimeline",
+          "props": ["journey", "currentState", "issues", "actions"],
+          "children": ["PhaseCard", "StateRow", "ChronicleLink"]
+        },
+        {
+          "name": "DocumentGallery",
+          "props": ["documents", "onDocumentClick"],
+          "children": ["DocumentCard"]
+        },
+        {
+          "name": "ChronicleThread",
+          "props": ["chronicleEntries", "onEntryClick"],
+          "children": ["ChronicleEntry"]
+        },
+        {
+          "name": "StorySidebar",
+          "props": ["shipment", "actions", "insights"],
+          "children": ["QuickInfoCard", "ActionsCard", "InsightsCard", "ActivityFeed"]
+        }
+      ]
+    },
+    "level4": {
+      "component": "DocumentChroniclePanel",
+      "openMethod": "SlideOver",
+      "components": [
+        {
+          "name": "ChronicleHeader",
+          "props": ["documentType", "documentNumber", "receivedDate", "sourceParty", "confidence"]
+        },
+        {
+          "name": "AISummary",
+          "props": ["summary"]
+        },
+        {
+          "name": "KeyExtractions",
+          "props": ["extractions"],
+          "children": ["ExtractionRow"]
+        },
+        {
+          "name": "DiffView",
+          "props": ["previousVersion", "currentVersion"],
+          "visibility": "conditional"
+        },
+        {
+          "name": "FullExtractionTree",
+          "props": ["allExtractions"],
+          "children": ["ExtractionSection", "ExtractionField"]
+        },
+        {
+          "name": "SourceReference",
+          "props": ["email", "attachments"],
+          "children": ["EmailPreview", "AttachmentLink"]
+        },
+        {
+          "name": "AIMetadata",
+          "props": ["confidence", "model", "processingTime"],
+          "children": ["ConfidenceBreakdown"]
+        }
+      ]
+    },
+    "shared": [
+      {
+        "name": "Badge",
+        "variants": ["stage", "party", "document", "priority", "confidence"]
+      },
+      {
+        "name": "ActionDot",
+        "props": ["level", "count", "tooltip"]
+      },
+      {
+        "name": "ProgressBar",
+        "variants": ["horizontal", "vertical", "circular"]
+      },
+      {
+        "name": "Timeline",
+        "variants": ["vertical", "horizontal", "compact"]
+      },
+      {
+        "name": "Card",
+        "variants": ["elevated", "outlined", "filled"]
+      },
+      {
+        "name": "SlideOver",
+        "props": ["isOpen", "onClose", "title", "width"]
+      },
+      {
+        "name": "CommandPalette",
+        "props": ["isOpen", "onClose", "onSelect", "searchResults"]
+      },
+      {
+        "name": "EmptyState",
+        "props": ["icon", "title", "description", "action"]
+      },
+      {
+        "name": "LoadingSkeleton",
+        "variants": ["table", "card", "timeline", "text"]
+      }
+    ]
+  },
+  "implementationRecommendations": {
+    "techStack": {
+      "framework": "Next.js 14+ with App Router",
+      "ui": "shadcn/ui (already in use) + custom components",
+      "state": "React Query (TanStack Query) for server state, Zustand for client state",
+      "tables": "@tanstack/react-table",
+      "charts": "Recharts or Tremor",
+      "animations": "Framer Motion for complex animations, CSS for simple",
+      "forms": "React Hook Form + Zod validation",
+      "dates": "date-fns"
+    },
+    "fileStructure": {
+      "components": [
+        "/components/chronicle/",
+        "  /dashboard/",
+        "    DashboardPage.tsx",
+        "    StageFunnel.tsx",
+        "    KPIRow.tsx",
+        "    TeamTabs.tsx",
+        "    QuickActionsSidebar.tsx",
+        "  /shipments/",
+        "    ShipmentListPage.tsx",
+        "    FilterBar.tsx",
+        "    ShipmentTable.tsx",
+        "    ShipmentRow.tsx",
+        "  /story/",
+        "    ShipmentStoryPage.tsx",
+        "    StoryHeader.tsx",
+        "    JourneyTimeline.tsx",
+        "    DocumentGallery.tsx",
+        "    ChronicleThread.tsx",
+        "    StorySidebar.tsx",
+        "  /document/",
+        "    DocumentChroniclePanel.tsx",
+        "    KeyExtractions.tsx",
+        "    DiffView.tsx",
+        "    SourceReference.tsx",
+        "  /shared/",
+        "    Badge.tsx",
+        "    ActionDot.tsx",
+        "    ProgressBar.tsx",
+        "    Timeline.tsx",
+        "    SlideOver.tsx",
+        "    CommandPalette.tsx"
+      ]
+    },
+    "dataFetching": {
+      "pattern": "React Query with custom hooks",
+      "example": [
+        "// hooks/useShipments.ts",
+        "export function useShipments(filters: ShipmentFilters) {",
+        "  return useQuery({",
+        "    queryKey: ['shipments', filters],",
+        "    queryFn: () => fetchShipments(filters),",
+        "    staleTime: 30000, // 30 seconds",
+        "  });",
+        "}"
+      ],
+      "endpoints": [
+        "GET /api/chronicle/dashboard - Dashboard KPIs and summaries",
+        "GET /api/shipments - Filtered shipment list",
+        "GET /api/shipments/:id - Shipment detail with journey",
+        "GET /api/shipments/:id/chronicle - Chronicle entries for shipment",
+        "GET /api/shipments/:id/documents - Documents for shipment",
+        "GET /api/chronicle/:id - Single chronicle entry detail"
+      ]
+    },
+    "performanceOptimizations": [
+      "Virtual scrolling for shipment lists > 100 items",
+      "Lazy load tab content (Documents, Chronicle tabs)",
+      "Prefetch shipment detail on row hover",
+      "Cache chronicle entries (immutable data)",
+      "Optimistic updates for action completion",
+      "Code split per route/page",
+      "Image optimization for any uploaded documents"
+    ],
+    "accessibility": {
+      "requirements": [
+        "WCAG 2.1 AA compliance",
+        "Keyboard navigation for all interactions",
+        "Screen reader support with ARIA labels",
+        "Focus management for modals/panels",
+        "Color contrast ratios >= 4.5:1",
+        "Reduced motion support"
+      ],
+      "testing": [
+        "Lighthouse accessibility audits",
+        "axe-core automated testing",
+        "Manual keyboard navigation testing",
+        "Screen reader testing (VoiceOver, NVDA)"
+      ]
+    }
+  },
+  "nextSteps": [
+    {
+      "priority": 1,
+      "task": "Create base component library",
+      "description": "Build Badge, ActionDot, ProgressBar, Timeline shared components",
+      "effort": "2-3 days"
+    },
+    {
+      "priority": 2,
+      "task": "Build Dashboard (Level 1)",
+      "description": "Implement Command Center with stage funnel, KPIs, and team tabs",
+      "effort": "3-4 days"
+    },
+    {
+      "priority": 3,
+      "task": "Build Shipment List (Level 2)",
+      "description": "Implement filterable table with all columns and interactions",
+      "effort": "2-3 days"
+    },
+    {
+      "priority": 4,
+      "task": "Build Shipment Story (Level 3)",
+      "description": "Implement detail view with journey timeline and all tabs",
+      "effort": "4-5 days"
+    },
+    {
+      "priority": 5,
+      "task": "Build Document Chronicle (Level 4)",
+      "description": "Implement slide-over panel with extraction display",
+      "effort": "2-3 days"
+    },
+    {
+      "priority": 6,
+      "task": "Add animations and polish",
+      "description": "Implement micro-interactions and transitions",
+      "effort": "2 days"
+    },
+    {
+      "priority": 7,
+      "task": "Mobile responsiveness",
+      "description": "Adapt all views for mobile and tablet",
+      "effort": "3 days"
+    },
+    {
+      "priority": 8,
+      "task": "Testing and accessibility",
+      "description": "Comprehensive testing and accessibility audit",
+      "effort": "2 days"
+    }
+  ],
+  "sources": [
+    {
+      "title": "The Flexport Dashboard 2.0 - Medium",
+      "url": "https://medium.com/flexport-ux/the-flexport-dashboard-2-0-2524f8e92245",
+      "insights": "Global map view, shipment list, and detail drill-down pattern"
+    },
+    {
+      "title": "project44 Visibility Platform",
+      "url": "https://www.project44.com/platform/visibility/",
+      "insights": "Control tower design, role-based views, exception management"
+    },
+    {
+      "title": "Nielsen Norman Group - Progressive Disclosure",
+      "url": "https://www.nngroup.com/articles/progressive-disclosure/",
+      "insights": "Show essential info first, reveal details on demand"
+    },
+    {
+      "title": "Nielsen Norman Group - Status Trackers",
+      "url": "https://www.nngroup.com/articles/status-tracker-progress-update/",
+      "insights": "Timeline design, progress visualization best practices"
+    },
+    {
+      "title": "Smart Interface Design Patterns - Action Dots",
+      "url": "https://smart-interface-design-patterns.com/articles/action-dots/",
+      "insights": "Visual indicators for attention management"
+    },
+    {
+      "title": "XM Institute - Action-Centric Dashboard Design",
+      "url": "https://www.xminstitute.com/blog/action-centric-dashboard-design/",
+      "insights": "Prioritize actionable items, connect metrics to actions"
+    },
+    {
+      "title": "Eleken - Stepper UI Examples",
+      "url": "https://www.eleken.co/blog-posts/stepper-ui-examples",
+      "insights": "Progress indicator patterns, milestone visualization"
+    },
+    {
+      "title": "UXPin - Progress Trackers",
+      "url": "https://www.uxpin.com/studio/blog/design-progress-trackers/",
+      "insights": "Progress tracker increases task completion rates"
+    }
+  ]
+}

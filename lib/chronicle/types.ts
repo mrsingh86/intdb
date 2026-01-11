@@ -78,22 +78,31 @@ export const analyzeShippingCommunicationSchema = z.object({
   // DOCUMENT CLASSIFICATION
   // =========================================================================
   document_type: z.enum([
-    // Booking stage
+    // Booking stage (REQUIRES ATTACHMENT)
     'rate_request', 'quotation', 'booking_request', 'booking_confirmation', 'booking_amendment',
-    // Documentation stage
+    // Documentation stage (REQUIRES ATTACHMENT)
     'shipping_instructions', 'si_confirmation', 'draft_bl', 'final_bl', 'telex_release',
-    'sea_waybill', 'air_waybill',
-    // Arrival/Delivery stage
+    'sea_waybill', 'air_waybill', 'house_bl', 'sob_confirmation',
+    // Arrival/Delivery stage (REQUIRES ATTACHMENT)
     'arrival_notice', 'delivery_order', 'release_order', 'gate_pass',
     'container_release', 'freight_release', 'pod_proof_of_delivery',
     // Trucking specific
     'dispatch_order', 'work_order', 'rate_confirmation', 'bol_truck',
-    // Compliance
-    'vgm_confirmation', 'customs_entry', 'isf_filing', 'duty_invoice',
-    // Financial
+    // Compliance (REQUIRES ATTACHMENT)
+    'vgm_confirmation', 'customs_entry', 'entry_summary', 'isf_filing', 'duty_invoice',
+    'shipping_bill', 'leo_copy', 'checklist',
+    // Financial (REQUIRES ATTACHMENT)
     'invoice', 'debit_note', 'credit_note', 'payment_receipt', 'statement',
-    // Other
+    // Updates & Notifications (NO ATTACHMENT OK)
     'schedule_update', 'tracking_update', 'exception_notice',
+    // Communication Types (NO ATTACHMENT - text only emails)
+    'approval',              // "OK", "Approved", "Confirmed", "Proceed"
+    'request',               // "Please send", "Kindly share", "Need"
+    'escalation',            // "Urgent", "ASAP", "Escalate"
+    'acknowledgement',       // "Received", "Noted", "Thanks"
+    'notification',          // "FYI", "Please note"
+    'internal_notification', // Intoglo internal deal approvals
+    'system_notification',   // ODeX, carrier system auto-emails
     'general_correspondence', 'internal_communication', 'unknown',
   ]),
 
