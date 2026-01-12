@@ -73,6 +73,57 @@ export class ChronicleRepository implements IChronicleRepository {
       return {};
     }
   }
+
+  /**
+   * Resolve pending actions when confirmation documents arrive
+   *
+   * When VGM confirmation arrives → mark VGM-related actions as completed
+   * When SI confirmation arrives → mark SI-related actions as completed
+   */
+  async resolveRelatedActions(
+    shipmentId: string,
+    documentType: string,
+    resolvedAt: string
+  ): Promise<number> {
+    // Map confirmation types to action keywords they resolve
+    const resolutionMap: Record<string, string[]> = {
+      'vgm_confirmation': ['vgm', 'verified gross mass'],
+      'si_confirmation': ['si', 'shipping instruction', 'shipping instructions'],
+      'sob_confirmation': ['shipped', 'on board', 'sob'],
+      'booking_confirmation': ['booking', 'book'],
+      'draft_bl': ['bl draft', 'draft bl'],
+      'final_bl': ['bl', 'bill of lading'],
+      'arrival_notice': ['arrival', 'arrive'],
+    };
+
+    const keywords = resolutionMap[documentType];
+    if (!keywords || keywords.length === 0) {
+      return 0; // No actions to resolve for this document type
+    }
+
+    // Build the keyword match condition
+    // Match any pending action whose description contains these keywords
+    const keywordConditions = keywords
+      .map(kw => `action_description ILIKE '%${kw}%'`)
+      .join(' OR ');
+
+    // Update all pending actions that match
+    const { data, error } = await this.supabase
+      .from('chronicle')
+      .update({ action_completed_at: resolvedAt })
+      .eq('shipment_id', shipmentId)
+      .eq('has_action', true)
+      .is('action_completed_at', null)
+      .or(keywordConditions);
+
+    if (error) {
+      console.error('[Chronicle] Action resolution failed:', error);
+      return 0;
+    }
+
+    // Return count of resolved actions
+    return data?.length || 0;
+  }
 }
 
 // ============================================================================

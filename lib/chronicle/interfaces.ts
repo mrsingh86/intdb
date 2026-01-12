@@ -103,6 +103,16 @@ export interface IChronicleRepository {
     shipmentId?: string;
     linkedBy?: string;
   }>;
+
+  /**
+   * Resolve pending actions when confirmation documents arrive
+   * Returns count of resolved actions
+   */
+  resolveRelatedActions(
+    shipmentId: string,
+    documentType: string,
+    resolvedAt: string
+  ): Promise<number>;
 }
 
 /**

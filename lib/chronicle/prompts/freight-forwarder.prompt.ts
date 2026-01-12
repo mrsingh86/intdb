@@ -275,9 +275,31 @@ CRITICAL RULES FOR IDENTIFICATION:
    - "Demurrage", "Detention", "LFD" = has_issue: true, issue_type: demurrage/detention
    - "Urgent", "ASAP", "Immediately" = sentiment: urgent
 
-8. ACTION DETECTION:
-   - "Please arrange", "Kindly confirm", "Request to" = has_action: true
-   - "FYI", "For your records", "Please note" = has_action: false (just notification)
+8. ACTION DETECTION (CRITICAL - READ CAREFULLY):
+
+   CONFIRMATION DOCUMENTS DO NOT CREATE ACTIONS:
+   - vgm_confirmation = VGM was SUBMITTED → has_action: FALSE
+   - si_confirmation = SI was SUBMITTED → has_action: FALSE
+   - sob_confirmation = Cargo is shipped → has_action: FALSE
+   - booking_confirmation = Booking is CONFIRMED → has_action: FALSE (unless genuinely requesting docs)
+   - approval = Something was APPROVED → has_action: FALSE
+   - acknowledgement = Receipt acknowledged → has_action: FALSE
+
+   Even if confirmation email says "submit VGM on portal within 48 hours" - this is
+   STANDARD PORT LANGUAGE appearing in ALL VGM confirmations. It does NOT mean
+   VGM is pending. The confirmation itself IS proof of submission.
+
+   WHEN TO SET has_action: TRUE:
+   - Explicit requests: "Please send", "Kindly share", "Request to submit"
+   - Missing documents: "We need", "Please provide", "Awaiting"
+   - Pending reviews: "Please confirm", "Please approve", "Review and revert"
+   - Escalations: "Urgent action required", "ASAP"
+
+   WHEN TO SET has_action: FALSE:
+   - Confirmations: "VGM submitted", "SI confirmed", "Booking confirmed"
+   - Notifications: "FYI", "For your records", "Please note"
+   - Status updates: "Departed", "Arrived", "Released"
+   - Acknowledgements: "Received", "Noted", "Thanks"
 
 Extract information from:
 - SUBJECT LINE: Most reliable for identifiers
