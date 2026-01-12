@@ -87,13 +87,22 @@ export class ChronicleRepository implements IChronicleRepository {
   ): Promise<number> {
     // Map confirmation types to action keywords they resolve
     const resolutionMap: Record<string, string[]> = {
+      // Pre-shipment confirmations
       'vgm_confirmation': ['vgm', 'verified gross mass'],
       'si_confirmation': ['si', 'shipping instruction', 'shipping instructions'],
       'sob_confirmation': ['shipped', 'on board', 'sob'],
       'booking_confirmation': ['booking', 'book'],
+      'leo_copy': ['leo', 'let export'],
+      // BL confirmations
       'draft_bl': ['bl draft', 'draft bl'],
-      'final_bl': ['bl', 'bill of lading'],
+      'final_bl': ['release bl', 'bl release', 'share bl', 'provide bl', 'bill of lading'],
+      'telex_release': ['release bl', 'bl release', 'telex', 'express release'],
+      'sea_waybill': ['sea waybill', 'seaway', 'swb'],
+      // Destination confirmations
       'arrival_notice': ['arrival', 'arrive'],
+      'container_release': ['container release', 'pickup'],
+      'delivery_order': ['delivery order', 'do release'],
+      'pod_proof_of_delivery': ['proof of delivery', 'pod', 'delivered'],
     };
 
     const keywords = resolutionMap[documentType];

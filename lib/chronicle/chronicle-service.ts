@@ -342,13 +342,22 @@ export class ChronicleService implements IChronicleService {
     occurredAt: Date
   ): Promise<void> {
     const confirmationTypes = [
+      // Pre-shipment confirmations
       'vgm_confirmation',
       'si_confirmation',
       'sob_confirmation',
       'booking_confirmation',
+      'leo_copy',
+      // BL confirmations
       'draft_bl',
       'final_bl',
+      'telex_release',
+      'sea_waybill',
+      // Destination confirmations
       'arrival_notice',
+      'container_release',
+      'delivery_order',
+      'pod_proof_of_delivery',
     ];
 
     if (!confirmationTypes.includes(documentType)) {
