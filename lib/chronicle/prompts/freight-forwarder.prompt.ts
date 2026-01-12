@@ -222,12 +222,37 @@ CRITICAL RULES FOR IDENTIFICATION:
    - Skip internal Intoglo references (we want the real customer parties)
    - On freight forwarder BLs, shipper may be the actual customer, not the forwarder
 
-6. DATES - Use correct fields:
+6. DATES - Use correct fields (CRITICAL FOR MULTI-LEG VOYAGES):
+
+   MULTI-LEG VOYAGE STRUCTURE:
+   Many shipments have multiple legs with transshipment:
+   - Pre-Carrier (Feeder): POL → Transshipment Port
+   - Trunk Vessel (Mother): Transshipment → Another TS or POD
+   - Post-Carrier: Last TS → Final POD
+
+   ALWAYS extract dates for FINAL ORIGIN and FINAL DESTINATION:
+   - etd: ETD from Port of Loading (POL) - the FIRST vessel departure
+   - eta: ETA at Port of Discharge (POD) - the FINAL destination arrival
+
+   LOOK FOR THESE LABELS FOR FINAL DESTINATION ETA:
+   - "POD ETA", "POD / DEL ETA", "Delivery ETA", "Destination ETA"
+   - "Final ETA", "ETA at POD", "Arrival at [destination port name]"
+   - The ETA next to "Port of Discharging" or "Place of Delivery"
+
+   IGNORE THESE (transshipment dates):
+   - "Pre-Carrier ETA/ETD" - this is feeder to transshipment
+   - "Trunk Vessel ETA/ETD" at transshipment port
+   - Any ETA to intermediate T/S ports (Nhava Sheva, Singapore, Colombo, etc.)
+
+   VALIDATION:
+   - International ocean freight typically takes 14-45 days
+   - If ETA is within 7 days of ETD for international route = WRONG (transshipment date)
+   - India → USA = ~30-40 days, India → Europe = ~20-30 days
 
    DEPARTURE/ARRIVAL:
-   - etd: Estimated Time of Departure (vessel/flight leaves)
+   - etd: Estimated Time of Departure from POL (YYYY-MM-DD)
    - atd: Actual Time of Departure (confirmed departure)
-   - eta: Estimated Time of Arrival (vessel/flight arrives)
+   - eta: Estimated Time of Arrival at POD/Final Destination (YYYY-MM-DD)
    - ata: Actual Time of Arrival (confirmed arrival)
 
    CUTOFFS (CRITICAL for operations):
@@ -343,7 +368,7 @@ export const ANALYZE_TOOL_SCHEMA: Anthropic.Tool = {
       por_type: { type: 'string', enum: ['warehouse', 'factory', 'cfs', 'icd', 'address', 'unknown'], nullable: true },
       pol_location: { type: 'string', nullable: true, description: 'Port of Loading - UN/LOCODE (INNSA) or airport code' },
       pol_type: { type: 'string', enum: ['port', 'airport', 'rail_terminal', 'unknown'], nullable: true },
-      pod_location: { type: 'string', nullable: true, description: 'Port of Discharge - UN/LOCODE or airport code' },
+      pod_location: { type: 'string', nullable: true, description: 'Port of Discharge (FINAL DESTINATION) - UN/LOCODE or airport code. NOT transshipment ports! Look for "Port of Discharging" or "Port of Discharge".' },
       pod_type: { type: 'string', enum: ['port', 'airport', 'rail_terminal', 'unknown'], nullable: true },
       pofd_location: { type: 'string', nullable: true, description: 'Place of Final Delivery - consignee warehouse/address' },
       pofd_type: { type: 'string', enum: ['warehouse', 'factory', 'cfs', 'icd', 'address', 'unknown'], nullable: true },
@@ -358,7 +383,7 @@ export const ANALYZE_TOOL_SCHEMA: Anthropic.Tool = {
       // Dates - Estimated vs Actual
       etd: { type: 'string', nullable: true, description: 'Estimated Time of Departure YYYY-MM-DD' },
       atd: { type: 'string', nullable: true, description: 'Actual Time of Departure YYYY-MM-DD' },
-      eta: { type: 'string', nullable: true, description: 'Estimated Time of Arrival YYYY-MM-DD' },
+      eta: { type: 'string', nullable: true, description: 'Estimated Time of Arrival at FINAL DESTINATION (POD) YYYY-MM-DD. Look for "POD ETA", "DEL ETA", "Delivery ETA". IGNORE transshipment port dates!' },
       ata: { type: 'string', nullable: true, description: 'Actual Time of Arrival YYYY-MM-DD' },
       pickup_date: { type: 'string', nullable: true, description: 'Trucking pickup date' },
       delivery_date: { type: 'string', nullable: true, description: 'Trucking delivery date' },
