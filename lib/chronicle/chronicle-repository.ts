@@ -123,7 +123,8 @@ export class ChronicleRepository implements IChronicleRepository {
       .eq('shipment_id', shipmentId)
       .eq('has_action', true)
       .is('action_completed_at', null)
-      .or(keywordConditions);
+      .or(keywordConditions)
+      .select('id');
 
     if (error) {
       console.error('[Chronicle] Action resolution failed:', error);
@@ -131,7 +132,7 @@ export class ChronicleRepository implements IChronicleRepository {
     }
 
     // Return count of resolved actions
-    return data?.length || 0;
+    return data?.length ?? 0;
   }
 }
 
