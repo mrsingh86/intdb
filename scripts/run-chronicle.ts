@@ -11,10 +11,15 @@
  *   npx tsx scripts/run-chronicle.ts --after 2025-12-01 --before 2025-12-08  # Date range (max 2000)
  *   npx tsx scripts/run-chronicle.ts --after 2025-12-01 --before 2025-12-08 --all  # ALL emails in range
  *   npx tsx scripts/run-chronicle.ts --migrate                               # Run migration only
+ *   npx tsx scripts/run-chronicle.ts --concurrency 10                        # 10 parallel workers (default: 5)
  *
  * For backfill:
  *   Use --all flag to process ALL emails in a bounded date range.
  *   Without --all, only 2000 most recent emails in range are processed.
+ *
+ * Concurrency:
+ *   Default is 5 parallel workers (5x faster than sequential).
+ *   Increase to 10 for faster processing if API rate limits allow.
  */
 
 import * as dotenv from 'dotenv';
@@ -51,12 +56,14 @@ function parseArgs(): {
   maxResults: number;
   all: boolean;
   query?: string;
+  concurrency: number;
 } {
   const args = process.argv.slice(2);
   const result: ReturnType<typeof parseArgs> = {
     migrate: false,
     maxResults: 2000,
     all: false,
+    concurrency: 5, // Default: 5 concurrent workers (5x faster)
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -82,6 +89,8 @@ function parseArgs(): {
       result.maxResults = parseInt(args[++i]);
     } else if (arg === '--query' && args[i + 1]) {
       result.query = args[++i];
+    } else if (arg === '--concurrency' && args[i + 1]) {
+      result.concurrency = parseInt(args[++i]);
     }
   }
 
@@ -160,6 +169,7 @@ async function main() {
   console.log(`  After: ${args.after?.toISOString() || 'not set'}`);
   console.log(`  Before: ${args.before?.toISOString() || 'not set'}`);
   console.log(`  Max Results: ${args.all ? 'ALL (no limit)' : args.maxResults}`);
+  console.log(`  Concurrency: ${args.concurrency} workers (${args.concurrency}x parallel processing)`);
   console.log(`  Additional Query: ${args.query || 'none'}`);
 
   // Initialize services
@@ -206,6 +216,7 @@ async function main() {
     before: args.before,
     maxResults: args.maxResults,
     query: args.query,
+    concurrency: args.concurrency,
   });
 
   // Print results

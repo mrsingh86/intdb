@@ -13,6 +13,9 @@ import {
   ShippingAnalysis,
   ChronicleProcessResult,
   ChronicleBatchResult,
+  ThreadContext,
+  ChronicleSyncState,
+  SyncResult,
 } from './types';
 
 // ============================================================================
@@ -34,12 +37,26 @@ export interface IGmailService {
   }): Promise<ProcessedEmail[]>;
 
   /**
+   * Fetch emails using hybrid approach (historyId + timestamp fallback)
+   */
+  fetchEmailsHybrid(options: {
+    syncState: ChronicleSyncState | null;
+    maxResults?: number;
+    lookbackHours?: number;
+  }): Promise<SyncResult>;
+
+  /**
    * Fetch attachment content
    */
   fetchAttachmentContent(
     messageId: string,
     attachmentId: string
   ): Promise<Buffer | null>;
+
+  /**
+   * Get current historyId from Gmail profile
+   */
+  getCurrentHistoryId(): Promise<string | null>;
 }
 
 // ============================================================================
@@ -71,10 +88,12 @@ export interface IPdfExtractor {
 export interface IAiAnalyzer {
   /**
    * Analyze email and attachments using AI
+   * @param threadContext - Optional context from previous emails in thread
    */
   analyze(
     email: ProcessedEmail,
-    attachmentText: string
+    attachmentText: string,
+    threadContext?: ThreadContext
   ): Promise<ShippingAnalysis>;
 }
 
@@ -113,6 +132,29 @@ export interface IChronicleRepository {
     documentType: string,
     resolvedAt: string
   ): Promise<number>;
+
+  /**
+   * Get thread context for AI analysis
+   * Returns previous emails in the same thread with their extracted data
+   */
+  getThreadContext(
+    threadId: string,
+    beforeDate: Date
+  ): Promise<ThreadContext | null>;
+
+  /**
+   * Get sync state for hybrid fetching
+   */
+  getSyncState(): Promise<ChronicleSyncState | null>;
+
+  /**
+   * Update sync state after fetching
+   */
+  updateSyncState(
+    historyId: string | null,
+    isFullSync: boolean,
+    emailsStored: number
+  ): Promise<void>;
 }
 
 /**

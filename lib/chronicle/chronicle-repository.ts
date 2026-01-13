@@ -11,6 +11,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import { IChronicleRepository, ChronicleInsertData } from './interfaces';
+import { ThreadContext, ThreadEmailSummary, ChronicleSyncState } from './types';
 
 // ============================================================================
 // CHRONICLE REPOSITORY IMPLEMENTATION
@@ -133,6 +134,153 @@ export class ChronicleRepository implements IChronicleRepository {
 
     // Return count of resolved actions
     return data?.length ?? 0;
+  }
+
+  /**
+   * Get thread context for AI analysis
+   * Fetches previous emails in the same thread to provide context
+   */
+  async getThreadContext(
+    threadId: string,
+    beforeDate: Date
+  ): Promise<ThreadContext | null> {
+    const { data: threadEmails, error } = await this.supabase
+      .from('chronicle')
+      .select(`
+        occurred_at, subject, document_type, summary, direction, from_party,
+        has_issue, has_action, vessel_name, etd, eta, booking_number,
+        mbl_number, container_numbers, shipment_id
+      `)
+      .eq('thread_id', threadId)
+      .lt('occurred_at', beforeDate.toISOString())
+      .order('occurred_at', { ascending: true })
+      .limit(10); // Limit to last 10 emails in thread for context
+
+    if (error || !threadEmails || threadEmails.length === 0) {
+      return null;
+    }
+
+    // Build previous email summaries
+    const previousEmails: ThreadEmailSummary[] = threadEmails.map(email => ({
+      occurredAt: email.occurred_at,
+      subject: email.subject,
+      documentType: email.document_type,
+      summary: email.summary || '',
+      direction: email.direction as 'inbound' | 'outbound',
+      fromParty: email.from_party,
+      hasIssue: email.has_issue || false,
+      hasAction: email.has_action || false,
+      keyValues: {
+        vesselName: email.vessel_name || undefined,
+        etd: email.etd || undefined,
+        eta: email.eta || undefined,
+        bookingNumber: email.booking_number || undefined,
+        mblNumber: email.mbl_number || undefined,
+        containerNumbers: email.container_numbers || undefined,
+      },
+    }));
+
+    // Aggregate known values from the thread (most recent non-null value wins)
+    const knownValues = this.aggregateKnownValues(threadEmails);
+
+    return {
+      threadId,
+      emailCount: threadEmails.length,
+      previousEmails,
+      knownValues,
+      firstEmailDate: threadEmails[0]?.occurred_at,
+      lastEmailDate: threadEmails[threadEmails.length - 1]?.occurred_at,
+      linkedShipmentId: threadEmails.find(e => e.shipment_id)?.shipment_id,
+    };
+  }
+
+  /**
+   * Aggregate known values from thread emails
+   * Takes the most recent non-null value for each field
+   */
+  private aggregateKnownValues(emails: any[]): ThreadContext['knownValues'] {
+    const knownValues: ThreadContext['knownValues'] = {};
+
+    // Process in chronological order, later values override earlier
+    for (const email of emails) {
+      if (email.booking_number) knownValues.bookingNumber = email.booking_number;
+      if (email.mbl_number) knownValues.mblNumber = email.mbl_number;
+      if (email.vessel_name) knownValues.vesselName = email.vessel_name;
+      if (email.etd) knownValues.etd = email.etd;
+      if (email.eta) knownValues.eta = email.eta;
+      if (email.container_numbers?.length > 0) {
+        knownValues.containerNumbers = email.container_numbers;
+      }
+    }
+
+    return knownValues;
+  }
+
+  /**
+   * Get sync state for hybrid fetching
+   */
+  async getSyncState(): Promise<ChronicleSyncState | null> {
+    const { data, error } = await this.supabase
+      .from('chronicle_sync_state')
+      .select('*')
+      .eq('id', 'default')
+      .single();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return {
+      id: data.id,
+      lastHistoryId: data.last_history_id,
+      lastSyncAt: data.last_sync_at,
+      lastFullSyncAt: data.last_full_sync_at,
+      syncStatus: data.sync_status,
+      consecutiveFailures: data.consecutive_failures || 0,
+      emailsSyncedTotal: data.emails_synced_total || 0,
+    };
+  }
+
+  /**
+   * Update sync state after fetching
+   */
+  async updateSyncState(
+    historyId: string | null,
+    isFullSync: boolean,
+    emailsStored: number
+  ): Promise<void> {
+    const now = new Date().toISOString();
+
+    // Get current state to update totals
+    const current = await this.getSyncState();
+    const newTotal = (current?.emailsSyncedTotal || 0) + emailsStored;
+
+    const update: any = {
+      sync_status: 'active',
+      consecutive_failures: 0,
+      last_sync_at: now,
+      updated_at: now,
+      emails_synced_total: newTotal,
+    };
+
+    if (historyId) {
+      update.last_history_id = historyId;
+    }
+
+    if (isFullSync) {
+      update.last_full_sync_at = now;
+    }
+
+    const { error } = await this.supabase
+      .from('chronicle_sync_state')
+      .upsert({
+        id: 'default',
+        ...update,
+      });
+
+    if (error) {
+      console.error('[ChronicleRepository] Failed to update sync state:', error);
+    }
   }
 }
 

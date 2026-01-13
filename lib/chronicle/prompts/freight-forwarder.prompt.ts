@@ -10,6 +10,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { ThreadContext } from '../types';
 
 // ============================================================================
 // AI MODEL CONFIGURATION
@@ -223,6 +224,19 @@ CRITICAL RULES FOR IDENTIFICATION:
    - On freight forwarder BLs, shipper may be the actual customer, not the forwarder
 
 6. DATES - Use correct fields (CRITICAL FOR MULTI-LEG VOYAGES):
+
+   DATE FORMAT RULES (VERY IMPORTANT):
+   - ALL dates MUST be in YYYY-MM-DD format with FULL 4-DIGIT YEAR
+   - If email says "2nd Dec" or "Dec 2" without year, use the EMAIL DATE's year
+   - If date is "31st Dec" and email was sent in January, use PREVIOUS year
+   - If date is "5th Jan" and email was sent in December, use NEXT year
+   - NEVER output dates like "2023-12-02" for recent emails (system created 2025+)
+   - For relative dates like "tomorrow", "today", "within 48 hours" - calculate from EMAIL DATE
+
+   VALIDATION RULES:
+   - Cutoff dates (SI, VGM, Cargo) MUST be BEFORE ETD (you can't submit after departure!)
+   - ETA must be AFTER ETD (arrival comes after departure)
+   - Transit time: International ocean typically 14-45 days
 
    MULTI-LEG VOYAGE STRUCTURE:
    Many shipments have multiple legs with transshipment:
@@ -491,14 +505,80 @@ export const ANALYZE_TOOL_SCHEMA: Anthropic.Tool = {
 // ============================================================================
 
 /**
+ * Build thread context section for the prompt
+ * Provides AI with history of previous emails in the thread
+ */
+function buildThreadContextSection(threadContext: ThreadContext): string {
+  if (!threadContext.previousEmails || threadContext.previousEmails.length === 0) {
+    return '';
+  }
+
+  const emailsInThread = threadContext.emailCount + 1; // +1 for current email
+  let section = `\n=== THREAD CONTEXT (${emailsInThread} emails in this thread) ===\n`;
+  section += `This is email #${emailsInThread} in an ongoing thread. Previous emails:\n\n`;
+
+  // Build summary of previous emails
+  for (let i = 0; i < threadContext.previousEmails.length; i++) {
+    const email = threadContext.previousEmails[i];
+    const date = new Date(email.occurredAt).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+    const direction = email.direction === 'inbound' ? '←' : '→';
+
+    section += `[${i + 1}] ${date} ${direction} ${email.documentType}: ${email.summary}\n`;
+
+    // Show key values if they exist
+    const keyVals: string[] = [];
+    if (email.keyValues.vesselName) keyVals.push(`vessel: ${email.keyValues.vesselName}`);
+    if (email.keyValues.etd) keyVals.push(`ETD: ${email.keyValues.etd}`);
+    if (email.keyValues.eta) keyVals.push(`ETA: ${email.keyValues.eta}`);
+    if (keyVals.length > 0) {
+      section += `    Values: ${keyVals.join(', ')}\n`;
+    }
+  }
+
+  // Show aggregated known values from thread
+  if (Object.keys(threadContext.knownValues).length > 0) {
+    section += `\nKnown values from thread (use to detect CHANGES):\n`;
+    const kv = threadContext.knownValues;
+    if (kv.bookingNumber) section += `- Booking: ${kv.bookingNumber}\n`;
+    if (kv.mblNumber) section += `- MBL: ${kv.mblNumber}\n`;
+    if (kv.vesselName) section += `- Vessel: ${kv.vesselName}\n`;
+    if (kv.etd) section += `- ETD: ${kv.etd}\n`;
+    if (kv.eta) section += `- ETA: ${kv.eta}\n`;
+    if (kv.containerNumbers?.length) section += `- Containers: ${kv.containerNumbers.join(', ')}\n`;
+  }
+
+  section += `\nIMPORTANT: If this email shows DIFFERENT values from above, this is an UPDATE/CHANGE.\n`;
+  section += `Extract the NEW values from this email, not the old thread values.\n`;
+
+  return section;
+}
+
+/**
  * Build the full prompt for AI analysis
+ * @param emailDate - The date the email was received (for date context)
+ * @param threadContext - Optional context from previous emails in thread
  */
 export function buildAnalysisPrompt(
   subject: string,
   bodyPreview: string,
-  attachmentText: string
+  attachmentText: string,
+  emailDate?: Date | string,
+  threadContext?: ThreadContext
 ): string {
+  // Format email date for context
+  const dateContext = emailDate
+    ? `\n=== EMAIL DATE (use for date context) ===\nThis email was received on: ${new Date(emailDate).toISOString().split('T')[0]}\nUse this date when interpreting relative dates like "tomorrow", "today", or dates without year.\n`
+    : '';
+
+  // Build thread context section if available
+  const threadSection = threadContext ? buildThreadContextSection(threadContext) : '';
+
   return `${FREIGHT_FORWARDER_PROMPT}
+${dateContext}${threadSection}
+=== CURRENT EMAIL (analyze this one) ===
 
 === SUBJECT LINE ===
 ${subject}
@@ -508,4 +588,64 @@ ${bodyPreview}
 
 === ATTACHMENTS ===
 ${attachmentText || '(No attachments)'}`;
+}
+
+/**
+ * Validate extracted dates for logical consistency
+ * Returns corrected dates or null for invalid ones
+ */
+export function validateExtractedDates(extracted: {
+  etd?: string | null;
+  eta?: string | null;
+  si_cutoff?: string | null;
+  vgm_cutoff?: string | null;
+  cargo_cutoff?: string | null;
+  action_deadline?: string | null;
+}, emailDate?: Date | string): typeof extracted {
+  const result = { ...extracted };
+  const today = new Date();
+  const emailDateObj = emailDate ? new Date(emailDate) : today;
+
+  // Helper to check if date is reasonable (not before 2024, not more than 2 years in future)
+  const isReasonableDate = (dateStr: string | null | undefined): boolean => {
+    if (!dateStr) return true;
+    const date = new Date(dateStr);
+    const minDate = new Date('2024-01-01');
+    const maxDate = new Date();
+    maxDate.setFullYear(maxDate.getFullYear() + 2);
+    return date >= minDate && date <= maxDate;
+  };
+
+  // Validate and nullify bad dates
+  if (!isReasonableDate(result.etd)) result.etd = null;
+  if (!isReasonableDate(result.eta)) result.eta = null;
+  if (!isReasonableDate(result.si_cutoff)) result.si_cutoff = null;
+  if (!isReasonableDate(result.vgm_cutoff)) result.vgm_cutoff = null;
+  if (!isReasonableDate(result.cargo_cutoff)) result.cargo_cutoff = null;
+  if (!isReasonableDate(result.action_deadline)) result.action_deadline = null;
+
+  // Validate cutoffs are before ETD
+  if (result.etd) {
+    const etdDate = new Date(result.etd);
+    if (result.si_cutoff && new Date(result.si_cutoff) > etdDate) {
+      result.si_cutoff = null; // Invalid: cutoff after departure
+    }
+    if (result.vgm_cutoff && new Date(result.vgm_cutoff) > etdDate) {
+      result.vgm_cutoff = null; // Invalid: cutoff after departure
+    }
+    if (result.cargo_cutoff && new Date(result.cargo_cutoff) > etdDate) {
+      result.cargo_cutoff = null; // Invalid: cutoff after departure
+    }
+  }
+
+  // Validate ETA is after ETD
+  if (result.etd && result.eta) {
+    const etdDate = new Date(result.etd);
+    const etaDate = new Date(result.eta);
+    if (etaDate < etdDate) {
+      result.eta = null; // Invalid: arrival before departure
+    }
+  }
+
+  return result;
 }

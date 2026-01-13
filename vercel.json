@@ -2,20 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
-      "path": "/api/cron/fetch-emails",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/extract-attachments",
-      "schedule": "*/5 * * * *"
-    },
-    {
       "path": "/api/cron/process-emails",
       "schedule": "*/5 * * * *"
     },
     {
-      "path": "/api/cron/generate-insights",
-      "schedule": "0 */4 * * *"
+      "path": "/api/cron/generate-ai-summaries",
+      "schedule": "0 */6 * * *"
     }
   ]
 }

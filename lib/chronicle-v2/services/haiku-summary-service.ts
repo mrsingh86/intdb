@@ -349,9 +349,11 @@ export class HaikuSummaryService {
   /**
    * Layer 3: Recent communications (last 7 days)
    *
-   * Filtering strategy:
+   * IMPROVED Filtering strategy:
    * 1. Exclude low-value message types (acknowledgement, general)
-   * 2. Deduplicate by thread (keep latest per thread)
+   * 2. Smart thread grouping: Show thread PROGRESSION, not just latest
+   *    - Keep high-value emails from same thread (issues, actions, confirmations)
+   *    - Deduplicate only notification/update types within same thread
    * 3. Prioritize: issues > actions > urgent > confirmations > updates
    */
   private async getRecentChronicles(shipmentId: string): Promise<RecentChronicle[]> {
@@ -375,18 +377,44 @@ export class HaikuSummaryService {
 
     if (!data || data.length === 0) return [];
 
-    // Deduplicate by thread_id - keep only latest entry per thread
-    const seenThreads = new Set<string>();
-    const dedupedByThread = data.filter(entry => {
+    // IMPROVED: Smart thread deduplication
+    // Keep high-value emails (issues, actions, confirmations) even from same thread
+    // Only deduplicate low-value updates/notifications within same thread
+    const HIGH_VALUE_TYPES = new Set([
+      'booking_confirmation', 'booking_amendment', 'shipping_instructions',
+      'si_confirmation', 'draft_bl', 'final_bl', 'telex_release',
+      'arrival_notice', 'container_release', 'delivery_order',
+      'vgm_confirmation', 'sob_confirmation', 'exception_notice',
+    ]);
+
+    const threadLatestLowValue = new Map<string, any>(); // Track latest low-value per thread
+    const results: any[] = [];
+
+    for (const entry of data) {
       const threadId = (entry as any).thread_id;
-      if (!threadId) return true; // Keep entries without thread_id
-      if (seenThreads.has(threadId)) return false;
-      seenThreads.add(threadId);
-      return true;
-    });
+      const isHighValue = HIGH_VALUE_TYPES.has(entry.document_type) ||
+                          entry.has_issue ||
+                          (entry.has_action && !entry.action_completed_at) ||
+                          entry.sentiment === 'urgent';
+
+      if (!threadId) {
+        // No thread - always keep
+        results.push(entry);
+      } else if (isHighValue) {
+        // High-value email - always keep (shows thread progression)
+        results.push(entry);
+      } else {
+        // Low-value email - keep only latest per thread
+        if (!threadLatestLowValue.has(threadId)) {
+          threadLatestLowValue.set(threadId, entry);
+          results.push(entry);
+        }
+        // Skip subsequent low-value emails from same thread
+      }
+    }
 
     // Prioritize by importance
-    const prioritized = dedupedByThread.sort((a, b) => {
+    const prioritized = results.sort((a, b) => {
       const getPriority = (entry: any): number => {
         // Issues are highest priority
         if (entry.has_issue) return 0;
@@ -417,8 +445,8 @@ export class HaikuSummaryService {
       return new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime();
     });
 
-    // Return top 20 most important entries
-    return prioritized.slice(0, 20) as RecentChronicle[];
+    // Return top 25 most important entries (increased from 20 to show more progression)
+    return prioritized.slice(0, 25) as RecentChronicle[];
   }
 
   /**

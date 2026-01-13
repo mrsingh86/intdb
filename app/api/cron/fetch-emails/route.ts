@@ -1,10 +1,15 @@
 /**
- * Cron Job: Fetch Emails from Gmail
+ * @deprecated This cron job is DISABLED - use /api/cron/process-emails instead
+ *
+ * REASON: This endpoint uses raw_emails/gmail_sync_state tables which don't exist.
+ * The Chronicle system (process-emails) handles email fetching and processing directly.
+ *
+ * OLD: Cron Job: Fetch Emails from Gmail
  *
  * Uses Gmail historyId for efficient incremental sync.
  * Falls back to time-based sync on first run or historyId expiration.
  *
- * Schedule: Every 5 minutes (via Vercel cron)
+ * Schedule: DISABLED (removed from vercel.json)
  *
  * Sync Modes:
  * - Default: historyId incremental sync (efficient, only new emails)

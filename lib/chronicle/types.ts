@@ -448,6 +448,84 @@ export interface ChronicleBatchResult {
 }
 
 // ============================================================================
+// THREAD CONTEXT TYPES
+// ============================================================================
+
+/**
+ * Summary of a previous email in the thread
+ * Used to provide context to AI when analyzing current email
+ */
+export interface ThreadEmailSummary {
+  occurredAt: string;
+  subject: string;
+  documentType: string;
+  summary: string;
+  direction: 'inbound' | 'outbound';
+  fromParty: string;
+  hasIssue: boolean;
+  hasAction: boolean;
+  // Key extracted values that might have changed
+  keyValues: {
+    vesselName?: string;
+    etd?: string;
+    eta?: string;
+    bookingNumber?: string;
+    mblNumber?: string;
+    containerNumbers?: string[];
+  };
+}
+
+/**
+ * Thread context to pass to AI for better analysis
+ * Enables understanding of email progression and changes
+ */
+export interface ThreadContext {
+  threadId: string;
+  emailCount: number;
+  previousEmails: ThreadEmailSummary[];
+  // Aggregated known values from the thread
+  knownValues: {
+    bookingNumber?: string;
+    mblNumber?: string;
+    hblNumber?: string;
+    vesselName?: string;
+    voyageNumber?: string;
+    carrierName?: string;
+    etd?: string;
+    eta?: string;
+    containerNumbers?: string[];
+    shipperName?: string;
+    consigneeName?: string;
+  };
+  // Thread metadata
+  firstEmailDate?: string;
+  lastEmailDate?: string;
+  linkedShipmentId?: string;
+}
+
+// ============================================================================
+// SYNC STATE TYPES (for hybrid historyId + timestamp fetching)
+// ============================================================================
+
+export interface ChronicleSyncState {
+  id: string;
+  lastHistoryId: string | null;
+  lastSyncAt: string | null;
+  lastFullSyncAt: string | null;
+  syncStatus: 'active' | 'error' | 'initial';
+  consecutiveFailures: number;
+  emailsSyncedTotal: number;
+}
+
+export type SyncMode = 'history' | 'timestamp' | 'initial' | 'weekly_full';
+
+export interface SyncResult {
+  messageIds: string[];
+  historyId: string | null;
+  syncMode: SyncMode;
+}
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 

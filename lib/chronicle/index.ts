@@ -44,6 +44,16 @@ export {
   createChronicleRepository,
 } from './chronicle-repository';
 
+export {
+  ReanalysisService,
+  createReanalysisService,
+} from './reanalysis-service';
+
+export type {
+  ReanalysisResult,
+  ReanalysisBatchResult,
+} from './reanalysis-service';
+
 // ============================================================================
 // INTERFACES
 // ============================================================================
@@ -69,6 +79,11 @@ export type {
   ChronicleRecord,
   ChronicleProcessResult,
   ChronicleBatchResult,
+  ThreadContext,
+  ThreadEmailSummary,
+  ChronicleSyncState,
+  SyncMode,
+  SyncResult,
 } from './types';
 
 // Schema and Helpers (values, not types)

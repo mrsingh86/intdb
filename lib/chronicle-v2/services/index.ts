@@ -10,3 +10,12 @@ export { ShipmentStoryService } from './shipment-story-service';
 export { HaikuSummaryService } from './haiku-summary-service';
 export { ShipperProfileService } from './shipper-profile-service';
 export type { ShipperProfile, ShipperInsight } from './shipper-profile-service';
+
+export { ConsigneeProfileService } from './consignee-profile-service';
+export type { ConsigneeProfile, ConsigneeInsight } from './consignee-profile-service';
+
+export { CarrierProfileService } from './carrier-profile-service';
+export type { CarrierProfile, CarrierInsight } from './carrier-profile-service';
+
+export { RouteProfileService } from './route-profile-service';
+export type { RouteProfile, RouteInsight } from './route-profile-service';

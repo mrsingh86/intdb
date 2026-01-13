@@ -1,8 +1,13 @@
 /**
- * Cron Job: Extract Attachment Text
+ * @deprecated This cron job is DISABLED - use /api/cron/process-emails instead
+ *
+ * REASON: This endpoint uses raw_emails/raw_attachments tables which don't exist.
+ * The Chronicle system (process-emails) handles PDF extraction inline during processing.
+ *
+ * OLD: Cron Job: Extract Attachment Text
  *
  * Fetches PDF content from Gmail and extracts text for classification.
- * Schedule: Every 5 minutes (via Vercel cron)
+ * Schedule: DISABLED (removed from vercel.json)
  *
  * Pipeline:
  * 1. Get attachments with extraction_status = 'pending'

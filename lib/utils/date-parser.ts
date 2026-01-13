@@ -3,6 +3,12 @@
  *
  * Converts natural language dates from Layer 2 entities to ISO format for database storage.
  * Handles various formats: "JAN. 3, 2026", "JANUARY 03, 2026", "2026-01-03", etc.
+ *
+ * TODO [DATE-EXTRACTION-FIX]:
+ * - Add support for DD/MM/YY format (e.g., "23/11/25" should be Nov 23, 2025)
+ * - Current issue: Email subjects like "STUFFING ON - 23/11/25" were parsed as 2023-11-25
+ * - The 2-digit year (25) needs proper handling (should be 2025, not 2023)
+ * - See scripts/fix-etd-dates.ts for the data cleanup that was needed
  */
 
 /**
@@ -35,7 +41,7 @@ export function parseEntityDate(dateString: string | undefined | null): string |
   // Remove time portion if present (e.g., "30/12/2025 02:00 AM" -> "30/12/2025")
   cleaned = cleaned.replace(/\s+\d{1,2}:\d{2}(\s*(AM|PM))?.*$/i, '');
 
-  // Handle DD-MM-YYYY or DD/MM/YYYY format
+  // Handle DD-MM-YYYY or DD/MM/YYYY format (4-digit year)
   const ddMmYyyy = cleaned.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
   if (ddMmYyyy) {
     const [_, day, month, year] = ddMmYyyy;
@@ -44,6 +50,45 @@ export function parseEntityDate(dateString: string | undefined | null): string |
     const monthNum = parseInt(month);
     if (dayNum >= 1 && dayNum <= 31 && monthNum >= 1 && monthNum <= 12) {
       return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+  }
+
+  // Handle DD-MM-YY or DD/MM/YY format (2-digit year)
+  // e.g., "23/11/25" should be Nov 23, 2025 (NOT 2023!)
+  const ddMmYy = cleaned.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2})$/);
+  if (ddMmYy) {
+    const [_, first, second, yearShort] = ddMmYy;
+    const firstNum = parseInt(first);
+    const secondNum = parseInt(second);
+    const yearNum = parseInt(yearShort);
+
+    // Convert 2-digit year: 00-50 = 2000-2050, 51-99 = 1951-1999
+    // But for shipping context, we almost always want 2020s dates
+    const fullYear = yearNum <= 50 ? 2000 + yearNum : 1900 + yearNum;
+
+    // Determine DD/MM vs MM/DD
+    // If first > 12, must be DD/MM
+    // If second > 12, must be MM/DD
+    // Otherwise default to DD/MM (international format)
+    let day: number, month: number;
+    if (firstNum > 12 && secondNum <= 12) {
+      day = firstNum;
+      month = secondNum;
+    } else if (secondNum > 12 && firstNum <= 12) {
+      day = secondNum;
+      month = firstNum;
+    } else if (firstNum <= 31 && secondNum <= 12) {
+      // Ambiguous - default to DD/MM (international)
+      day = firstNum;
+      month = secondNum;
+    } else {
+      // Invalid
+      day = 0;
+      month = 0;
+    }
+
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+      return `${fullYear}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     }
   }
 

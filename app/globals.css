@@ -271,3 +271,108 @@
 .data-value {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
 }
+
+/* =============================================================================
+   CHRONICLE INK THEME
+   Calm by default, clear when needed. Modern, warm dark theme.
+   Optimized for all-day comfort with softer contrasts.
+   ============================================================================= */
+
+.chronicle-ink {
+  /* Backgrounds - Slate-based (softer, warmer than pure black) */
+  --ink-bg: #0F172A;
+  --ink-surface: #1E293B;
+  --ink-elevated: #334155;
+  --ink-hover: #475569;
+
+  /* Borders - Visible but not harsh */
+  --ink-border-subtle: #334155;
+  --ink-border: #475569;
+  --ink-border-accent: #64748B;
+
+  /* Text - Softer than pure white, easy on eyes */
+  --ink-text: #E2E8F0;
+  --ink-text-secondary: #94A3B8;
+  --ink-text-muted: #64748B;
+
+  /* Status - Softer, less saturated for comfort */
+  --ink-success: #4ADE80;
+  --ink-success-bg: rgba(74, 222, 128, 0.1);
+  --ink-success-border: rgba(74, 222, 128, 0.25);
+
+  --ink-warning: #FBBF24;
+  --ink-warning-bg: rgba(251, 191, 36, 0.1);
+  --ink-warning-border: rgba(251, 191, 36, 0.25);
+
+  --ink-error: #F87171;
+  --ink-error-bg: rgba(248, 113, 113, 0.1);
+  --ink-error-border: rgba(248, 113, 113, 0.25);
+
+  --ink-info: #60A5FA;
+  --ink-info-bg: rgba(96, 165, 250, 0.1);
+  --ink-info-border: rgba(96, 165, 250, 0.25);
+
+  /* Accent - Softer calming blue */
+  --ink-accent: #60A5FA;
+  --ink-accent-hover: #93C5FD;
+  --ink-accent-muted: #3B82F6;
+
+  /* Typography */
+  --ink-font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --ink-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* Chronicle Ink - Background utilities */
+.ink-bg { background-color: var(--ink-bg); }
+.ink-surface { background-color: var(--ink-surface); }
+.ink-elevated { background-color: var(--ink-elevated); }
+.ink-hover:hover { background-color: var(--ink-hover); }
+
+/* Chronicle Ink - Text utilities */
+.ink-text { color: var(--ink-text); }
+.ink-text-secondary { color: var(--ink-text-secondary); }
+.ink-text-muted { color: var(--ink-text-muted); }
+
+/* Chronicle Ink - Border utilities */
+.ink-border { border-color: var(--ink-border); }
+.ink-border-subtle { border-color: var(--ink-border-subtle); }
+
+/* Chronicle Ink - Status utilities */
+.ink-success { color: var(--ink-success); }
+.ink-success-bg { background-color: var(--ink-success-bg); border-color: var(--ink-success-border); }
+.ink-warning { color: var(--ink-warning); }
+.ink-warning-bg { background-color: var(--ink-warning-bg); border-color: var(--ink-warning-border); }
+.ink-error { color: var(--ink-error); }
+.ink-error-bg { background-color: var(--ink-error-bg); border-color: var(--ink-error-border); }
+.ink-info { color: var(--ink-info); }
+.ink-info-bg { background-color: var(--ink-info-bg); border-color: var(--ink-info-border); }
+
+/* Chronicle Ink - Accent utilities */
+.ink-accent { color: var(--ink-accent); }
+.ink-accent-bg { background-color: var(--ink-accent); }
+.ink-accent-hover:hover { color: var(--ink-accent-hover); }
+
+/* Chronicle Ink - Scrollbar */
+.chronicle-ink ::-webkit-scrollbar-track {
+  background-color: var(--ink-bg);
+}
+
+.chronicle-ink ::-webkit-scrollbar-thumb {
+  background-color: var(--ink-border);
+  border-radius: 4px;
+}
+
+.chronicle-ink ::-webkit-scrollbar-thumb:hover {
+  background-color: var(--ink-border-accent);
+}
+
+/* Chronicle Ink - Focus ring */
+.chronicle-ink :focus-visible {
+  outline: 2px solid var(--ink-accent);
+  outline-offset: 2px;
+}
+
+/* Chronicle Ink - Selection */
+.chronicle-ink ::selection {
+  background-color: rgba(59, 130, 246, 0.3);
+}

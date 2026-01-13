@@ -10,6 +10,9 @@ import { OAuth2Client } from 'google-auth-library';
 import {
   ProcessedEmail,
   ProcessedAttachment,
+  ChronicleSyncState,
+  SyncResult,
+  SyncMode,
   detectDirection,
 } from './types';
 
@@ -124,6 +127,138 @@ export class ChronicleGmailService {
     // Gmail returns newest first, so we reverse to get oldest first
     console.log(`[ChronicleGmail] Reversing order to process oldest emails first`);
     return emails.reverse();
+  }
+
+  /**
+   * Hybrid fetch: Use historyId for efficiency, fall back to timestamp
+   *
+   * Strategy:
+   * - Primary: historyId incremental sync (only new emails)
+   * - Fallback: timestamp-based on historyId expiration (404) or first run
+   * - Safety: Weekly full sync as safety net
+   */
+  async fetchEmailsHybrid(options: {
+    syncState: ChronicleSyncState | null;
+    maxResults?: number;
+    lookbackHours?: number;
+  }): Promise<SyncResult> {
+    const { syncState, maxResults = 200, lookbackHours = 6 } = options;
+    const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+    // Determine sync mode
+    let syncMode: SyncMode = 'timestamp';
+
+    // Case 1: No sync state yet - initial sync
+    if (!syncState || !syncState.lastHistoryId) {
+      console.log('[ChronicleGmail] No historyId found, doing initial timestamp sync');
+      syncMode = 'initial';
+      return this.doTimestampSync(lookbackHours * 60, maxResults, syncMode);
+    }
+
+    // Case 2: Weekly full sync needed
+    const lastFullSync = syncState.lastFullSyncAt
+      ? new Date(syncState.lastFullSyncAt).getTime()
+      : 0;
+    if (Date.now() - lastFullSync > ONE_WEEK_MS) {
+      console.log('[ChronicleGmail] Weekly full sync triggered');
+      syncMode = 'weekly_full';
+      return this.doTimestampSync(lookbackHours * 60, maxResults, syncMode);
+    }
+
+    // Case 3: Normal incremental sync using historyId
+    try {
+      console.log(`[ChronicleGmail] Attempting historyId sync from ${syncState.lastHistoryId}`);
+      return await this.doHistorySync(syncState.lastHistoryId, maxResults);
+    } catch (error: any) {
+      // Handle historyId expiration (404 or specific error)
+      if (error.code === 404 ||
+          error.message?.includes('historyId') ||
+          error.message?.includes('Start history id')) {
+        console.log('[ChronicleGmail] historyId expired, falling back to timestamp sync');
+        return this.doTimestampSync(lookbackHours * 60, maxResults, 'timestamp');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Incremental sync using Gmail historyId
+   * Only returns emails added since the last historyId
+   */
+  private async doHistorySync(
+    startHistoryId: string,
+    maxResults: number
+  ): Promise<SyncResult> {
+    console.log(`[ChronicleGmail] History sync from historyId: ${startHistoryId}`);
+
+    const historyResponse = await this.gmail.users.history.list({
+      userId: 'me',
+      startHistoryId: startHistoryId,
+      historyTypes: ['messageAdded'],
+      maxResults: maxResults,
+    });
+
+    const history = historyResponse.data.history || [];
+    const newHistoryId = historyResponse.data.historyId || null;
+
+    // Extract unique message IDs from messagesAdded events
+    const messageIds = new Set<string>();
+    for (const item of history) {
+      if (item.messagesAdded) {
+        for (const added of item.messagesAdded) {
+          if (added.message?.id) {
+            messageIds.add(added.message.id);
+          }
+        }
+      }
+    }
+
+    console.log(`[ChronicleGmail] History sync found ${messageIds.size} new messages`);
+
+    return {
+      messageIds: Array.from(messageIds),
+      historyId: newHistoryId,
+      syncMode: 'history',
+    };
+  }
+
+  /**
+   * Timestamp-based sync as fallback
+   */
+  private async doTimestampSync(
+    lookbackMinutes: number,
+    maxResults: number,
+    syncMode: SyncMode
+  ): Promise<SyncResult> {
+    const afterDate = new Date(Date.now() - lookbackMinutes * 60 * 1000);
+    const messageIds = await this.listMessageIds(
+      `after:${Math.floor(afterDate.getTime() / 1000)}`,
+      maxResults
+    );
+
+    // Get current historyId for future incremental syncs
+    const historyId = await this.getCurrentHistoryId();
+
+    console.log(`[ChronicleGmail] Timestamp sync found ${messageIds.length} messages`);
+
+    return {
+      messageIds,
+      historyId,
+      syncMode,
+    };
+  }
+
+  /**
+   * Get current historyId from Gmail profile
+   */
+  async getCurrentHistoryId(): Promise<string | null> {
+    try {
+      const profile = await this.gmail.users.getProfile({ userId: 'me' });
+      return profile.data.historyId || null;
+    } catch (error) {
+      console.error('[ChronicleGmail] Failed to get historyId:', error);
+      return null;
+    }
   }
 
   /**

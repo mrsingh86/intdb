@@ -18,6 +18,7 @@ import {
   ShippingAnalysis,
   ChronicleProcessResult,
   ChronicleBatchResult,
+  ThreadContext,
   detectPartyType,
   extractTrueSender,
 } from './types';
@@ -138,12 +139,15 @@ export class ChronicleService implements IChronicleService {
     // Step 2: Extract attachments (with logging)
     const { attachmentText, attachmentsWithText } = await this.extractAttachments(email);
 
-    // Step 3: Analyze with AI (with logging)
+    // Step 3: Fetch thread context (for AI enrichment)
+    const threadContext = await this.fetchThreadContext(email);
+
+    // Step 4: Analyze with AI (with thread context)
     const aiStart = this.logger?.logStageStart('ai_analysis') || 0;
     let analysis: ShippingAnalysis;
     try {
-      analysis = await this.aiAnalyzer.analyze(email, attachmentText);
-      this.logger?.logStageSuccess('ai_analysis', aiStart);
+      analysis = await this.aiAnalyzer.analyze(email, attachmentText, threadContext || undefined);
+      this.logger?.logStageSuccess('ai_analysis', aiStart, threadContext ? { thread_emails: threadContext.emailCount } : undefined);
     } catch (error) {
       this.logger?.logStageFailure('ai_analysis', aiStart, error as Error, {
         gmailMessageId: email.gmailMessageId,
@@ -153,7 +157,7 @@ export class ChronicleService implements IChronicleService {
       throw error;
     }
 
-    // Step 4: Save to database (with logging)
+    // Step 5: Save to database (with logging)
     const dbStart = this.logger?.logStageStart('db_save') || 0;
     let chronicleId: string;
     try {
@@ -167,7 +171,7 @@ export class ChronicleService implements IChronicleService {
       throw error;
     }
 
-    // Step 5: Link to shipment and track stage (with logging)
+    // Step 6: Link to shipment and track stage (with logging)
     const { shipmentId, linkedBy } = await this.linkAndTrackShipment(
       chronicleId,
       analysis,
@@ -194,6 +198,29 @@ export class ChronicleService implements IChronicleService {
       chronicleId: existing.id,
       error: 'Already processed',
     };
+  }
+
+  /**
+   * Fetch thread context for AI enrichment
+   * Returns null if this is the first email in the thread
+   */
+  private async fetchThreadContext(email: ProcessedEmail): Promise<ThreadContext | null> {
+    try {
+      const context = await this.repository.getThreadContext(
+        email.threadId,
+        email.receivedAt
+      );
+
+      if (context && context.emailCount > 0) {
+        console.log(`[Chronicle] Thread context found: ${context.emailCount} previous emails`);
+      }
+
+      return context;
+    } catch (error) {
+      // Log but don't fail - thread context is optional enhancement
+      console.error('[Chronicle] Failed to fetch thread context:', error);
+      return null;
+    }
   }
 
   private async extractAttachments(email: ProcessedEmail): Promise<{
