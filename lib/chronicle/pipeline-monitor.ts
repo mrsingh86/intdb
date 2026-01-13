@@ -83,17 +83,21 @@ export interface PipelineXRay {
     avgChroniclesPerShipment: number;
   };
 
-  // Stage 6: AI Summaries
+  // Stage 6: AI Summaries (shipment-level intelligent narratives)
   aiSummaries: {
     total: number;
-    generatedToday: number;
+    totalShipments: number;
+    coveragePct: number;
     generatedLast24h: number;
-    avgSummaryLength: number;
-    shipmentsWithSummary: number;
-    shipmentsWithoutSummary: number;
-    staleCount: number;  // Summaries older than latest chronicle
+    riskBreakdown: {
+      red: number;
+      amber: number;
+      green: number;
+    };
     lastGenerated: {
       shipmentId: string;
+      storyPreview: string;
+      riskLevel: string;
       generatedAt: string;
       minutesAgo: number;
     } | null;
@@ -572,76 +576,41 @@ export class PipelineMonitor {
   // ==========================================================================
 
   private async getSummaryStats(todayStart: Date) {
-    const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    // Use RPC to bypass RLS
+    const { data: stats, error } = await this.supabase.rpc('get_ai_summary_stats');
 
-    // Check if ai_summaries table exists by trying a query
-    const { count: total, error: summaryError } = await this.supabase
-      .from('ai_summaries')
-      .select('id', { count: 'exact', head: true });
-
-    // If table doesn't exist, return placeholder data
-    if (summaryError?.code === '42P01' || summaryError?.message?.includes('does not exist')) {
-      const { count: totalShipments } = await this.supabase
-        .from('shipments')
-        .select('id', { count: 'exact', head: true });
-
+    if (error || !stats || stats.length === 0) {
+      // Fallback if RPC fails
       return {
         total: 0,
-        generatedToday: 0,
+        totalShipments: 0,
+        coveragePct: 0,
         generatedLast24h: 0,
-        avgSummaryLength: 0,
-        shipmentsWithSummary: 0,
-        shipmentsWithoutSummary: totalShipments || 0,
-        staleCount: 0,
+        riskBreakdown: { red: 0, amber: 0, green: 0 },
         lastGenerated: null,
-        note: 'ai_summaries table not yet created',
       };
     }
 
-    const { count: generatedToday } = await this.supabase
-      .from('ai_summaries')
-      .select('id', { count: 'exact', head: true })
-      .gte('created_at', todayStart.toISOString());
-
-    const { count: generatedLast24h } = await this.supabase
-      .from('ai_summaries')
-      .select('id', { count: 'exact', head: true })
-      .gte('created_at', last24h.toISOString());
-
-    // Get last summary
-    const { data: lastSummary } = await this.supabase
-      .from('ai_summaries')
-      .select('shipment_id, created_at')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
-
-    // Shipments with/without summary
-    const { count: totalShipments } = await this.supabase
-      .from('shipments')
-      .select('id', { count: 'exact', head: true });
-
-    const { data: shipmentsWithSummary } = await this.supabase
-      .from('ai_summaries')
-      .select('shipment_id');
-
-    const uniqueShipmentsWithSummary = new Set(shipmentsWithSummary?.map(s => s.shipment_id)).size;
-
-    const minutesAgo = lastSummary
-      ? Math.round((Date.now() - new Date(lastSummary.created_at).getTime()) / 60000)
+    const row = stats[0];
+    const minutesAgo = row.last_updated_at
+      ? Math.round((Date.now() - new Date(row.last_updated_at).getTime()) / 60000)
       : 0;
 
     return {
-      total: total || 0,
-      generatedToday: generatedToday || 0,
-      generatedLast24h: generatedLast24h || 0,
-      avgSummaryLength: 450,
-      shipmentsWithSummary: uniqueShipmentsWithSummary,
-      shipmentsWithoutSummary: (totalShipments || 0) - uniqueShipmentsWithSummary,
-      staleCount: 0,
-      lastGenerated: lastSummary ? {
-        shipmentId: lastSummary.shipment_id,
-        generatedAt: lastSummary.created_at,
+      total: row.total_summaries || 0,
+      totalShipments: row.total_shipments || 0,
+      coveragePct: row.coverage_pct || 0,
+      generatedLast24h: row.generated_24h || 0,
+      riskBreakdown: {
+        red: row.red_risk || 0,
+        amber: row.amber_risk || 0,
+        green: row.green_risk || 0,
+      },
+      lastGenerated: row.last_shipment_id ? {
+        shipmentId: row.last_shipment_id,
+        storyPreview: row.last_story?.substring(0, 60) || '',
+        riskLevel: row.last_risk_level || 'unknown',
+        generatedAt: row.last_updated_at,
         minutesAgo,
       } : null,
     };
@@ -723,14 +692,15 @@ export class PipelineMonitor {
       issues.push(`High pending actions (${chronicle.actionsPending})`);
     }
 
-    // Check summary coverage
-    const summaryCoverage = shipment.total > 0
-      ? (summary.shipmentsWithSummary / shipment.total) * 100
-      : 100;
+    // Check shipment summary coverage
+    const summaryCoverage = summary.coveragePct || 0;
     if (summaryCoverage < 50) {
       score -= 15;
-      issues.push('Low summary coverage');
+      issues.push(`AI summary coverage at ${summaryCoverage}%`);
       if (!bottleneck) bottleneck = 'ai_summaries';
+    } else if (summaryCoverage < 80) {
+      score -= 5;
+      issues.push(`AI summary coverage at ${summaryCoverage}%`);
     }
 
     const recommendations = issues.length > 0 ? issues : ['All systems operational'];
@@ -816,10 +786,10 @@ export class PipelineMonitor {
       `│  Avg Chronicles/Shipment: ${xray.shipments.avgChroniclesPerShipment}                                       │`,
       '└───────────────────────────────────────────────────────────────────────┘',
       '',
-      '┌─ STAGE 6: AI SUMMARIES ────────────────────────────────────────────────┐',
-      `│  Total: ${String(xray.aiSummaries.total).padEnd(10)} Today: ${String(xray.aiSummaries.generatedToday).padEnd(10)} 24h: ${String(xray.aiSummaries.generatedLast24h).padEnd(10)}  │`,
-      `│  Shipments With Summary: ${xray.aiSummaries.shipmentsWithSummary} / ${xray.shipments.total}                                  │`,
-      `│  Last Generated: ${xray.aiSummaries.lastGenerated?.minutesAgo || '?'}m ago                                            │`,
+      '┌─ STAGE 6: SHIPMENT AI SUMMARIES (Haiku) ───────────────────────────────┐',
+      `│  Coverage: ${xray.aiSummaries.total}/${xray.aiSummaries.totalShipments} (${xray.aiSummaries.coveragePct}%)    24h: ${String(xray.aiSummaries.generatedLast24h).padEnd(20)}   │`,
+      `│  Risk: 🔴 ${xray.aiSummaries.riskBreakdown.red}  🟡 ${xray.aiSummaries.riskBreakdown.amber}  🟢 ${xray.aiSummaries.riskBreakdown.green}                                           │`,
+      `│  Last: ${(xray.aiSummaries.lastGenerated?.storyPreview || 'N/A').substring(0, 55).padEnd(55)}     │`,
       '└───────────────────────────────────────────────────────────────────────┘',
       '',
       '┌─ STAGE 7: REANALYSIS (Thread Context) ─────────────────────────────────┐',
