@@ -2,44 +2,51 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Loader2, ChevronRight, Ship, Anchor } from 'lucide-react';
+import { Loader2, ChevronRight } from 'lucide-react';
 import {
   type ShipmentListItem,
   type ShipmentListResponse,
+  type Phase,
+  type TimeWindow,
 } from '@/lib/chronicle-v2';
+import { FilterBar } from '@/components/chronicle-v2/FilterBar';
+
+type RiskFilter = 'all' | 'critical' | 'warning' | 'on_track';
 
 /**
  * Chronicle V2 - Clean Unified List
  *
- * View modes:
- * - All: Shows all shipments sorted by urgency
- * - Departure: ±7 days from today by ETD, sorted by ETD ascending
- * - Arrival: ±7 days from today by ETA, sorted by ETA ascending
+ * Filters:
+ * - Risk: Critical (red) | Warning (amber) | On Track (green)
+ * - Direction: Export | Import | All
+ * - Phase: Origin | In Transit | Destination | Completed
+ * - Time: Today | 3 Days | Week | All
  */
-
-type ViewMode = 'all' | 'departure' | 'arrival';
-type FilterMode = 'all' | 'urgent' | 'attention';
 
 export default function ChronicleListPage() {
   const router = useRouter();
 
+  // Filter state
   const [search, setSearch] = useState('');
-  const [viewMode, setViewMode] = useState<ViewMode>('all');
-  const [filterMode, setFilterMode] = useState<FilterMode>('all');
+  const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
+  const [phase, setPhase] = useState<Phase>('all');
+  const [timeWindow, setTimeWindow] = useState<TimeWindow>('all');
+
+  // Data state
   const [shipments, setShipments] = useState<ShipmentListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch shipments
+  // Fetch ALL shipments (filtering done client-side for counts)
   const fetchShipments = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
       const params = new URLSearchParams();
-      params.set('timeWindow', 'all');
+      params.set('timeWindow', 'all'); // Always fetch all, filter client-side
       params.set('showWatchlist', 'true');
-      params.set('pageSize', '200');
+      params.set('pageSize', '500');
       if (search) params.set('search', search);
 
       const res = await fetch(`/api/chronicle-v2/shipments?${params.toString()}`);
@@ -59,124 +66,126 @@ export default function ChronicleListPage() {
   useEffect(() => {
     const timer = setTimeout(() => fetchShipments(), search ? 300 : 0);
     return () => clearTimeout(timer);
-  }, [fetchShipments, search]);
+  }, [fetchShipments]);
 
-  // Helper to parse date string to timestamp (midnight UTC)
-  const parseDate = (dateStr: string | null): number | null => {
-    if (!dateStr) return null;
-    // Parse YYYY-MM-DD format, treat as UTC
-    const d = new Date(dateStr + 'T00:00:00Z');
-    return d.getTime();
-  };
+  // Helper: Check if shipment is within time window
+  const isInTimeWindow = useCallback((s: ShipmentListItem, window: TimeWindow): boolean => {
+    if (window === 'all') return true;
 
-  // Process and filter shipments based on view mode
-  const { urgent, attention, onTrack, filtered, stats } = useMemo(() => {
-    // Get today at midnight UTC
+    // Parse date string to day timestamp (midnight UTC)
+    const parseDate = (dateStr: string | null): number | null => {
+      if (!dateStr) return null;
+      const d = new Date(dateStr + 'T00:00:00Z');
+      return d.getTime();
+    };
+
     const now = new Date();
     const todayMs = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-    const threeDaysMs = todayMs + 3 * 24 * 60 * 60 * 1000;
-    const sevenDaysAgoMs = todayMs - 7 * 24 * 60 * 60 * 1000;
-    const sevenDaysAheadMs = todayMs + 7 * 24 * 60 * 60 * 1000;
+    const dayMs = 24 * 60 * 60 * 1000;
 
-    // First, filter by view mode (departure/arrival window)
-    let workingSet = shipments;
+    const etdMs = parseDate(s.etd);
+    const etaMs = parseDate(s.eta);
 
-    if (viewMode === 'departure') {
-      workingSet = shipments.filter((s) => {
-        const etdMs = parseDate(s.etd);
-        if (etdMs === null) return false;
-        return etdMs >= sevenDaysAgoMs && etdMs <= sevenDaysAheadMs;
-      });
-    } else if (viewMode === 'arrival') {
-      workingSet = shipments.filter((s) => {
-        const etaMs = parseDate(s.eta);
-        if (etaMs === null) return false;
-        return etaMs >= sevenDaysAgoMs && etaMs <= sevenDaysAheadMs;
-      });
+    // Define window ranges
+    let startMs: number;
+    let endMs: number;
+
+    if (window === 'today') {
+      // Today only: just today
+      startMs = todayMs;
+      endMs = todayMs + dayMs;
+    } else if (window === '3days') {
+      // Next 3 days: today through day 3
+      startMs = todayMs;
+      endMs = todayMs + 3 * dayMs;
+    } else {
+      // Week: today through day 7
+      startMs = todayMs;
+      endMs = todayMs + 7 * dayMs;
     }
 
-    // Categorize by urgency
-    const urgentList: ShipmentListItem[] = [];
-    const attentionList: ShipmentListItem[] = [];
+    // Check if ETD or ETA falls within the range
+    const etdInRange = etdMs !== null && etdMs >= startMs && etdMs < endMs;
+    const etaInRange = etaMs !== null && etaMs >= startMs && etaMs < endMs;
+
+    return etdInRange || etaInRange;
+  }, []);
+
+  // Helper: Check if shipment matches phase filter
+  const matchesPhase = useCallback((s: ShipmentListItem, phaseFilter: Phase): boolean => {
+    if (phaseFilter === 'all') return true;
+
+    const stage = (s.stage || '').toUpperCase();
+    const departureStages = ['PENDING', 'REQUESTED', 'BOOKED', 'SI_SUBMITTED', 'SI_CONFIRMED', 'BL_DRAFT', 'BL_ISSUED'];
+    const arrivalStages = ['DEPARTED', 'IN_TRANSIT', 'ARRIVED', 'CUSTOMS_CLEARED', 'DELIVERED', 'COMPLETED'];
+
+    if (phaseFilter === 'origin') return departureStages.includes(stage);
+    if (phaseFilter === 'destination') return arrivalStages.includes(stage);
+    return true;
+  }, []);
+
+  // Categorize and filter shipments
+  const { filtered, stats } = useMemo(() => {
+    // First apply phase filter
+    const phaseFiltered = shipments.filter(s => matchesPhase(s, phase));
+
+    // Apply time window filter
+    const timeFiltered = phaseFiltered.filter(s => isInTimeWindow(s, timeWindow));
+
+    // Categorize by risk level
+    const criticalList: ShipmentListItem[] = [];
+    const warningList: ShipmentListItem[] = [];
     const onTrackList: ShipmentListItem[] = [];
 
-    workingSet.forEach((s) => {
-      const etdMs = parseDate(s.etd);
+    timeFiltered.forEach((s) => {
       const aiRisk = s.aiSummary?.riskLevel;
       const hasOverdue = s.actions?.overdue > 0;
-      const hasIssues = s.issues?.count > 0;
 
-      // Determine urgency
-      const isUrgent =
-        aiRisk === 'red' ||
-        hasOverdue ||
-        (etdMs !== null && etdMs <= todayMs);
-
-      const needsAttention =
-        aiRisk === 'amber' ||
-        hasIssues ||
-        (etdMs !== null && etdMs <= threeDaysMs);
-
-      if (isUrgent) {
-        urgentList.push(s);
-      } else if (needsAttention) {
-        attentionList.push(s);
+      if (aiRisk === 'red' || hasOverdue) {
+        criticalList.push(s);
+      } else if (aiRisk === 'amber') {
+        warningList.push(s);
       } else {
         onTrackList.push(s);
       }
     });
 
-    // Sort based on view mode
-    // Departure/Arrival views: farthest first (descending), All view: closest first (ascending)
-    const sortByDate = (a: ShipmentListItem, b: ShipmentListItem) => {
-      let dateA: string | null;
-      let dateB: string | null;
-
-      if (viewMode === 'arrival') {
-        dateA = a.eta || a.etd;
-        dateB = b.eta || b.etd;
-      } else {
-        // 'all' and 'departure' sort by ETD
-        dateA = a.etd || a.eta;
-        dateB = b.etd || b.eta;
-      }
-
+    // Sort by ETD (closest first)
+    const sortByEtd = (a: ShipmentListItem, b: ShipmentListItem) => {
+      const dateA = a.etd || a.eta;
+      const dateB = b.etd || b.eta;
       if (!dateA && !dateB) return 0;
       if (!dateA) return 1;
       if (!dateB) return -1;
-
-      // Departure/Arrival: descending (farthest first), All: ascending (closest first)
-      const diff = new Date(dateA).getTime() - new Date(dateB).getTime();
-      return viewMode === 'all' ? diff : -diff;
+      return new Date(dateA).getTime() - new Date(dateB).getTime();
     };
 
-    urgentList.sort(sortByDate);
-    attentionList.sort(sortByDate);
-    onTrackList.sort(sortByDate);
+    criticalList.sort(sortByEtd);
+    warningList.sort(sortByEtd);
+    onTrackList.sort(sortByEtd);
 
-    // Apply urgency filter
+    // Apply risk filter
     let filteredList: ShipmentListItem[] = [];
-    if (filterMode === 'urgent') {
-      filteredList = urgentList;
-    } else if (filterMode === 'attention') {
-      filteredList = [...urgentList, ...attentionList];
+    if (riskFilter === 'critical') {
+      filteredList = criticalList;
+    } else if (riskFilter === 'warning') {
+      filteredList = warningList;
+    } else if (riskFilter === 'on_track') {
+      filteredList = onTrackList;
     } else {
-      filteredList = [...urgentList, ...attentionList, ...onTrackList];
+      filteredList = [...criticalList, ...warningList, ...onTrackList];
     }
 
     return {
-      urgent: urgentList,
-      attention: attentionList,
-      onTrack: onTrackList,
       filtered: filteredList,
       stats: {
-        total: workingSet.length,
-        urgentCount: urgentList.length,
-        attentionCount: attentionList.length,
+        total: timeFiltered.length,
+        criticalCount: criticalList.length,
+        warningCount: warningList.length,
         onTrackCount: onTrackList.length,
       },
     };
-  }, [shipments, viewMode, filterMode]);
+  }, [shipments, phase, timeWindow, riskFilter, isInTimeWindow, matchesPhase]);
 
   const handleViewDetails = (shipmentId: string) => {
     router.push(`/v2/${shipmentId}`);
@@ -188,45 +197,29 @@ export default function ChronicleListPage() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const getUrgencyIndicator = (s: ShipmentListItem) => {
+  const getRiskIndicator = (s: ShipmentListItem) => {
     const aiRisk = s.aiSummary?.riskLevel;
-    if (aiRisk === 'red' || s.actions?.overdue > 0) return 'urgent';
-    if (aiRisk === 'amber' || s.issues?.count > 0) return 'attention';
-    return 'normal';
-  };
-
-  // Get days until/since date
-  const getDaysLabel = (dateStr: string | null) => {
-    if (!dateStr) return null;
-    const date = new Date(dateStr);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    date.setHours(0, 0, 0, 0);
-    const diffDays = Math.round((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-    if (diffDays === 0) return 'Today';
-    if (diffDays === 1) return 'Tomorrow';
-    if (diffDays === -1) return 'Yesterday';
-    if (diffDays > 0) return `in ${diffDays}d`;
-    return `${Math.abs(diffDays)}d ago`;
+    if (aiRisk === 'red' || s.actions?.overdue > 0) return 'critical';
+    if (aiRisk === 'amber') return 'warning';
+    return 'on_track';
   };
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-5xl mx-auto">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-semibold" style={{ color: 'var(--ink-text)' }}>
           Shipments
         </h1>
         <div className="mt-2 flex items-center gap-4 text-sm">
-          {stats.urgentCount > 0 && (
+          {stats.criticalCount > 0 && (
             <span style={{ color: '#ef4444' }}>
-              {stats.urgentCount} urgent
+              {stats.criticalCount} critical
             </span>
           )}
-          {stats.attentionCount > 0 && (
+          {stats.warningCount > 0 && (
             <span style={{ color: '#f59e0b' }}>
-              {stats.attentionCount} need attention
+              {stats.warningCount} warning
             </span>
           )}
           <span style={{ color: 'var(--ink-text-muted)' }}>
@@ -235,103 +228,24 @@ export default function ChronicleListPage() {
         </div>
       </div>
 
-      {/* View Mode Toggle */}
-      <div className="flex items-center gap-2 mb-4">
-        <div className="flex items-center gap-1 rounded-lg p-1" style={{ backgroundColor: 'var(--ink-surface)' }}>
-          <button
-            onClick={() => setViewMode('all')}
-            className="px-4 py-2 rounded-md text-sm font-medium transition-colors"
-            style={{
-              backgroundColor: viewMode === 'all' ? 'var(--ink-elevated)' : 'transparent',
-              color: viewMode === 'all' ? 'var(--ink-text)' : 'var(--ink-text-muted)',
-            }}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setViewMode('departure')}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors"
-            style={{
-              backgroundColor: viewMode === 'departure' ? 'var(--ink-elevated)' : 'transparent',
-              color: viewMode === 'departure' ? 'var(--ink-text)' : 'var(--ink-text-muted)',
-            }}
-          >
-            <Ship className="h-3.5 w-3.5" />
-            Departure
-          </button>
-          <button
-            onClick={() => setViewMode('arrival')}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors"
-            style={{
-              backgroundColor: viewMode === 'arrival' ? 'var(--ink-elevated)' : 'transparent',
-              color: viewMode === 'arrival' ? 'var(--ink-text)' : 'var(--ink-text-muted)',
-            }}
-          >
-            <Anchor className="h-3.5 w-3.5" />
-            Arrival
-          </button>
-        </div>
-        {(viewMode === 'departure' || viewMode === 'arrival') && (
-          <span className="text-xs" style={{ color: 'var(--ink-text-muted)' }}>
-            ±7 days from today
-          </span>
-        )}
-      </div>
-
-      {/* Search + Filter */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="relative flex-1">
-          <Search
-            className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
-            style={{ color: 'var(--ink-text-muted)' }}
-          />
-          <input
-            type="text"
-            placeholder="Search booking, BL, vessel, shipper..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border py-2.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-1"
-            style={{
-              backgroundColor: 'var(--ink-surface)',
-              borderColor: 'var(--ink-border)',
-              color: 'var(--ink-text)',
-            }}
-          />
-        </div>
-
-        {/* Urgency Filter Pills with counts */}
-        <div className="flex items-center gap-1 rounded-lg p-1" style={{ backgroundColor: 'var(--ink-surface)' }}>
-          <button
-            onClick={() => setFilterMode('all')}
-            className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
-            style={{
-              backgroundColor: filterMode === 'all' ? 'var(--ink-elevated)' : 'transparent',
-              color: filterMode === 'all' ? 'var(--ink-text)' : 'var(--ink-text-muted)',
-            }}
-          >
-            All ({stats.total})
-          </button>
-          <button
-            onClick={() => setFilterMode('attention')}
-            className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
-            style={{
-              backgroundColor: filterMode === 'attention' ? 'var(--ink-elevated)' : 'transparent',
-              color: filterMode === 'attention' ? '#f59e0b' : 'var(--ink-text-muted)',
-            }}
-          >
-            Attention ({stats.urgentCount + stats.attentionCount})
-          </button>
-          <button
-            onClick={() => setFilterMode('urgent')}
-            className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
-            style={{
-              backgroundColor: filterMode === 'urgent' ? 'var(--ink-elevated)' : 'transparent',
-              color: filterMode === 'urgent' ? '#ef4444' : 'var(--ink-text-muted)',
-            }}
-          >
-            Urgent ({stats.urgentCount})
-          </button>
-        </div>
+      {/* Filter Bar */}
+      <div className="mb-6">
+        <FilterBar
+          phase={phase}
+          timeWindow={timeWindow}
+          search={search}
+          riskFilter={riskFilter}
+          onPhaseChange={setPhase}
+          onTimeWindowChange={setTimeWindow}
+          onSearchChange={setSearch}
+          onRiskFilterChange={setRiskFilter}
+          scoreDistribution={{
+            strong: stats.criticalCount,
+            medium: stats.warningCount,
+            weak: stats.onTrackCount,
+            noise: 0,
+          }}
+        />
       </div>
 
       {/* Content */}
@@ -354,22 +268,14 @@ export default function ChronicleListPage() {
         <div className="text-center py-16" style={{ color: 'var(--ink-text-muted)' }}>
           <p className="text-lg">No shipments found</p>
           <p className="mt-1 text-sm">
-            {viewMode !== 'all'
-              ? `No shipments with ${viewMode === 'departure' ? 'ETD' : 'ETA'} within ±7 days`
-              : 'Try adjusting your search or filters'
-            }
+            Try adjusting your search or filters
           </p>
         </div>
       ) : (
         <div className="space-y-2">
           {filtered.map((shipment) => {
-            const urgency = getUrgencyIndicator(shipment);
-            const borderColor = urgency === 'urgent' ? '#ef4444' : urgency === 'attention' ? '#f59e0b' : 'transparent';
-
-            // Highlight the relevant date based on view mode
-            const primaryDate = viewMode === 'arrival' ? shipment.eta : shipment.etd;
-            const primaryLabel = viewMode === 'arrival' ? 'ETA' : 'ETD';
-            const daysLabel = getDaysLabel(primaryDate);
+            const risk = getRiskIndicator(shipment);
+            const borderColor = risk === 'critical' ? '#ef4444' : risk === 'warning' ? '#f59e0b' : 'transparent';
 
             return (
               <div
@@ -383,7 +289,7 @@ export default function ChronicleListPage() {
                   borderLeftColor: borderColor,
                 }}
               >
-                {/* Row 1: Booking | Route | Carrier | Primary Date */}
+                {/* Row 1: Booking | Route | Carrier | Risk Badge */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span
@@ -405,18 +311,16 @@ export default function ChronicleListPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    {/* Show relative time badge in departure/arrival views */}
-                    {viewMode !== 'all' && daysLabel && (
-                      <span
-                        className="text-xs font-medium px-2 py-1 rounded"
-                        style={{
-                          backgroundColor: 'var(--ink-elevated)',
-                          color: 'var(--ink-text-secondary)'
-                        }}
-                      >
-                        {daysLabel}
-                      </span>
-                    )}
+                    {/* Risk Level Badge */}
+                    <span
+                      className="text-xs font-medium px-2 py-1 rounded"
+                      style={{
+                        backgroundColor: risk === 'critical' ? 'rgba(239, 68, 68, 0.15)' : risk === 'warning' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(34, 197, 94, 0.15)',
+                        color: risk === 'critical' ? '#ef4444' : risk === 'warning' ? '#f59e0b' : '#22c55e',
+                      }}
+                    >
+                      {risk === 'critical' ? '🔴 Critical' : risk === 'warning' ? '🟡 Warning' : '🟢 On Track'}
+                    </span>
                     <ChevronRight
                       className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity"
                       style={{ color: 'var(--ink-text-muted)' }}
@@ -424,19 +328,15 @@ export default function ChronicleListPage() {
                   </div>
                 </div>
 
-                {/* Row 2: Shipper → Consignee + Dates (always show both ETD/ETA) */}
+                {/* Row 2: Shipper → Consignee + Dates */}
                 <div className="mt-1.5 flex items-center justify-between text-sm">
                   <span style={{ color: 'var(--ink-text-muted)' }}>
                     {shipment.shipper || '—'} → {shipment.consignee || '—'}
                   </span>
                   <div className="flex items-center gap-3" style={{ color: 'var(--ink-text-secondary)' }}>
-                    <span style={{ fontWeight: viewMode === 'departure' ? 500 : 400 }}>
-                      ETD {formatDate(shipment.etd) || '—'}
-                    </span>
+                    <span>ETD {formatDate(shipment.etd) || '—'}</span>
                     <span style={{ color: 'var(--ink-text-muted)' }}>→</span>
-                    <span style={{ fontWeight: viewMode === 'arrival' ? 500 : 400 }}>
-                      ETA {formatDate(shipment.eta) || '—'}
-                    </span>
+                    <span>ETA {formatDate(shipment.eta) || '—'}</span>
                   </div>
                 </div>
 

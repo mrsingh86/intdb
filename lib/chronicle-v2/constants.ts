@@ -93,12 +93,16 @@ export const STAGE_TO_PHASE: Record<string, Phase> = {
 };
 
 // Stages that belong to each phase (for filtering)
+// "origin" = Departure (pre-sailing), "destination" = Arrival (post-sailing)
 export const PHASE_STAGES: Record<Phase, string[]> = {
   all: [],
-  origin: ['PENDING', 'REQUESTED', 'BOOKED', 'SI_STAGE', 'DRAFT_BL'],
-  in_transit: ['BL_ISSUED', 'DEPARTED', 'IN_TRANSIT'],
-  destination: ['ARRIVED', 'CUSTOMS', 'CLEARED'],
-  completed: ['DELIVERED'],
+  // Departure: shipments at origin, haven't sailed yet
+  origin: ['PENDING', 'REQUESTED', 'BOOKED', 'SI_SUBMITTED', 'SI_CONFIRMED', 'BL_DRAFT', 'BL_ISSUED'],
+  // In Transit (not used in UI but kept for backward compatibility)
+  in_transit: ['DEPARTED', 'IN_TRANSIT'],
+  // Arrival: shipments that have sailed or arrived
+  destination: ['DEPARTED', 'IN_TRANSIT', 'ARRIVED', 'CUSTOMS_CLEARED', 'DELIVERED', 'COMPLETED'],
+  completed: ['DELIVERED', 'COMPLETED'],
 };
 
 // Human-readable phase labels

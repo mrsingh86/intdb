@@ -61,78 +61,69 @@ export async function GET(request: NextRequest) {
       console.log('RPC not available, using manual aggregation');
     }
 
-    // Step 2: Get base shipment data
-    let query = supabase
-      .from('shipments')
-      .select(
-        `
-        id,
-        booking_number,
-        mbl_number,
-        hbl_number,
-        shipper_name,
-        consignee_name,
-        vessel_name,
-        voyage_number,
-        port_of_loading,
-        port_of_loading_code,
-        port_of_discharge,
-        port_of_discharge_code,
-        etd,
-        eta,
-        stage,
-        status,
-        carrier_name,
-        si_cutoff,
-        vgm_cutoff,
-        cargo_cutoff,
-        created_at
-      `,
-        { count: 'exact' }
-      )
-      .not('status', 'eq', 'cancelled');
+    // Step 2: Get base shipment data using RPC (bypasses RLS)
+    const { data: shipmentRows, error: shipError } = await supabase
+      .rpc('get_shipments_for_ui', { p_limit: 500 });
 
-    // Apply phase filter
+    if (shipError) {
+      console.error('RPC error fetching shipments:', shipError.message);
+      throw shipError;
+    }
+
+    // Extract shipment data from JSONB
+    const now = new Date();
+    let shipments = (shipmentRows || [])
+      .map((row: any) => row.shipment_data)
+      .filter((s: any) => s && s.id);
+
+    // Apply phase filter (in-memory since RPC returns all)
     if (phase !== 'all') {
       const stages = PHASE_STAGES[phase];
       if (stages.length > 0) {
-        query = query.in('stage', stages);
+        shipments = shipments.filter((s: any) =>
+          s.stage && stages.includes(s.stage.toUpperCase())
+        );
       }
     }
 
-    // Apply search filter
+    // Apply search filter (in-memory)
     if (search) {
-      query = query.or(
-        `booking_number.ilike.%${search}%,mbl_number.ilike.%${search}%,hbl_number.ilike.%${search}%,vessel_name.ilike.%${search}%,shipper_name.ilike.%${search}%,consignee_name.ilike.%${search}%`
+      const searchLower = search.toLowerCase();
+      shipments = shipments.filter((s: any) =>
+        (s.booking_number && s.booking_number.toLowerCase().includes(searchLower)) ||
+        (s.mbl_number && s.mbl_number.toLowerCase().includes(searchLower)) ||
+        (s.hbl_number && s.hbl_number.toLowerCase().includes(searchLower)) ||
+        (s.vessel_name && s.vessel_name.toLowerCase().includes(searchLower)) ||
+        (s.shipper_name && s.shipper_name.toLowerCase().includes(searchLower)) ||
+        (s.consignee_name && s.consignee_name.toLowerCase().includes(searchLower))
       );
     }
 
-    // Apply time window filter (based on ETD/ETA)
-    const now = new Date();
+    // Apply time window filter (in-memory)
     if (timeWindow === 'today') {
-      const todayStart = new Date(now);
-      todayStart.setHours(0, 0, 0, 0);
       const todayEnd = new Date(now);
       todayEnd.setHours(23, 59, 59, 999);
-      // Include today's ETD or past ETDs (for overdue)
-      query = query.or(`etd.lte.${todayEnd.toISOString()},eta.lte.${todayEnd.toISOString()}`);
+      shipments = shipments.filter((s: any) =>
+        (s.etd && new Date(s.etd) <= todayEnd) ||
+        (s.eta && new Date(s.eta) <= todayEnd)
+      );
     } else if (timeWindow === '3days') {
       const future = new Date(now);
       future.setDate(future.getDate() + 3);
-      query = query.or(`etd.lte.${future.toISOString()},eta.lte.${future.toISOString()}`);
+      shipments = shipments.filter((s: any) =>
+        (s.etd && new Date(s.etd) <= future) ||
+        (s.eta && new Date(s.eta) <= future)
+      );
     } else if (timeWindow === '7days') {
       const future = new Date(now);
       future.setDate(future.getDate() + 7);
-      query = query.or(`etd.lte.${future.toISOString()},eta.lte.${future.toISOString()}`);
+      shipments = shipments.filter((s: any) =>
+        (s.etd && new Date(s.etd) <= future) ||
+        (s.eta && new Date(s.eta) <= future)
+      );
     }
 
-    // Get shipments - order by ETD descending to prioritize today/recent shipments first
-    // nullsFirst: false ensures shipments WITH dates come before those without
-    query = query.order('etd', { ascending: false, nullsFirst: false }).limit(500);
-
-    const { data: shipments, error: shipError, count } = await query;
-
-    if (shipError) throw shipError;
+    const count = shipments.length;
 
     if (!shipments || shipments.length === 0) {
       return NextResponse.json({
@@ -145,7 +136,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Step 3: Get document aggregates using raw SQL for better performance
-    const shipmentIds = shipments.map((s) => s.id);
+    const shipmentIds = shipments.map((s: { id: string }) => s.id);
 
     // Step 3a: Get AI summaries for these shipments (batch to avoid URL length limits)
     type AISummaryRow = {
@@ -869,7 +860,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Step 4: Transform and score shipments
-    const scoredShipments: ShipmentListItem[] = shipments.map((ship) => {
+    const scoredShipments: ShipmentListItem[] = shipments.map((ship: any) => {
       const agg = aggregateMap.get(ship.id) || {
         issueCount: 0,
         issueTypes: [],

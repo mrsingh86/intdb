@@ -31,48 +31,28 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id } = await params;
 
-    // Step 1: Get shipment data
-    const { data: ship, error: shipError } = await supabase
-      .from('shipments')
-      .select(
-        `
-        id,
-        booking_number,
-        mbl_number,
-        hbl_number,
-        shipper_name,
-        shipper_address,
-        consignee_name,
-        consignee_address,
-        notify_party_name,
-        vessel_name,
-        voyage_number,
-        port_of_loading,
-        port_of_loading_code,
-        port_of_discharge,
-        port_of_discharge_code,
-        etd,
-        eta,
-        stage,
-        status,
-        carrier_name,
-        si_cutoff,
-        vgm_cutoff,
-        cargo_cutoff,
-        doc_cutoff,
-        free_time_expires,
-        container_number_primary,
-        created_at
-      `
-      )
-      .eq('id', id)
-      .single();
+    // Step 1: Get shipment data using RPC (bypasses RLS)
+    const { data: shipmentRows, error: shipError } = await supabase
+      .rpc('get_shipment_context_for_ai', { p_shipment_id: id });
 
-    if (shipError || !ship) {
+    if (shipError) {
+      console.error('RPC error fetching shipment:', shipError.message);
       return NextResponse.json({ error: 'Shipment not found' }, { status: 404 });
     }
 
-    // Step 2: Get all chronicle documents for this shipment
+    const ship = shipmentRows?.[0]?.shipment_data;
+    if (!ship) {
+      return NextResponse.json({ error: 'Shipment not found' }, { status: 404 });
+    }
+
+    // Step 2: Get AI summary for this shipment
+    const { data: aiSummaryData } = await supabase
+      .from('shipment_ai_summaries')
+      .select('story, narrative, current_blocker, blocker_owner, next_action, action_owner, action_priority, risk_level, risk_reason, key_deadline, key_insight, updated_at')
+      .eq('shipment_id', id)
+      .single();
+
+    // Step 3: Get all chronicle documents for this shipment
     const { data: chronicles, error: chronError } = await supabase
       .from('chronicle')
       .select(
@@ -109,7 +89,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    // Step 3: Build aggregates
+    // Step 4: Build aggregates
     let issueCount = 0;
     const issueTypes: string[] = [];
     let pendingActions = 0;
@@ -127,8 +107,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const containers = new Set<string>();
     const stakeholdersMap = new Map<string, { type: string; name: string | null; lastContact: string | null }>();
 
-    // Add primary container if exists
-    if (ship.container_number_primary) {
+    // Validate container number format (ISO 6346: 4 letters + 7 digits, e.g., HLXU1234567)
+    const isValidContainerNumber = (cn: string): boolean => {
+      if (!cn || cn.length < 10) return false;
+      // Standard format: 4 uppercase letters + 7 digits (11 chars total)
+      const standardPattern = /^[A-Z]{4}\d{7}$/;
+      // Also allow 4 letters + 6 digits (some carriers use this)
+      const altPattern = /^[A-Z]{4}\d{6,7}$/;
+      return standardPattern.test(cn) || altPattern.test(cn);
+    };
+
+    // Add primary container if exists and valid
+    if (ship.container_number_primary && isValidContainerNumber(ship.container_number_primary)) {
       containers.add(ship.container_number_primary);
     }
 
@@ -151,10 +141,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         }
       }
 
-      // Track containers
+      // Track containers (only valid ISO 6346 format)
       if (doc.container_numbers) {
         for (const c of doc.container_numbers) {
-          containers.add(c);
+          if (isValidContainerNumber(c)) {
+            containers.add(c);
+          }
         }
       }
 
@@ -284,7 +276,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     // Sort issues by date (newest first)
     issuesList.sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
 
-    // Step 4: Build cutoff details
+    // Step 5: Build cutoff details
     const cutoffDetails: CutoffDetail[] = [];
 
     const addCutoff = (
@@ -330,7 +322,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return new Date(a.date).getTime() - new Date(b.date).getTime();
     });
 
-    // Step 5: Calculate attention score
+    // Step 6: Calculate attention score
     const components = buildAttentionComponents({
       issueCount,
       issueTypes,
@@ -507,7 +499,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    // Step 6: Build response
+    // Step 7: Build response
     const shipmentDetail: ShipmentDetail = {
       id: ship.id,
       bookingNumber: ship.booking_number,
@@ -558,7 +550,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       journey,
       recommendation,
       stakeholders: stakeholders.slice(0, 4),
-      aiSummary: null, // TODO: Generate AI summary for detail view
+      aiSummary: aiSummaryData ? {
+        story: aiSummaryData.story,
+        narrative: aiSummaryData.narrative,
+        owner: null,
+        ownerType: null,
+        currentBlocker: aiSummaryData.current_blocker,
+        blockerOwner: aiSummaryData.blocker_owner,
+        nextAction: aiSummaryData.next_action,
+        actionOwner: aiSummaryData.action_owner,
+        actionPriority: aiSummaryData.action_priority,
+        financialImpact: null,
+        customerImpact: null,
+        riskLevel: aiSummaryData.risk_level,
+        riskReason: aiSummaryData.risk_reason,
+        keyDeadline: aiSummaryData.key_deadline,
+        keyInsight: aiSummaryData.key_insight,
+      } : null,
       containers: Array.from(containers),
       cutoffDetails,
       issuesList,

@@ -96,6 +96,16 @@ export function ShipmentCard({ shipment, onViewDetails, dateMode = 'smart' }: Sh
               {carrier}
             </span>
           )}
+          {/* Risk Level Badge */}
+          <span
+            className="text-xs font-semibold px-2 py-0.5 rounded-full"
+            style={{
+              backgroundColor: riskLevel === 'red' ? 'rgba(239, 68, 68, 0.2)' : riskLevel === 'amber' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(34, 197, 94, 0.2)',
+              color: riskLevel === 'red' ? '#ef4444' : riskLevel === 'amber' ? '#f59e0b' : '#22c55e',
+            }}
+          >
+            {riskLevel === 'red' ? '🔴 Critical' : riskLevel === 'amber' ? '🟡 Warning' : '🟢 On Track'}
+          </span>
         </div>
         <div className="flex items-center gap-3">
           {displayDate && (
@@ -188,16 +198,63 @@ export function ShipmentCard({ shipment, onViewDetails, dateMode = 'smart' }: Sh
           {aiSummary?.nextAction && !aiSummary?.currentBlocker && (
             <div
               className="p-2 rounded text-sm mb-2"
-              style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)' }}
+              style={{
+                backgroundColor: aiSummary.actionPriority === 'critical'
+                  ? 'rgba(239, 68, 68, 0.1)'
+                  : aiSummary.actionPriority === 'high'
+                  ? 'rgba(245, 158, 11, 0.1)'
+                  : 'rgba(59, 130, 246, 0.1)'
+              }}
             >
-              <span className="font-semibold" style={{ color: '#3b82f6' }}>Next: </span>
+              <span
+                className="font-semibold"
+                style={{
+                  color: aiSummary.actionPriority === 'critical'
+                    ? '#ef4444'
+                    : aiSummary.actionPriority === 'high'
+                    ? '#f59e0b'
+                    : '#3b82f6'
+                }}
+              >
+                Next:
+              </span>
               <span style={{ color: 'var(--ink-text)' }}>{aiSummary.nextAction}</span>
               {aiSummary.actionOwner && (
                 <span
                   className="ml-2 text-xs px-1.5 py-0.5 rounded"
-                  style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' }}
+                  style={{
+                    backgroundColor: aiSummary.actionPriority === 'critical'
+                      ? 'rgba(239, 68, 68, 0.15)'
+                      : aiSummary.actionPriority === 'high'
+                      ? 'rgba(245, 158, 11, 0.15)'
+                      : 'rgba(59, 130, 246, 0.15)',
+                    color: aiSummary.actionPriority === 'critical'
+                      ? '#ef4444'
+                      : aiSummary.actionPriority === 'high'
+                      ? '#f59e0b'
+                      : '#3b82f6'
+                  }}
                 >
                   {aiSummary.actionOwner}
+                </span>
+              )}
+              {aiSummary.actionPriority && (
+                <span
+                  className="ml-2 text-xs px-1.5 py-0.5 rounded font-medium uppercase"
+                  style={{
+                    backgroundColor: aiSummary.actionPriority === 'critical'
+                      ? 'rgba(239, 68, 68, 0.2)'
+                      : aiSummary.actionPriority === 'high'
+                      ? 'rgba(245, 158, 11, 0.2)'
+                      : 'rgba(59, 130, 246, 0.15)',
+                    color: aiSummary.actionPriority === 'critical'
+                      ? '#ef4444'
+                      : aiSummary.actionPriority === 'high'
+                      ? '#f59e0b'
+                      : '#3b82f6'
+                  }}
+                >
+                  {aiSummary.actionPriority}
                 </span>
               )}
             </div>

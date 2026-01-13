@@ -1,17 +1,19 @@
 'use client';
 
 import { Search } from 'lucide-react';
-import { type Direction, type Phase, type TimeWindow, PHASE_LABELS } from '@/lib/chronicle-v2';
+import { type Phase, type TimeWindow } from '@/lib/chronicle-v2';
+
+type RiskFilter = 'all' | 'critical' | 'warning' | 'on_track';
 
 interface FilterBarProps {
-  direction: Direction;
   phase: Phase;
   timeWindow: TimeWindow;
   search: string;
-  onDirectionChange: (d: Direction) => void;
+  riskFilter?: RiskFilter;
   onPhaseChange: (p: Phase) => void;
   onTimeWindowChange: (t: TimeWindow) => void;
   onSearchChange: (s: string) => void;
+  onRiskFilterChange?: (r: RiskFilter) => void;
   scoreDistribution?: {
     strong: number;
     medium: number;
@@ -23,36 +25,35 @@ interface FilterBarProps {
 /**
  * FilterBar Component
  *
- * Provides filtering controls for direction, phase, and time window.
+ * Provides filtering controls for risk, phase, and time window.
  * Uses Chronicle Ink theme colors.
  */
 export function FilterBar({
-  direction,
   phase,
   timeWindow,
   search,
-  onDirectionChange,
+  riskFilter = 'all',
   onPhaseChange,
   onTimeWindowChange,
   onSearchChange,
+  onRiskFilterChange,
   scoreDistribution,
 }: FilterBarProps) {
-  const directions: { value: Direction; label: string }[] = [
-    { value: 'all', label: 'All' },
-    { value: 'export', label: 'Export' },
-    { value: 'import', label: 'Import' },
+  const riskFilters: { value: RiskFilter; label: string; color: string }[] = [
+    { value: 'all', label: 'All', color: 'var(--ink-text-muted)' },
+    { value: 'critical', label: '🔴 Critical', color: '#ef4444' },
+    { value: 'warning', label: '🟡 Warning', color: '#f59e0b' },
+    { value: 'on_track', label: '🟢 On Track', color: '#22c55e' },
   ];
 
   const phases: { value: Phase; label: string }[] = [
     { value: 'all', label: 'All' },
-    { value: 'origin', label: PHASE_LABELS.origin },
-    { value: 'in_transit', label: PHASE_LABELS.in_transit },
-    { value: 'destination', label: PHASE_LABELS.destination },
-    { value: 'completed', label: PHASE_LABELS.completed },
+    { value: 'origin', label: 'Departure' },
+    { value: 'destination', label: 'Arrival' },
   ];
 
   const timeWindows: { value: TimeWindow; label: string; title: string }[] = [
-    { value: 'today', label: 'Today', title: 'ETD/ETA today + all overdue' },
+    { value: 'today', label: 'Today', title: 'ETD/ETA today' },
     { value: '3days', label: '3 Days', title: 'ETD/ETA within 3 days' },
     { value: '7days', label: 'Week', title: 'ETD/ETA within 7 days' },
     { value: 'all', label: 'All', title: 'All active shipments' },
@@ -83,36 +84,38 @@ export function FilterBar({
 
       {/* Filter Row */}
       <div className="flex flex-wrap items-center gap-4">
-        {/* Direction Toggle */}
-        <div className="flex items-center gap-1">
-          <span
-            className="mr-2 text-xs font-medium"
-            style={{ color: 'var(--ink-text-muted)' }}
-          >
-            Direction
-          </span>
-          <div
-            className="flex rounded-lg border p-0.5"
-            style={{
-              backgroundColor: 'var(--ink-surface)',
-              borderColor: 'var(--ink-border-subtle)',
-            }}
-          >
-            {directions.map((d) => (
-              <button
-                key={d.value}
-                onClick={() => onDirectionChange(d.value)}
-                className="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
-                style={{
-                  backgroundColor: direction === d.value ? 'var(--ink-elevated)' : 'transparent',
-                  color: direction === d.value ? 'var(--ink-text)' : 'var(--ink-text-muted)',
-                }}
-              >
-                {d.label}
-              </button>
-            ))}
+        {/* Risk Level Toggle */}
+        {onRiskFilterChange && (
+          <div className="flex items-center gap-1">
+            <span
+              className="mr-2 text-xs font-medium"
+              style={{ color: 'var(--ink-text-muted)' }}
+            >
+              Risk
+            </span>
+            <div
+              className="flex rounded-lg border p-0.5"
+              style={{
+                backgroundColor: 'var(--ink-surface)',
+                borderColor: 'var(--ink-border-subtle)',
+              }}
+            >
+              {riskFilters.map((r) => (
+                <button
+                  key={r.value}
+                  onClick={() => onRiskFilterChange(r.value)}
+                  className="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                  style={{
+                    backgroundColor: riskFilter === r.value ? 'var(--ink-elevated)' : 'transparent',
+                    color: riskFilter === r.value ? r.color : 'var(--ink-text-muted)',
+                  }}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Phase Toggle */}
         <div className="flex items-center gap-1">

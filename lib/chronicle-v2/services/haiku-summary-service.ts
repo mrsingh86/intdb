@@ -210,6 +210,31 @@ Your job: Transform raw shipment data into a clear, actionable narrative.
 - Demurrage: Port storage charges (~$50-150/day)
 - Rollover: Missed sailing = rebooking + delays
 
+## CRITICAL: READING CONFIRMATIONS (✓CONFIRMED)
+
+In milestones, entries marked with **✓CONFIRMED** mean that step is COMPLETE:
+- \`vgm_confirmation ✓CONFIRMED\` = VGM has been submitted, do NOT report "VGM pending" or "VGM cutoff missed"
+- \`sob_confirmation ✓CONFIRMED\` = Cargo is on board, SI is done, vessel has sailed - ALL pre-departure cutoffs are COMPLETE
+- \`booking_confirmation ✓CONFIRMED\` = Booking is confirmed
+- \`container_release ✓CONFIRMED\` = Container released for pickup
+
+**CRITICAL RULE: A cutoff is NOT "missed" if there's a ✓CONFIRMED milestone for it!**
+
+Example 1 - VGM cutoff with confirmation:
+- VGM Cutoff: Jan 6 (passed)
+- Dec 30: vgm_confirmation ✓CONFIRMED
+→ VGM was submitted BEFORE cutoff. It is COMPLETE, not "missed"!
+
+Example 2 - Shipped on Board:
+- SI Cutoff: Jan 4 (passed)
+- VGM Cutoff: Jan 6 (passed)
+- Jan 9: sob_confirmation ✓CONFIRMED (vessel sailed)
+→ If vessel sailed, ALL pre-departure requirements (SI, VGM, Cargo) were met. Do NOT report them as "missed".
+
+**NEVER say cutoff was "missed" if:**
+1. There's a ✓CONFIRMED milestone for that item, OR
+2. Stage is past that milestone (BL_ISSUED means SI is done, DEPARTED means all cutoffs met)
+
 ## OUTPUT FORMAT (strict JSON)
 
 {
@@ -286,43 +311,64 @@ export class HaikuSummaryService {
 
   /**
    * Layer 1: Full shipment context with all dates and parties
+   * Uses RPC functions to bypass RLS
    */
   private async getShipmentContext(shipmentId: string): Promise<ShipmentContext | null> {
-    const { data: shipment, error } = await this.supabase
-      .from('shipments')
-      .select(`
-        id, booking_number, mbl_number, hbl_number,
-        port_of_loading, port_of_loading_code,
-        port_of_discharge, port_of_discharge_code,
-        vessel_name, voyage_number, carrier_name,
-        etd, eta, atd, ata,
-        si_cutoff, vgm_cutoff, cargo_cutoff,
-        stage, status,
-        shipper_name, consignee_name,
-        created_at
-      `)
-      .eq('id', shipmentId)
-      .single();
+    // Use RPC function to bypass RLS (SECURITY DEFINER)
+    // Returns JSONB to avoid type mismatch issues
+    const { data: shipmentData, error } = await this.supabase
+      .rpc('get_shipment_context_for_ai', { p_shipment_id: shipmentId });
 
-    if (error || !shipment) return null;
+    if (error) {
+      console.log('[HaikuSummary] RPC error getting shipment:', error.message);
+      return null;
+    }
 
-    // Get containers
-    const { data: containers } = await this.supabase
-      .from('shipment_containers')
-      .select('container_number')
-      .eq('shipment_id', shipmentId);
+    // Handle JSONB response - could be {shipment_data: {...}} or direct object
+    const row = shipmentData?.[0];
+    if (!row) return null;
+
+    const shipment = row.shipment_data || row;
+    if (!shipment || !shipment.id) return null;
+
+    // Get containers using RPC function
+    const { data: containerData } = await this.supabase
+      .rpc('get_shipment_containers_for_ai', { p_shipment_id: shipmentId });
 
     return {
-      ...shipment,
-      containers: (containers || []).map(c => c.container_number).filter(Boolean),
-    } as ShipmentContext;
+      id: shipment.id,
+      booking_number: shipment.booking_number,
+      mbl_number: shipment.mbl_number,
+      hbl_number: shipment.hbl_number,
+      port_of_loading: shipment.port_of_loading,
+      port_of_loading_code: shipment.port_of_loading_code,
+      port_of_discharge: shipment.port_of_discharge,
+      port_of_discharge_code: shipment.port_of_discharge_code,
+      vessel_name: shipment.vessel_name,
+      voyage_number: shipment.voyage_number,
+      carrier_name: shipment.carrier_name,
+      etd: shipment.etd,
+      eta: shipment.eta,
+      atd: shipment.atd,
+      ata: shipment.ata,
+      si_cutoff: shipment.si_cutoff,
+      vgm_cutoff: shipment.vgm_cutoff,
+      cargo_cutoff: shipment.cargo_cutoff,
+      stage: shipment.stage,
+      status: shipment.status,
+      shipper_name: shipment.shipper_name,
+      consignee_name: shipment.consignee_name,
+      created_at: shipment.created_at,
+      containers: (containerData || []).map((c: any) => c.container_number).filter(Boolean),
+    };
   }
 
   /**
-   * Layer 2: Key milestones (all-time) - issues, amendments, stage changes
+   * Layer 2: Key milestones (all-time) - issues, amendments, stage changes, confirmations
    */
   private async getMilestones(shipmentId: string): Promise<MilestoneEvent[]> {
     // Get all issues and significant events (no time limit)
+    // IMPORTANT: Include ALL confirmation types so AI knows what's COMPLETED
     const { data } = await this.supabase
       .from('chronicle')
       .select(`
@@ -330,9 +376,9 @@ export class HaikuSummaryService {
         has_issue, issue_type, issue_description, carrier_name
       `)
       .eq('shipment_id', shipmentId)
-      .or('has_issue.eq.true,document_type.in.(booking_confirmation,booking_amendment,si_confirmation,bl_draft,bl_final,arrival_notice,delivery_order)')
+      .or('has_issue.eq.true,document_type.in.(booking_confirmation,booking_amendment,si_confirmation,si_submitted,vgm_confirmation,sob_confirmation,bl_draft,bl_final,telex_release,arrival_notice,delivery_order,container_release,gate_in,gate_out,cargo_loaded,vessel_departed,vessel_arrived)')
       .order('occurred_at', { ascending: true })
-      .limit(20);
+      .limit(30);
 
     return (data || []).map(d => ({
       occurred_at: d.occurred_at,
@@ -774,16 +820,25 @@ Cargo Cutoff: ${this.formatDateWithDays(shipment.cargo_cutoff)}`;
       alertSection = `\n## DATE-BASED ALERTS\n${alerts}`;
     }
 
-    // Build milestone timeline
+    // Build milestone timeline with clear COMPLETED markers
     let milestoneSection = '';
     if (milestones.length > 0) {
+      // Identify completion events
+      const COMPLETION_TYPES = new Set([
+        'booking_confirmation', 'si_confirmation', 'vgm_confirmation',
+        'sob_confirmation', 'bl_draft', 'bl_final', 'telex_release',
+        'container_release', 'delivery_order', 'gate_in', 'gate_out',
+        'vessel_departed', 'vessel_arrived', 'cargo_loaded'
+      ]);
+
       const events = milestones.map(m => {
         const date = this.formatDate(m.occurred_at);
         const party = m.carrier_name || m.from_party || 'system';
         const issue = m.has_issue ? ` [ISSUE: ${m.issue_type}]` : '';
-        return `${date} | ${party}: ${m.summary.slice(0, 80)}${issue}`;
+        const completed = COMPLETION_TYPES.has(m.event_type) ? ' ✓CONFIRMED' : '';
+        return `${date} | ${party}: ${m.summary.slice(0, 80)}${issue}${completed}`;
       }).join('\n');
-      milestoneSection = `\n## KEY MILESTONES (Full History)\n${events}`;
+      milestoneSection = `\n## KEY MILESTONES (Full History) - ✓ = COMPLETED\n${events}`;
     }
 
     // Build recent activity
@@ -803,7 +858,7 @@ Cargo Cutoff: ${this.formatDateWithDays(shipment.cargo_cutoff)}`;
       recentSection = `\n## RECENT ACTIVITY (Last 7 Days)\n${entries}`;
     }
 
-    // Build pending actions
+    // Build pending actions from recent (last 7 days)
     const pendingActions = recent.filter(r => r.has_action && !r.action_completed_at);
     let actionsSection = '';
     if (pendingActions.length > 0) {
@@ -1050,7 +1105,7 @@ Analyze this shipment and return the JSON summary:`;
       return null;
     }
 
-    // Layer 2: Get key milestones (all-time)
+    // Layer 2: Get key milestones (all-time) - includes confirmations to show what's DONE
     const milestones = await this.getMilestones(shipmentId);
 
     // Layer 3: Get recent communications
