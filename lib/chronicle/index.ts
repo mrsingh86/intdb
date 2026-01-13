@@ -124,6 +124,17 @@ export {
   ChronicleLogger,
 } from './chronicle-logger';
 
+export {
+  ChronicleMonitor,
+  createChronicleMonitor,
+} from './chronicle-monitor';
+
+export type {
+  SystemHealth,
+  FullScan,
+  HealthStatus,
+} from './chronicle-monitor';
+
 export type {
   LogStage,
   ShipmentStage,
