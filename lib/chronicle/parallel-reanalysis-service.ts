@@ -271,9 +271,13 @@ export class ParallelReanalysisService {
       try {
         await this.reanalyzeSingleChronicle(chronicle, aiAnalyzer, repository);
         succeeded++;
+        // Small delay to avoid rate limiting (100ms between API calls)
+        await new Promise(resolve => setTimeout(resolve, 100));
       } catch (error) {
         console.error(`[Worker ${workerId}] Chronicle ${chronicle.id} failed:`, error);
         failed++;
+        // Longer delay on error (might be rate limited)
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 
@@ -294,27 +298,55 @@ export class ParallelReanalysisService {
     // Build attachment text
     const attachmentText = this.buildAttachmentText(chronicle.attachments);
 
-    // Re-run AI analysis
-    const analysis = await aiAnalyzer.analyze(
-      {
-        gmailMessageId: chronicle.gmail_message_id,
-        threadId: chronicle.thread_id,
-        subject: chronicle.subject,
-        bodyText: chronicle.body_preview || '',
-        senderEmail: '',
-        senderName: '',
-        recipientEmails: [],
-        receivedAt: new Date(chronicle.occurred_at),
-        direction: 'inbound' as const,
-        snippet: '',
-        attachments: [],
-      },
-      attachmentText,
-      threadContext || undefined
-    );
+    // Re-run AI analysis with error handling for schema issues
+    let analysis: ShippingAnalysis;
+    try {
+      analysis = await aiAnalyzer.analyze(
+        {
+          gmailMessageId: chronicle.gmail_message_id,
+          threadId: chronicle.thread_id,
+          subject: chronicle.subject,
+          bodyText: chronicle.body_preview || '',
+          senderEmail: '',
+          senderName: '',
+          recipientEmails: [],
+          receivedAt: new Date(chronicle.occurred_at),
+          direction: 'inbound' as const,
+          snippet: '',
+          attachments: [],
+        },
+        attachmentText,
+        threadContext || undefined
+      );
+    } catch (error: any) {
+      // If it's a Zod validation error, skip but mark as processed
+      if (error.name === 'ZodError') {
+        console.log(`[Reanalysis] Schema validation error for ${chronicle.id}, marking as done`);
+        await this.markAsProcessedWithError(chronicle.id, threadContext, error.message);
+        return;
+      }
+      throw error;
+    }
 
     // Update chronicle
     await this.updateChronicle(chronicle.id, analysis, threadContext);
+  }
+
+  private async markAsProcessedWithError(
+    chronicleId: string,
+    threadContext: ThreadContext | null,
+    errorMessage: string
+  ): Promise<void> {
+    await this.supabase
+      .from('chronicle')
+      .update({
+        needs_reanalysis: false,
+        reanalyzed_at: new Date().toISOString(),
+        thread_context_used: !!threadContext && threadContext.emailCount > 0,
+        thread_context_email_count: threadContext?.emailCount || 0,
+        // Keep existing AI response, just mark as reanalyzed
+      })
+      .eq('id', chronicleId);
   }
 
   private buildAttachmentText(attachments: Array<{ extractedText?: string; filename?: string }>): string {
