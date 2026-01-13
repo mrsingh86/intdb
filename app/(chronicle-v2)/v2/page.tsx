@@ -68,8 +68,8 @@ export default function ChronicleListPage() {
     return () => clearTimeout(timer);
   }, [fetchShipments]);
 
-  // Helper: Check if shipment is within time window
-  const isInTimeWindow = useCallback((s: ShipmentListItem, window: TimeWindow): boolean => {
+  // Helper: Check if shipment is within time window based on phase
+  const isInTimeWindow = useCallback((s: ShipmentListItem, window: TimeWindow, phaseFilter: Phase): boolean => {
     if (window === 'all') return true;
 
     // Parse date string to day timestamp (midnight UTC)
@@ -83,32 +83,39 @@ export default function ChronicleListPage() {
     const todayMs = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
     const dayMs = 24 * 60 * 60 * 1000;
 
-    const etdMs = parseDate(s.etd);
-    const etaMs = parseDate(s.eta);
-
     // Define window ranges
     let startMs: number;
     let endMs: number;
 
     if (window === 'today') {
-      // Today only: just today
       startMs = todayMs;
       endMs = todayMs + dayMs;
     } else if (window === '3days') {
-      // Next 3 days: today through day 3
       startMs = todayMs;
       endMs = todayMs + 3 * dayMs;
     } else {
-      // Week: today through day 7
       startMs = todayMs;
       endMs = todayMs + 7 * dayMs;
     }
 
-    // Check if ETD or ETA falls within the range
-    const etdInRange = etdMs !== null && etdMs >= startMs && etdMs < endMs;
-    const etaInRange = etaMs !== null && etaMs >= startMs && etaMs < endMs;
-
-    return etdInRange || etaInRange;
+    // Check date based on phase filter
+    // Departure (origin) -> check ETD only
+    // Arrival (destination) -> check ETA only
+    // All -> check either ETD or ETA
+    if (phaseFilter === 'origin') {
+      const etdMs = parseDate(s.etd);
+      return etdMs !== null && etdMs >= startMs && etdMs < endMs;
+    } else if (phaseFilter === 'destination') {
+      const etaMs = parseDate(s.eta);
+      return etaMs !== null && etaMs >= startMs && etaMs < endMs;
+    } else {
+      // All phases - check either date
+      const etdMs = parseDate(s.etd);
+      const etaMs = parseDate(s.eta);
+      const etdInRange = etdMs !== null && etdMs >= startMs && etdMs < endMs;
+      const etaInRange = etaMs !== null && etaMs >= startMs && etaMs < endMs;
+      return etdInRange || etaInRange;
+    }
   }, []);
 
   // Helper: Check if shipment matches phase filter
@@ -129,8 +136,8 @@ export default function ChronicleListPage() {
     // First apply phase filter
     const phaseFiltered = shipments.filter(s => matchesPhase(s, phase));
 
-    // Apply time window filter
-    const timeFiltered = phaseFiltered.filter(s => isInTimeWindow(s, timeWindow));
+    // Apply time window filter (respects phase for date selection)
+    const timeFiltered = phaseFiltered.filter(s => isInTimeWindow(s, timeWindow, phase));
 
     // Categorize by risk level
     const criticalList: ShipmentListItem[] = [];
