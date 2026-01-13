@@ -83,6 +83,9 @@ interface RecentChronicle {
   action_completed_at: string | null;
   carrier_name: string | null;
   sentiment: string | null;
+  // Added for filtering
+  thread_id: string | null;
+  document_type: string | null;
 }
 
 interface DateUrgency {
@@ -104,6 +107,37 @@ interface ShipperProfileContext {
   preferredCarriers: string[];
   commonIssueTypes: string[];
   relationshipMonths: number;
+}
+
+interface ConsigneeProfileContext {
+  consigneeName: string;
+  totalShipments: number;
+  detentionRate: number | null;
+  demurrageRate: number | null;
+  customsIssueRate: number | null;
+  riskScore: number;
+  riskFactors: string[];
+}
+
+interface CarrierProfileContext {
+  carrierName: string;
+  totalShipments: number;
+  onTimeDepartureRate: number | null;
+  onTimeArrivalRate: number | null;
+  rolloverRate: number | null;
+  performanceScore: number;
+  performanceFactors: string[];
+}
+
+interface RouteProfileContext {
+  polCode: string;
+  podCode: string;
+  totalShipments: number;
+  scheduledTransitDays: number | null;
+  actualAvgTransitDays: number | null;
+  transitVarianceDays: number | null;
+  onTimeRate: number | null;
+  bestCarrier: string | null;
 }
 
 export interface AISummary {
@@ -196,12 +230,40 @@ Your job: Transform raw shipment data into a clear, actionable narrative.
 - **AMBER**: Attention needed (cutoff <3d, pending response >3d, potential issue)
 - **GREEN**: On track (no blockers, schedule holding, all parties responsive)
 
-## SHIPPER INTELLIGENCE (Cross-Shipment Patterns)
-When shipper profile data is provided:
-- Use SI late rate to proactively warn: "This shipper submits SI late 60% of the time - follow up early"
-- Use doc issue rate: "This shipper has documentation issues 25% of shipments - verify docs carefully"
-- Use risk factors to contextualize: "Based on history, expect late SI submission"
-- DON'T be judgmental - be helpful: "Send SI reminder 2 days earlier than usual for this shipper"
+## CRITICAL: STAGE-AWARE INTELLIGENCE
+
+Profile intelligence MUST match the current shipment stage. DO NOT flag risks for completed milestones.
+
+**Shipment Lifecycle:**
+\`\`\`
+PENDING → BOOKED → SI_SUBMITTED → DRAFT_BL → BL_ISSUED → DEPARTED → IN_TRANSIT → ARRIVED → DELIVERED
+\`\`\`
+
+**Stage-Appropriate Intelligence:**
+
+| Current Stage | Relevant Intelligence | NOT Relevant (Already Past) |
+|---------------|----------------------|----------------------------|
+| PENDING/BOOKED | SI late patterns, doc issues | - |
+| BL_ISSUED | Vessel tracking, departure timing | SI patterns (SI is done!) |
+| DEPARTED/IN_TRANSIT | ETA accuracy, arrival delays | SI, doc issues, rollover |
+| ARRIVED | Detention, demurrage, customs | All pre-arrival concerns |
+| DELIVERED | Historical only, no action | Everything |
+
+**NEVER DO THIS:**
+❌ Stage is BL_ISSUED but blocker mentions "SI not submitted" (SI is already done!)
+❌ Stage is DELIVERED but risk is RED (shipment is complete!)
+❌ Stage is IN_TRANSIT but warn about rollover (cargo already departed!)
+
+**ALWAYS DO THIS:**
+✅ Check the Stage field FIRST before identifying blockers
+✅ Only flag profile risks for CURRENT or FUTURE milestones
+✅ If stage is past a milestone, that milestone is COMPLETE - don't create blockers for it
+
+## CROSS-SHIPMENT INTELLIGENCE (Use Only When Stage-Appropriate)
+When profile data is provided AND marked "RELEVANT NOW":
+- Use it to contextualize risks and suggest proactive actions
+- DON'T be judgmental - be helpful
+- If no profile intelligence is marked relevant, focus on chronicle data only
 
 Return ONLY valid JSON.`;
 
@@ -286,24 +348,77 @@ export class HaikuSummaryService {
 
   /**
    * Layer 3: Recent communications (last 7 days)
+   *
+   * Filtering strategy:
+   * 1. Exclude low-value message types (acknowledgement, general)
+   * 2. Deduplicate by thread (keep latest per thread)
+   * 3. Prioritize: issues > actions > urgent > confirmations > updates
    */
   private async getRecentChronicles(shipmentId: string): Promise<RecentChronicle[]> {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
+    // Fetch more than needed, then filter and deduplicate
     const { data } = await this.supabase
       .from('chronicle')
       .select(`
         occurred_at, direction, from_party, from_address, message_type, summary,
         has_issue, issue_type, issue_description,
         has_action, action_description, action_priority, action_deadline, action_completed_at,
-        carrier_name, sentiment
+        carrier_name, sentiment, thread_id, document_type
       `)
       .eq('shipment_id', shipmentId)
       .gte('occurred_at', sevenDaysAgo)
+      // Filter out low-value message types that add noise
+      .not('message_type', 'in', '(acknowledgement,general)')
       .order('occurred_at', { ascending: false })
-      .limit(25);
+      .limit(50); // Fetch more, will dedupe below
 
-    return (data || []) as RecentChronicle[];
+    if (!data || data.length === 0) return [];
+
+    // Deduplicate by thread_id - keep only latest entry per thread
+    const seenThreads = new Set<string>();
+    const dedupedByThread = data.filter(entry => {
+      const threadId = (entry as any).thread_id;
+      if (!threadId) return true; // Keep entries without thread_id
+      if (seenThreads.has(threadId)) return false;
+      seenThreads.add(threadId);
+      return true;
+    });
+
+    // Prioritize by importance
+    const prioritized = dedupedByThread.sort((a, b) => {
+      const getPriority = (entry: any): number => {
+        // Issues are highest priority
+        if (entry.has_issue) return 0;
+        // Pending actions next
+        if (entry.has_action && !entry.action_completed_at) return 1;
+        // Urgent sentiment
+        if (entry.sentiment === 'urgent') return 2;
+        // Escalations
+        if (entry.message_type === 'escalation') return 3;
+        // Action required
+        if (entry.message_type === 'action_required') return 4;
+        // Issue reported
+        if (entry.message_type === 'issue_reported') return 5;
+        // Requests (need response)
+        if (entry.message_type === 'request') return 6;
+        // Confirmations (important but no action needed)
+        if (entry.message_type === 'confirmation') return 7;
+        // Updates
+        if (entry.message_type === 'update') return 8;
+        // Everything else
+        return 9;
+      };
+
+      const priorityDiff = getPriority(a) - getPriority(b);
+      if (priorityDiff !== 0) return priorityDiff;
+
+      // Same priority - sort by date (newest first)
+      return new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime();
+    });
+
+    // Return top 20 most important entries
+    return prioritized.slice(0, 20) as RecentChronicle[];
   }
 
   /**
@@ -456,6 +571,111 @@ export class HaikuSummaryService {
     };
   }
 
+  /**
+   * Layer 6: Consignee intelligence (destination behavior patterns)
+   */
+  private async getConsigneeProfile(consigneeName: string | null): Promise<ConsigneeProfileContext | null> {
+    if (!consigneeName) return null;
+
+    const cleanName = consigneeName
+      .toLowerCase()
+      .trim()
+      .replace(/pvt\.?\s*ltd\.?/gi, '')
+      .replace(/private\s*limited/gi, '')
+      .replace(/limited/gi, '')
+      .replace(/[.,]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const searchWord = cleanName.split(' ').filter(w => w.length > 2)[0];
+    if (!searchWord) return null;
+
+    const { data: profiles } = await this.supabase
+      .from('consignee_profiles')
+      .select('*')
+      .ilike('consignee_name_normalized', `%${searchWord}%`)
+      .order('total_shipments', { ascending: false })
+      .limit(1);
+
+    const profile = profiles?.[0];
+    if (!profile) return null;
+
+    return {
+      consigneeName: profile.consignee_name,
+      totalShipments: profile.total_shipments,
+      detentionRate: profile.detention_rate ? parseFloat(profile.detention_rate) : null,
+      demurrageRate: profile.demurrage_rate ? parseFloat(profile.demurrage_rate) : null,
+      customsIssueRate: profile.customs_issue_rate ? parseFloat(profile.customs_issue_rate) : null,
+      riskScore: profile.risk_score || 0,
+      riskFactors: profile.risk_factors || [],
+    };
+  }
+
+  /**
+   * Layer 7: Carrier intelligence (shipping line performance)
+   */
+  private async getCarrierProfile(carrierName: string | null): Promise<CarrierProfileContext | null> {
+    if (!carrierName) return null;
+
+    const cleanName = carrierName
+      .toLowerCase()
+      .trim()
+      .replace(/shipping\s*(line)?/gi, '')
+      .replace(/container\s*(line)?/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const searchWord = cleanName.split(' ').filter(w => w.length > 2)[0];
+    if (!searchWord) return null;
+
+    const { data: profiles } = await this.supabase
+      .from('carrier_profiles')
+      .select('*')
+      .ilike('carrier_name_normalized', `%${searchWord}%`)
+      .order('total_shipments', { ascending: false })
+      .limit(1);
+
+    const profile = profiles?.[0];
+    if (!profile) return null;
+
+    return {
+      carrierName: profile.carrier_name,
+      totalShipments: profile.total_shipments,
+      onTimeDepartureRate: profile.on_time_departure_rate ? parseFloat(profile.on_time_departure_rate) : null,
+      onTimeArrivalRate: profile.on_time_arrival_rate ? parseFloat(profile.on_time_arrival_rate) : null,
+      rolloverRate: profile.rollover_rate ? parseFloat(profile.rollover_rate) : null,
+      performanceScore: profile.performance_score || 50,
+      performanceFactors: profile.performance_factors || [],
+    };
+  }
+
+  /**
+   * Layer 8: Route intelligence (lane-specific patterns)
+   */
+  private async getRouteProfile(polCode: string | null, podCode: string | null): Promise<RouteProfileContext | null> {
+    if (!polCode || !podCode) return null;
+
+    const { data: profile } = await this.supabase
+      .from('route_profiles')
+      .select('*')
+      .eq('pol_code', polCode)
+      .eq('pod_code', podCode)
+      .single();
+
+    if (!profile) return null;
+
+    return {
+      polCode: profile.pol_code,
+      podCode: profile.pod_code,
+      totalShipments: profile.total_shipments,
+      scheduledTransitDays: profile.scheduled_transit_days ? parseFloat(profile.scheduled_transit_days) : null,
+      actualAvgTransitDays: profile.actual_avg_transit_days ? parseFloat(profile.actual_avg_transit_days) : null,
+      transitVarianceDays: profile.transit_variance_days ? parseFloat(profile.transit_variance_days) : null,
+      onTimeRate: profile.on_time_rate ? parseFloat(profile.on_time_rate) : null,
+      bestCarrier: profile.best_carrier,
+    };
+  }
+
   // ===========================================================================
   // PROMPT BUILDING
   // ===========================================================================
@@ -483,7 +703,12 @@ export class HaikuSummaryService {
     milestones: MilestoneEvent[],
     recent: RecentChronicle[],
     urgencies: DateUrgency[],
-    shipperProfile: ShipperProfileContext | null = null
+    profiles: {
+      shipper: ShipperProfileContext | null;
+      consignee: ConsigneeProfileContext | null;
+      carrier: CarrierProfileContext | null;
+      route: RouteProfileContext | null;
+    }
   ): string {
     const today = new Date().toLocaleDateString('en-US', {
       weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
@@ -562,46 +787,128 @@ Cargo Cutoff: ${this.formatDateWithDays(shipment.cargo_cutoff)}`;
       actionsSection = `\n## PENDING ACTIONS\n${actions}`;
     }
 
-    // Build shipper intelligence section
-    let shipperSection = '';
-    if (shipperProfile && shipperProfile.totalShipments >= 3) {
+    // Build intelligence sections with STAGE-AWARE filtering
+    let intelligenceSection = '';
+    const stage = (shipment.stage || 'PENDING').toUpperCase();
+
+    // Stage categories for filtering
+    const PRE_SI_STAGES = ['PENDING', 'DRAFT', 'BOOKED', 'BOOKING_CONFIRMED'];
+    const PRE_DEPARTURE_STAGES = [...PRE_SI_STAGES, 'SI_SUBMITTED', 'SI_CONFIRMED', 'DRAFT_BL', 'BL_ISSUED'];
+    const POST_ARRIVAL_STAGES = ['ARRIVED', 'CUSTOMS_CLEARED', 'DELIVERED', 'COMPLETED'];
+    const IN_TRANSIT_STAGES = ['DEPARTED', 'IN_TRANSIT', 'TRANSSHIPMENT'];
+
+    const isPreSI = PRE_SI_STAGES.includes(stage);
+    const isPreDeparture = PRE_DEPARTURE_STAGES.includes(stage);
+    const isPostArrival = POST_ARRIVAL_STAGES.includes(stage);
+    const isInTransit = IN_TRANSIT_STAGES.includes(stage);
+
+    // Shipper intelligence - SI patterns only relevant BEFORE BL issued
+    if (profiles.shipper && profiles.shipper.totalShipments >= 3) {
       const insights: string[] = [];
+      const p = profiles.shipper;
 
-      // SI behavior insight
-      if (shipperProfile.siLateRate !== null && shipperProfile.siLateRate > 20) {
-        insights.push(`⚠️ SI LATE: ${shipperProfile.siLateRate}% of shipments have late SI (avg ${shipperProfile.avgSiDaysBeforeCutoff?.toFixed(1) || 'N/A'} days before cutoff)`);
-      } else if (shipperProfile.avgSiDaysBeforeCutoff !== null && shipperProfile.avgSiDaysBeforeCutoff > 3) {
-        insights.push(`✅ SI RELIABLE: Usually submits ${shipperProfile.avgSiDaysBeforeCutoff.toFixed(1)} days before cutoff`);
-      }
-
-      // Documentation quality insight
-      if (shipperProfile.docIssueRate !== null && shipperProfile.docIssueRate > 15) {
-        insights.push(`⚠️ DOC ISSUES: ${shipperProfile.docIssueRate}% of shipments have documentation problems`);
-        if (shipperProfile.commonIssueTypes.length > 0) {
-          insights.push(`   Common issues: ${shipperProfile.commonIssueTypes.join(', ')}`);
+      // SI late rate only relevant if SI is still pending
+      if (isPreSI) {
+        if (p.siLateRate !== null && p.siLateRate > 20) {
+          insights.push(`⚠️ SI LATE PATTERN: ${p.siLateRate}% late (avg ${p.avgSiDaysBeforeCutoff?.toFixed(1) || 'N/A'}d before cutoff) - RELEVANT NOW`);
+        } else if (p.avgSiDaysBeforeCutoff !== null && p.avgSiDaysBeforeCutoff > 3) {
+          insights.push(`✅ SI RELIABLE: Usually ${p.avgSiDaysBeforeCutoff.toFixed(1)}d before cutoff`);
         }
       }
-
-      // Risk assessment
-      if (shipperProfile.riskScore >= 50) {
-        insights.push(`🔴 HIGH RISK SHIPPER (score ${shipperProfile.riskScore}/100): ${shipperProfile.riskFactors.join(', ')}`);
-      } else if (shipperProfile.riskScore >= 25) {
-        insights.push(`🟡 MODERATE RISK SHIPPER (score ${shipperProfile.riskScore}/100)`);
+      // Doc issues relevant until BL is final
+      if (isPreDeparture && p.docIssueRate !== null && p.docIssueRate > 15) {
+        insights.push(`⚠️ DOC ISSUES: ${p.docIssueRate}% have documentation problems`);
       }
-
-      // Relationship context
-      if (shipperProfile.totalShipments >= 20) {
-        insights.push(`📊 ESTABLISHED: ${shipperProfile.totalShipments} shipments over ${shipperProfile.relationshipMonths} months`);
-      } else if (shipperProfile.totalShipments < 10) {
-        insights.push(`📊 NEW RELATIONSHIP: Only ${shipperProfile.totalShipments} shipments in history`);
+      // General risk always shown if high
+      if (p.riskScore >= 40) {
+        insights.push(`🔴 HIGH RISK SHIPPER (${p.riskScore}/100): ${p.riskFactors.join(', ')}`);
       }
 
       if (insights.length > 0) {
-        shipperSection = `\n## SHIPPER INTELLIGENCE (${shipperProfile.shipperName})\n${insights.join('\n')}`;
+        intelligenceSection += `\n## SHIPPER INTEL (${p.shipperName}) [Stage: ${stage}]\n${insights.join('\n')}`;
       }
     }
 
-    return `${header}${schedule}${alertSection}${shipperSection}${milestoneSection}${recentSection}${actionsSection}
+    // Consignee intelligence - detention/demurrage only relevant AFTER arrival
+    if (profiles.consignee && profiles.consignee.totalShipments >= 3) {
+      const insights: string[] = [];
+      const p = profiles.consignee;
+
+      // Detention/demurrage only relevant post-arrival or approaching arrival
+      if (isPostArrival || isInTransit) {
+        if (p.detentionRate !== null && p.detentionRate > 15) {
+          insights.push(`⚠️ DETENTION RISK: ${p.detentionRate}% of shipments incur detention - RELEVANT NOW`);
+        }
+        if (p.demurrageRate !== null && p.demurrageRate > 15) {
+          insights.push(`⚠️ DEMURRAGE RISK: ${p.demurrageRate}% incur demurrage - RELEVANT NOW`);
+        }
+      }
+      // Customs issues relevant when approaching or at destination
+      if ((isInTransit || isPostArrival) && p.customsIssueRate !== null && p.customsIssueRate > 20) {
+        insights.push(`⚠️ CUSTOMS RISK: ${p.customsIssueRate}% have customs issues`);
+      }
+      if (p.riskScore >= 40) {
+        insights.push(`🔴 HIGH RISK CONSIGNEE (${p.riskScore}/100)`);
+      }
+
+      if (insights.length > 0) {
+        intelligenceSection += `\n## CONSIGNEE INTEL (${p.consigneeName}) [Stage: ${stage}]\n${insights.join('\n')}`;
+      }
+    }
+
+    // Carrier intelligence - departure issues before departure, arrival issues after
+    if (profiles.carrier && profiles.carrier.totalShipments >= 5) {
+      const insights: string[] = [];
+      const p = profiles.carrier;
+
+      // Departure delays only relevant before departure
+      if (isPreDeparture && p.onTimeDepartureRate !== null && p.onTimeDepartureRate < 70) {
+        insights.push(`⚠️ DEPARTURE DELAYS: Only ${p.onTimeDepartureRate}% on-time - WATCH ETD`);
+      }
+      // Arrival delays relevant during transit
+      if (isInTransit && p.onTimeArrivalRate !== null && p.onTimeArrivalRate < 65) {
+        insights.push(`⚠️ ARRIVAL DELAYS: Only ${p.onTimeArrivalRate}% on-time - ETA may slip`);
+      }
+      // Rollover risk only before departure
+      if (isPreDeparture && p.rolloverRate !== null && p.rolloverRate > 15) {
+        insights.push(`⚠️ ROLLOVER RISK: ${p.rolloverRate}% get rolled - confirm booking`);
+      }
+      // Performance score always useful context
+      if (p.performanceScore >= 75) {
+        insights.push(`✅ HIGH PERFORMER (${p.performanceScore}/100)`);
+      } else if (p.performanceScore < 40) {
+        insights.push(`🔴 LOW PERFORMER (${p.performanceScore}/100)`);
+      }
+
+      if (insights.length > 0) {
+        intelligenceSection += `\n## CARRIER INTEL (${p.carrierName}) [Stage: ${stage}]\n${insights.join('\n')}`;
+      }
+    }
+
+    // Route intelligence - transit variance relevant during transit
+    if (profiles.route && profiles.route.totalShipments >= 5) {
+      const insights: string[] = [];
+      const p = profiles.route;
+
+      // Transit variance most relevant during transit or approaching departure
+      if ((isPreDeparture || isInTransit) && p.transitVarianceDays !== null && p.transitVarianceDays > 3) {
+        insights.push(`⚠️ SLOW LANE: Typically ${p.transitVarianceDays}d longer than scheduled`);
+      } else if (p.transitVarianceDays !== null && p.transitVarianceDays < -1) {
+        insights.push(`✅ FAST LANE: Usually ${Math.abs(p.transitVarianceDays)}d ahead of schedule`);
+      }
+      if ((isPreDeparture || isInTransit) && p.onTimeRate !== null && p.onTimeRate < 60) {
+        insights.push(`⚠️ DELAYS COMMON: Only ${p.onTimeRate}% on-time on this lane`);
+      }
+      if (isPreDeparture && p.bestCarrier) {
+        insights.push(`💡 BEST CARRIER: ${p.bestCarrier} on this route`);
+      }
+
+      if (insights.length > 0) {
+        intelligenceSection += `\n## ROUTE INTEL (${p.polCode} → ${p.podCode}) [Stage: ${stage}]\n${insights.join('\n')}`;
+      }
+    }
+
+    return `${header}${schedule}${alertSection}${intelligenceSection}${milestoneSection}${recentSection}${actionsSection}
 
 Analyze this shipment and return the JSON summary:`;
   }
@@ -615,9 +922,14 @@ Analyze this shipment and return the JSON summary:`;
     milestones: MilestoneEvent[],
     recent: RecentChronicle[],
     urgencies: DateUrgency[],
-    shipperProfile: ShipperProfileContext | null = null
+    profiles: {
+      shipper: ShipperProfileContext | null;
+      consignee: ConsigneeProfileContext | null;
+      carrier: CarrierProfileContext | null;
+      route: RouteProfileContext | null;
+    }
   ): Promise<GenerationResult> {
-    const userPrompt = this.buildPrompt(shipment, milestones, recent, urgencies, shipperProfile);
+    const userPrompt = this.buildPrompt(shipment, milestones, recent, urgencies, profiles);
 
     const response = await this.anthropic.messages.create({
       model: 'claude-3-5-haiku-20241022',
@@ -725,11 +1037,21 @@ Analyze this shipment and return the JSON summary:`;
     // Layer 4: Compute date-derived urgency
     const urgencies = this.computeDateUrgency(shipment);
 
-    // Layer 5: Shipper intelligence (cross-shipment patterns)
-    const shipperProfile = await this.getShipperProfile(shipment.shipper_name);
+    // Layer 5-8: Cross-shipment intelligence profiles
+    const [shipperProfile, consigneeProfile, carrierProfile, routeProfile] = await Promise.all([
+      this.getShipperProfile(shipment.shipper_name),
+      this.getConsigneeProfile(shipment.consignee_name),
+      this.getCarrierProfile(shipment.carrier_name),
+      this.getRouteProfile(shipment.port_of_loading_code, shipment.port_of_discharge_code),
+    ]);
 
     // Generate AI summary
-    const result = await this.generateSummary(shipment, milestones, recent, urgencies, shipperProfile);
+    const result = await this.generateSummary(shipment, milestones, recent, urgencies, {
+      shipper: shipperProfile,
+      consignee: consigneeProfile,
+      carrier: carrierProfile,
+      route: routeProfile,
+    });
 
     // Save to database
     await this.saveSummary(shipmentId, result);
