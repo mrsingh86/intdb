@@ -135,6 +135,15 @@ export type {
   HealthStatus,
 } from './chronicle-monitor';
 
+export {
+  PipelineMonitor,
+  createPipelineMonitor,
+} from './pipeline-monitor';
+
+export type {
+  PipelineXRay,
+} from './pipeline-monitor';
+
 export type {
   LogStage,
   ShipmentStage,
