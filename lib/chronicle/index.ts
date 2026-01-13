@@ -54,6 +54,16 @@ export type {
   ReanalysisBatchResult,
 } from './reanalysis-service';
 
+export {
+  ParallelReanalysisService,
+  createParallelReanalysisService,
+} from './parallel-reanalysis-service';
+
+export type {
+  ParallelReanalysisConfig,
+  ParallelReanalysisResult,
+} from './parallel-reanalysis-service';
+
 // ============================================================================
 // INTERFACES
 // ============================================================================
