@@ -168,6 +168,7 @@ export class ReanalysisService {
       bodyText: chronicle.body_preview || '',
       senderEmail: '',
       senderName: '',
+      recipientEmails: [],
       receivedAt: new Date(chronicle.occurred_at),
       direction: 'inbound' as const,
       snippet: '',
