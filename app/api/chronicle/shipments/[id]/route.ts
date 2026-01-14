@@ -171,6 +171,64 @@ export async function GET(
       .eq('shipment_id', id)
       .order('event_date', { ascending: true });
 
+    // Get AI summary for intelligence display
+    const { data: aiSummary } = await supabase
+      .from('shipment_ai_summaries')
+      .select(`
+        story,
+        narrative,
+        current_blocker,
+        blocker_owner,
+        blocker_type,
+        next_action,
+        action_owner,
+        action_contact,
+        financial_impact,
+        documented_charges,
+        estimated_detention,
+        customer_impact,
+        customer_action_required,
+        risk_level,
+        risk_reason,
+        days_overdue,
+        escalation_count,
+        days_since_activity,
+        issue_count,
+        urgent_message_count,
+        carrier_performance,
+        shipper_risk_signal,
+        key_insight,
+        key_deadline,
+        intelligence_warnings,
+        updated_at
+      `)
+      .eq('shipment_id', id)
+      .single();
+
+    // Get escalation details for deep dive
+    const { data: escalations } = await supabase
+      .from('chronicle')
+      .select('id, occurred_at, from_party, issue_type, summary')
+      .eq('shipment_id', id)
+      .eq('message_type', 'escalation')
+      .order('occurred_at', { ascending: false });
+
+    // Get issues for deep dive
+    const { data: issues } = await supabase
+      .from('chronicle')
+      .select('id, occurred_at, message_type, issue_type, from_party, summary')
+      .eq('shipment_id', id)
+      .eq('has_issue', true)
+      .order('occurred_at', { ascending: false });
+
+    // Get urgent/negative messages for deep dive
+    const { data: urgentMessages } = await supabase
+      .from('chronicle')
+      .select('id, occurred_at, message_type, sentiment, from_party, summary')
+      .eq('shipment_id', id)
+      .in('sentiment', ['urgent', 'negative'])
+      .order('occurred_at', { ascending: false });
+
     // Build journey chapters from chronicle data
     const chapters = buildJourneyChapters(chronicles || [], events || [], phase);
 
@@ -255,6 +313,61 @@ export async function GET(
         description: e.description,
         source: e.source_type,
       })) || [],
+      // AI Intelligence Summary
+      aiSummary: aiSummary ? {
+        story: aiSummary.story,
+        narrative: aiSummary.narrative,
+        currentBlocker: aiSummary.current_blocker,
+        blockerOwner: aiSummary.blocker_owner,
+        blockerType: aiSummary.blocker_type,
+        nextAction: aiSummary.next_action,
+        actionOwner: aiSummary.action_owner,
+        actionContact: aiSummary.action_contact,
+        financialImpact: aiSummary.financial_impact,
+        documentedCharges: aiSummary.documented_charges,
+        estimatedDetention: aiSummary.estimated_detention,
+        customerImpact: aiSummary.customer_impact,
+        customerActionRequired: aiSummary.customer_action_required,
+        riskLevel: aiSummary.risk_level,
+        riskReason: aiSummary.risk_reason,
+        daysOverdue: aiSummary.days_overdue,
+        escalationCount: aiSummary.escalation_count,
+        daysSinceActivity: aiSummary.days_since_activity,
+        issueCount: aiSummary.issue_count,
+        urgentMessageCount: aiSummary.urgent_message_count,
+        carrierPerformance: aiSummary.carrier_performance,
+        shipperRiskSignal: aiSummary.shipper_risk_signal,
+        keyInsight: aiSummary.key_insight,
+        keyDeadline: aiSummary.key_deadline,
+        intelligenceWarnings: aiSummary.intelligence_warnings,
+        updatedAt: aiSummary.updated_at,
+      } : null,
+      // Deep Dive Data
+      deepDive: {
+        escalations: escalations?.map(e => ({
+          id: e.id,
+          date: e.occurred_at,
+          fromParty: e.from_party,
+          issueType: e.issue_type,
+          summary: e.summary,
+        })) || [],
+        issues: issues?.map(i => ({
+          id: i.id,
+          date: i.occurred_at,
+          messageType: i.message_type,
+          issueType: i.issue_type,
+          fromParty: i.from_party,
+          summary: i.summary,
+        })) || [],
+        urgentMessages: urgentMessages?.map(u => ({
+          id: u.id,
+          date: u.occurred_at,
+          messageType: u.message_type,
+          sentiment: u.sentiment,
+          fromParty: u.from_party,
+          summary: u.summary,
+        })) || [],
+      },
     };
 
     return NextResponse.json(response);

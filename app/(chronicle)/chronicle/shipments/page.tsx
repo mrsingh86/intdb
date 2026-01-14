@@ -60,7 +60,6 @@ interface ShipmentRow {
 }
 
 type RiskFilter = 'all' | 'red' | 'amber' | 'green';
-type TimeFilter = 'all' | 'today' | '3days' | 'week';
 type PhaseFilter = 'all' | 'departure' | 'arrival';
 
 export default function ShipmentsPage() {
@@ -88,7 +87,6 @@ function ShipmentsContent() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState(searchParams.get('q') || '');
   const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
   const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>('all');
 
   const fetchShipments = useCallback(async (phase: PhaseFilter) => {
@@ -146,28 +144,6 @@ function ShipmentsContent() {
       });
     }
 
-    // Time filter - use ETA for arrivals, ETD for departures
-    if (timeFilter !== 'all') {
-      const now = Date.now();
-      const DAY = 86400000;
-
-      list = list.filter(s => {
-        // Choose date based on phase filter: arrival=ETA, departure=ETD, all=ETD
-        const dateStr = phaseFilter === 'arrival' ? s.eta : s.etd;
-        if (!dateStr) return false;
-
-        const dateTime = new Date(dateStr).getTime();
-        const diff = dateTime - now;
-
-        switch (timeFilter) {
-          case 'today': return Math.abs(diff) < DAY;
-          case '3days': return diff > -3 * DAY && diff < 3 * DAY;
-          case 'week': return diff > -7 * DAY && diff < 7 * DAY;
-          default: return true;
-        }
-      });
-    }
-
     // Categorize by risk
     const red: ShipmentRow[] = [];
     const amber: ShipmentRow[] = [];
@@ -187,18 +163,40 @@ function ShipmentsContent() {
     else if (riskFilter === 'green') result = green;
     else result = [...red, ...amber, ...green];
 
-    // Sort by date: future first, then past (descending)
+    // Sort: 7-day window first (descending), then beyond 7 days (descending)
+    const now = Date.now();
+    const DAY = 86400000;
+    const SEVEN_DAYS_AGO = now - 7 * DAY;
+    const SEVEN_DAYS_AHEAD = now + 7 * DAY;
+
+    const getDate = (s: ShipmentRow) => {
+      const dateStr = phaseFilter === 'arrival' ? s.eta : s.etd;
+      return dateStr ? new Date(dateStr).getTime() : 0;
+    };
+
+    const isWithin7Days = (timestamp: number) => {
+      return timestamp >= SEVEN_DAYS_AGO && timestamp <= SEVEN_DAYS_AHEAD;
+    };
+
     result.sort((a, b) => {
-      const dateA = new Date(a.etd || a.eta || '1970-01-01').getTime();
-      const dateB = new Date(b.etd || b.eta || '1970-01-01').getTime();
-      return dateB - dateA; // Descending: future first
+      const dateA = getDate(a);
+      const dateB = getDate(b);
+      const aIn7Days = isWithin7Days(dateA);
+      const bIn7Days = isWithin7Days(dateB);
+
+      // Group 1 (within 7 days) comes before Group 2 (beyond 7 days)
+      if (aIn7Days && !bIn7Days) return -1;
+      if (!aIn7Days && bIn7Days) return 1;
+
+      // Within same group, sort descending
+      return dateB - dateA;
     });
 
     return {
       filtered: result,
       stats: { red: red.length, amber: amber.length, green: green.length, total: list.length }
     };
-  }, [shipments, search, riskFilter, timeFilter, phaseFilter]);
+  }, [shipments, search, riskFilter, phaseFilter]);
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '—';
@@ -227,23 +225,6 @@ function ShipmentsContent() {
           placeholder="Search..."
           className="w-40 rounded-lg border border-terminal-border bg-terminal-surface px-3 py-1.5 text-sm text-terminal-text placeholder:text-terminal-muted focus:outline-none focus:ring-1 focus:ring-terminal-purple"
         />
-
-        {/* Time Filter */}
-        <div className="flex gap-0.5 rounded-lg border border-terminal-border bg-terminal-surface p-0.5">
-          {(['all', 'today', '3days', 'week'] as const).map((filter) => (
-            <button
-              key={filter}
-              onClick={() => setTimeFilter(filter)}
-              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
-                timeFilter === filter
-                  ? 'bg-terminal-elevated text-terminal-text'
-                  : 'text-terminal-muted hover:text-terminal-text'
-              }`}
-            >
-              {filter === 'all' ? 'All' : filter === 'today' ? 'Today' : filter === '3days' ? '3d' : '7d'}
-            </button>
-          ))}
-        </div>
 
         {/* Phase Filter */}
         <div className="flex gap-0.5 rounded-lg border border-terminal-border bg-terminal-surface p-0.5">
@@ -299,10 +280,9 @@ function ShipmentsContent() {
         </div>
 
         {/* Clear */}
-        {(timeFilter !== 'all' || phaseFilter !== 'all' || riskFilter !== 'all' || search) && (
+        {(phaseFilter !== 'all' || riskFilter !== 'all' || search) && (
           <button
             onClick={() => {
-              setTimeFilter('all');
               setPhaseFilter('all');
               setRiskFilter('all');
               setSearch('');
@@ -341,7 +321,7 @@ function ShipmentsContent() {
       ) : error ? (
         <div className="rounded-lg bg-red-500/10 p-6 text-center">
           <p className="text-red-500">{error}</p>
-          <button onClick={fetchShipments} className="mt-3 px-4 py-2 bg-red-500 text-white rounded-md text-sm">
+          <button onClick={() => fetchShipments(phaseFilter)} className="mt-3 px-4 py-2 bg-red-500 text-white rounded-md text-sm">
             Retry
           </button>
         </div>
