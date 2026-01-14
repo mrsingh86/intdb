@@ -135,6 +135,7 @@ export async function GET(request: NextRequest) {
     const order = searchParams.get('order') || 'asc';
     const page = parseInt(searchParams.get('page') || '1');
     const pageSize = parseInt(searchParams.get('pageSize') || '50');
+    const dateWindow = parseInt(searchParams.get('dateWindow') || '0'); // ±days filter (0 = no filter)
 
     const now = new Date();
 
@@ -185,16 +186,69 @@ export async function GET(request: NextRequest) {
       eta: 'eta',
     };
     const sortColumn = sortMap[sort] || 'etd';
-    query = query.order(sortColumn, { ascending: order === 'asc', nullsFirst: false });
 
-    // Apply pagination
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
-    query = query.range(from, to);
+    let shipments: Array<{
+      id: string; booking_number: string | null; bl_number: string | null;
+      shipper_name: string | null; consignee_name: string | null; vessel_name: string | null;
+      voyage_number: string | null; port_of_loading: string | null; port_of_loading_code: string | null;
+      port_of_discharge: string | null; port_of_discharge_code: string | null;
+      etd: string | null; eta: string | null; stage: string | null; carrier_name: string | null;
+      si_cutoff: string | null; vgm_cutoff: string | null; created_at: string; status: string | null;
+    }> = [];
 
-    const { data: shipments, error, count } = await query;
+    if (dateWindow > 0) {
+      // Filter by ±dateWindow days (for Arrival/Departure tabs)
+      const daysAgo = new Date(Date.now() - dateWindow * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const daysAhead = new Date(Date.now() + dateWindow * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    if (error) throw error;
+      let dateQuery = supabase
+        .from('shipments')
+        .select(`
+          id, booking_number, bl_number, shipper_name, consignee_name, vessel_name,
+          voyage_number, port_of_loading, port_of_loading_code, port_of_discharge,
+          port_of_discharge_code, etd, eta, stage, carrier_name, si_cutoff, vgm_cutoff,
+          created_at, status
+        `)
+        .not('status', 'eq', 'cancelled');
+
+      // Filter by date range based on sort column
+      if (sortColumn === 'eta') {
+        dateQuery = dateQuery.gte('eta', daysAgo).lte('eta', daysAhead);
+      } else {
+        dateQuery = dateQuery.gte('etd', daysAgo).lte('etd', daysAhead);
+      }
+
+      if (q) {
+        dateQuery = dateQuery.or(`booking_number.ilike.%${q}%,bl_number.ilike.%${q}%,vessel_name.ilike.%${q}%,shipper_name.ilike.%${q}%,consignee_name.ilike.%${q}%`);
+      }
+
+      dateQuery = dateQuery.order(sortColumn, { ascending: order === 'asc', nullsFirst: false }).limit(pageSize);
+
+      const { data } = await dateQuery;
+      shipments = data || [];
+    } else {
+      // No date filter (for All tab) - return all shipments
+      let allQuery = supabase
+        .from('shipments')
+        .select(`
+          id, booking_number, bl_number, shipper_name, consignee_name, vessel_name,
+          voyage_number, port_of_loading, port_of_loading_code, port_of_discharge,
+          port_of_discharge_code, etd, eta, stage, carrier_name, si_cutoff, vgm_cutoff,
+          created_at, status
+        `)
+        .not('status', 'eq', 'cancelled');
+
+      if (q) {
+        allQuery = allQuery.or(`booking_number.ilike.%${q}%,bl_number.ilike.%${q}%,vessel_name.ilike.%${q}%,shipper_name.ilike.%${q}%,consignee_name.ilike.%${q}%`);
+      }
+
+      allQuery = allQuery.order(sortColumn, { ascending: order === 'asc', nullsFirst: false }).limit(pageSize);
+
+      const { data } = await allQuery;
+      shipments = data || [];
+    }
+
+    const count = shipments.length;
 
     // Get document counts for each shipment
     const shipmentIds = shipments?.map(s => s.id) || [];

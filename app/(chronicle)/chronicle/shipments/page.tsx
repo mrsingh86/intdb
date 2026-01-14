@@ -93,9 +93,24 @@ function ShipmentsContent() {
     setLoading(true);
     setError(null);
     try {
-      // Sort by ETA for arrivals, ETD for departures/all
-      const sortField = phase === 'arrival' ? 'eta' : 'etd';
-      const params = new URLSearchParams({ page: '1', pageSize: '200', sort: sortField, order: 'desc' });
+      const params = new URLSearchParams({ page: '1', pageSize: '300' });
+
+      if (phase === 'arrival') {
+        // Arrivals: filter by ETA ±15 days, sort ascending (soonest first)
+        params.set('sort', 'eta');
+        params.set('order', 'asc');
+        params.set('dateWindow', '15');
+      } else if (phase === 'departure') {
+        // Departures: filter by ETD ±15 days, sort ascending (soonest first)
+        params.set('sort', 'etd');
+        params.set('order', 'asc');
+        params.set('dateWindow', '15');
+      } else {
+        // All: no date filter, sort by ETD descending (most recent first)
+        params.set('sort', 'etd');
+        params.set('order', 'desc');
+      }
+
       const res = await fetch(`/api/chronicle/shipments?${params}`);
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
@@ -163,33 +178,29 @@ function ShipmentsContent() {
     else if (riskFilter === 'green') result = green;
     else result = [...red, ...amber, ...green];
 
-    // Sort: 7-day window first (descending), then beyond 7 days (descending)
+    // Sort by date
     const now = Date.now();
-    const DAY = 86400000;
-    const SEVEN_DAYS_AGO = now - 7 * DAY;
-    const SEVEN_DAYS_AHEAD = now + 7 * DAY;
-
-    const getDate = (s: ShipmentRow) => {
-      const dateStr = phaseFilter === 'arrival' ? s.eta : s.etd;
-      return dateStr ? new Date(dateStr).getTime() : 0;
-    };
-
-    const isWithin7Days = (timestamp: number) => {
-      return timestamp >= SEVEN_DAYS_AGO && timestamp <= SEVEN_DAYS_AHEAD;
-    };
-
     result.sort((a, b) => {
-      const dateA = getDate(a);
-      const dateB = getDate(b);
-      const aIn7Days = isWithin7Days(dateA);
-      const bIn7Days = isWithin7Days(dateB);
+      const dateA = phaseFilter === 'arrival'
+        ? new Date(a.eta || '1970-01-01').getTime()
+        : new Date(a.etd || '1970-01-01').getTime();
+      const dateB = phaseFilter === 'arrival'
+        ? new Date(b.eta || '1970-01-01').getTime()
+        : new Date(b.etd || '1970-01-01').getTime();
 
-      // Group 1 (within 7 days) comes before Group 2 (beyond 7 days)
-      if (aIn7Days && !bIn7Days) return -1;
-      if (!aIn7Days && bIn7Days) return 1;
+      if (phaseFilter === 'all') {
+        // All tab: descending (most recent first)
+        return dateB - dateA;
+      } else {
+        // Arrival/Departure: future dates first (ascending), then past dates (descending)
+        const aIsFuture = dateA >= now;
+        const bIsFuture = dateB >= now;
 
-      // Within same group, sort descending
-      return dateB - dateA;
+        if (aIsFuture && !bIsFuture) return -1; // a is future, b is past -> a first
+        if (!aIsFuture && bIsFuture) return 1;  // a is past, b is future -> b first
+        if (aIsFuture && bIsFuture) return dateA - dateB; // Both future: ascending
+        return dateB - dateA; // Both past: descending (most recent past first)
+      }
     });
 
     return {
