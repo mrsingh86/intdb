@@ -86,6 +86,25 @@ interface RecentChronicle {
   // Added for filtering
   thread_id: string | null;
   document_type: string | null;
+  // Financial tracking
+  amount: string | null;
+  currency: string | null;
+  last_free_day: string | null;
+}
+
+interface FinancialSummary {
+  totalDocumentedCharges: number;
+  chargeBreakdown: { type: string; amount: number; currency: string }[];
+  detentionDays: number | null;
+  demurrageDays: number | null;
+  lastFreeDay: string | null;
+  estimatedExposure: string | null;
+}
+
+interface IntelligenceWarning {
+  type: 'staleness' | 'data_quality' | 'financial' | 'blocker_mismatch';
+  message: string;
+  severity: 'critical' | 'warning' | 'info';
 }
 
 interface DateUrgency {
@@ -141,16 +160,28 @@ interface RouteProfileContext {
 }
 
 export interface AISummary {
+  // V2 format (new tight format)
+  narrative: string | null; // Tight one-paragraph intelligence
+  owner: string | null; // Exact party who needs to act
+  ownerType: 'shipper' | 'consignee' | 'carrier' | 'intoglo' | null;
+  keyDeadline: string | null; // Critical date (e.g., "Jan 14 ETD")
+  keyInsight: string | null; // Most important intelligence (e.g., "61% SI late rate")
+
+  // V1 format (legacy, kept for backwards compatibility)
   story: string;
   currentBlocker: string | null;
   blockerOwner: string | null;
+  blockerType: 'external_dependency' | 'internal_task' | null; // NEW: Distinguish blocker vs task
   nextAction: string | null;
   actionOwner: string | null;
+  actionContact: string | null; // NEW: Contact info for action owner
   actionPriority: 'critical' | 'high' | 'medium' | 'low' | null;
   financialImpact: string | null;
   customerImpact: string | null;
+  customerActionRequired: boolean; // NEW: Flag for customer-facing actions
   riskLevel: 'red' | 'amber' | 'green';
   riskReason: string | null;
+  daysOverdue: number | null; // NEW: Days past ETA/ETD for headline
 }
 
 export interface GenerationResult {
@@ -170,10 +201,49 @@ const SYSTEM_PROMPT = `You are an intelligent freight operations storyteller at 
 Your job: Transform raw shipment data into a clear, actionable narrative.
 
 ## YOUR AUDIENCE
-- Operations Manager: "What do I need to do TODAY?"
-- Customer Success: "What should I tell the customer?"
-- Finance: "What costs are at risk?"
+- Operations Manager: "What do I need to do TODAY?" (Must pass 10-second scan test)
+- Customer Success: "What should I tell the customer?" (Must be call-ready)
+- Finance: "What costs are at risk?" (Must quantify dollar amounts)
 - Executive: "Is this shipment healthy?"
+
+## CRITICAL: BLOCKER vs TASK DISTINCTION
+
+**BLOCKER** = External dependency stopping progress (someone else must act first)
+  ✅ "Chassis shortage at Houston terminal" (external - trucker can't pick up)
+  ✅ "Waiting for shipper to submit packing list" (external - shipper must act)
+  ✅ "Carrier hasn't released container" (external - carrier must act)
+
+**TASK** = Internal action Intoglo needs to complete (we can do it now)
+  ❌ NOT A BLOCKER: "Missing shipper details in system" (Intoglo can collect)
+  ❌ NOT A BLOCKER: "Need to submit SI" (Intoglo can submit)
+  ❌ NOT A BLOCKER: "Invoice not raised" (Intoglo can raise)
+
+When identifying currentBlocker:
+- If it's something Intoglo can do independently → set blockerType: "internal_task"
+- If we're waiting on external party → set blockerType: "external_dependency"
+
+## CRITICAL: FINANCIAL QUANTIFICATION FORMULA
+
+**ALWAYS calculate and show total exposure using this formula:**
+\`[Days] × [Daily Rate] = $[Total] exposure\`
+
+Examples:
+- ✅ "32 days past ETA × $150/day = $4,800 detention exposure"
+- ✅ "14 days at terminal × $100/day = $1,400 demurrage risk"
+- ❌ "Potential detention charges accumulating" (TOO VAGUE)
+
+**Documented Charges:** When FINANCIAL CHARGES section shows actual amounts, SUM THEM:
+- ✅ "Total documented charges: $12,999 (customs $5,804 + trucking $2,100 + storage $455 + transloading $1,200 + destination $3,440)"
+- ❌ "Potential storage charges" when actual amounts are documented
+
+## CRITICAL: DAYS-OVERDUE IN HEADLINES
+
+For any shipment past its ETA/ETD, ALWAYS include days overdue in the story:
+- ✅ "Arrived 32 days ago, still awaiting pickup due to chassis shortage"
+- ✅ "Container stuck at terminal for 14 days - $2,100 detention accumulated"
+- ❌ "Container awaiting pickup" (missing duration)
+
+Set daysOverdue field to the number of days past ETA (positive) or days until ETA (negative/null).
 
 ## STORYTELLING RULES
 
@@ -189,13 +259,17 @@ Your job: Transform raw shipment data into a clear, actionable narrative.
    ❌ "Waiting for documents"
    ✅ "Waiting for packing list from ABC Exports since Jan 8 (4 days)"
 
-4. **QUANTIFY IMPACT** - Make stakes concrete
+4. **QUANTIFY IMPACT** - Make stakes concrete using formula
    ❌ "May incur charges"
-   ✅ "$150/day detention starting Jan 18 if not picked up"
+   ✅ "14 days × $150/day = $2,100 detention since Jan 1"
 
-5. **ASSIGN OWNERSHIP** - Who needs to act
+5. **ASSIGN OWNERSHIP WITH CONTACT** - Who needs to act and how
    ❌ "Follow up needed"
-   ✅ "Intoglo ops to call Carmel Transport for pickup ETA"
+   ✅ "Intoglo ops to call Carmel Transport (from_address in chronicles) for pickup ETA"
+
+6. **FLAG CUSTOMER ACTIONS** - Set customerActionRequired: true when customer must act
+   ✅ "Customer must provide W-9 form" → customerActionRequired: true
+   ✅ "Intoglo to submit SI" → customerActionRequired: false
 
 ## DOMAIN KNOWLEDGE
 
@@ -205,31 +279,19 @@ Your job: Transform raw shipment data into a clear, actionable narrative.
 
 **Milestones:** Booking → SI Submitted → BL Draft → BL Issued → Departed → Arrived → Customs Cleared → Delivered
 
-**Financial Risks:**
-- Detention: Container held beyond free time (~$100-200/day)
-- Demurrage: Port storage charges (~$50-150/day)
-- Rollover: Missed sailing = rebooking + delays
+**Financial Rates (use for calculations):**
+- Detention: Container held beyond free time = $100-200/day (use $150 average)
+- Demurrage: Port storage charges = $50-150/day (use $100 average)
+- Terminal storage: $50-100/day
+- Chassis rental: $30-50/day
 
 ## CRITICAL: READING CONFIRMATIONS (✓CONFIRMED)
 
 In milestones, entries marked with **✓CONFIRMED** mean that step is COMPLETE:
-- \`vgm_confirmation ✓CONFIRMED\` = VGM has been submitted, do NOT report "VGM pending" or "VGM cutoff missed"
-- \`sob_confirmation ✓CONFIRMED\` = Cargo is on board, SI is done, vessel has sailed - ALL pre-departure cutoffs are COMPLETE
+- \`vgm_confirmation ✓CONFIRMED\` = VGM has been submitted, do NOT report "VGM pending"
+- \`sob_confirmation ✓CONFIRMED\` = Cargo is on board, ALL pre-departure cutoffs are COMPLETE
 - \`booking_confirmation ✓CONFIRMED\` = Booking is confirmed
 - \`container_release ✓CONFIRMED\` = Container released for pickup
-
-**CRITICAL RULE: A cutoff is NOT "missed" if there's a ✓CONFIRMED milestone for it!**
-
-Example 1 - VGM cutoff with confirmation:
-- VGM Cutoff: Jan 6 (passed)
-- Dec 30: vgm_confirmation ✓CONFIRMED
-→ VGM was submitted BEFORE cutoff. It is COMPLETE, not "missed"!
-
-Example 2 - Shipped on Board:
-- SI Cutoff: Jan 4 (passed)
-- VGM Cutoff: Jan 6 (passed)
-- Jan 9: sob_confirmation ✓CONFIRMED (vessel sailed)
-→ If vessel sailed, ALL pre-departure requirements (SI, VGM, Cargo) were met. Do NOT report them as "missed".
 
 **NEVER say cutoff was "missed" if:**
 1. There's a ✓CONFIRMED milestone for that item, OR
@@ -238,22 +300,33 @@ Example 2 - Shipped on Board:
 ## OUTPUT FORMAT (strict JSON)
 
 {
-  "story": "3-4 sentence narrative with specific names, dates, and current state",
-  "currentBlocker": "What's stopping progress NOW with specific party and duration (null if none)",
+  "narrative": "1-2 tight sentences: What's happening + who needs to act + key deadline. Include days overdue if past ETA.",
+  "owner": "Exact party who must act next: 'ABC Exports' | 'Hapag-Lloyd' | 'Intoglo Ops' | null",
+  "ownerType": "shipper|consignee|carrier|intoglo|null",
+  "keyDeadline": "Most critical date: 'SI Cutoff Jan 14' | 'ETD Jan 16' | 'Pickup by Jan 18' | null",
+  "keyInsight": "One-liner intelligence with numbers: '32 days overdue, $4,800 exposure' | 'Total charges: $12,999' | null",
+  "story": "3-4 sentence narrative with specific names, dates, amounts, and days overdue",
+  "currentBlocker": "What's stopping progress NOW with party and duration (null if only internal tasks)",
   "blockerOwner": "Who owns the blocker: [specific company/party name]|intoglo|null",
-  "nextAction": "Specific action with deadline: 'Call [party] for [outcome] by [date]'",
+  "blockerType": "external_dependency|internal_task|null",
+  "nextAction": "Specific action with deadline and contact: 'Call [party] at [email/phone from chronicles] for [outcome] by [date]'",
   "actionOwner": "Who should act: intoglo|customer|[specific party name]",
+  "actionContact": "Contact info from chronicles if available: email or phone | null",
   "actionPriority": "critical|high|medium|low",
-  "financialImpact": "Specific amount/risk: '$X detention since [date]' or null",
-  "customerImpact": "How customer affected: 'Delivery delayed 3 days' or null",
+  "financialImpact": "Calculated amount: '[X] days × $[rate]/day = $[total]' OR 'Total documented: $X' | null",
+  "customerImpact": "How customer affected with days: 'Delivery delayed 14 days from original ETA' | null",
+  "customerActionRequired": true/false,
   "riskLevel": "red|amber|green",
-  "riskReason": "One line: why this risk level"
+  "riskReason": "One line with numbers: 'X days overdue with $Y exposure'",
+  "daysOverdue": number or null
 }
 
-## RISK LEVEL GUIDE
-- **RED**: Immediate action required (cutoff <24h, active issue, financial loss)
-- **AMBER**: Attention needed (cutoff <3d, pending response >3d, potential issue)
-- **GREEN**: On track (no blockers, schedule holding, all parties responsive)
+## RISK LEVEL GUIDE (Stage-Aware)
+- **RED**: Immediate action required (cutoff <24h, active issue, financial loss >$1000, overdue >7 days)
+- **AMBER**: Attention needed (cutoff <3d, pending response >3d, potential issue, overdue 1-7 days)
+- **GREEN**: On track OR DELIVERED (no blockers, schedule holding, all parties responsive)
+
+**CRITICAL:** If stage is DELIVERED, risk should be GREEN unless there's a post-delivery payment issue.
 
 ## CRITICAL: STAGE-AWARE INTELLIGENCE
 
@@ -412,7 +485,8 @@ export class HaikuSummaryService {
         occurred_at, direction, from_party, from_address, message_type, summary,
         has_issue, issue_type, issue_description,
         has_action, action_description, action_priority, action_deadline, action_completed_at,
-        carrier_name, sentiment, thread_id, document_type
+        carrier_name, sentiment, thread_id, document_type,
+        amount, currency, last_free_day
       `)
       .eq('shipment_id', shipmentId)
       .gte('occurred_at', sevenDaysAgo)
@@ -493,6 +567,172 @@ export class HaikuSummaryService {
 
     // Return top 25 most important entries (increased from 20 to show more progression)
     return prioritized.slice(0, 25) as RecentChronicle[];
+  }
+
+  /**
+   * Layer 3.5: Extract financial summary from ALL chronicles (not just recent)
+   * This captures all documented charges, detention days, and calculates exposure
+   */
+  private async getFinancialSummary(shipmentId: string, stage: string | null, eta: string | null): Promise<FinancialSummary> {
+    // Get ALL chronicles with financial data
+    const { data } = await this.supabase
+      .from('chronicle')
+      .select('document_type, amount, currency, last_free_day, issue_type, occurred_at')
+      .eq('shipment_id', shipmentId)
+      .not('amount', 'is', null)
+      .order('occurred_at', { ascending: false });
+
+    const chargeBreakdown: { type: string; amount: number; currency: string }[] = [];
+    let totalUSD = 0;
+    let lastFreeDay: string | null = null;
+    let detentionDays: number | null = null;
+    let demurrageDays: number | null = null;
+
+    // Process each chronicle with financial data
+    for (const row of data || []) {
+      const amount = parseFloat(row.amount);
+      if (isNaN(amount)) continue;
+
+      const currency = row.currency || 'USD';
+      const type = row.document_type || 'charge';
+
+      chargeBreakdown.push({ type, amount, currency });
+
+      // Convert to USD for total (rough conversion for non-USD)
+      if (currency === 'USD') {
+        totalUSD += amount;
+      } else if (currency === 'INR') {
+        totalUSD += amount / 83; // Rough INR to USD
+      } else if (currency === 'EUR') {
+        totalUSD += amount * 1.1;
+      } else if (currency === 'CAD') {
+        totalUSD += amount * 0.74;
+      } else {
+        totalUSD += amount; // Assume USD if unknown
+      }
+
+      // Track last free day
+      if (row.last_free_day && !lastFreeDay) {
+        lastFreeDay = row.last_free_day;
+      }
+    }
+
+    // Calculate detention/demurrage days if applicable
+    const now = new Date();
+    const POST_ARRIVAL_STAGES = ['ARRIVED', 'CUSTOMS_CLEARED', 'DELIVERED', 'COMPLETED'];
+    const isPostArrival = stage && POST_ARRIVAL_STAGES.includes(stage.toUpperCase());
+
+    if (isPostArrival && lastFreeDay) {
+      const lfdDate = new Date(lastFreeDay);
+      if (lfdDate < now) {
+        detentionDays = Math.ceil((now.getTime() - lfdDate.getTime()) / (1000 * 60 * 60 * 24));
+      }
+    } else if (isPostArrival && eta) {
+      // Estimate based on ETA + 5 days free time
+      const etaDate = new Date(eta);
+      const estimatedLFD = new Date(etaDate.getTime() + 5 * 24 * 60 * 60 * 1000);
+      if (estimatedLFD < now) {
+        detentionDays = Math.ceil((now.getTime() - estimatedLFD.getTime()) / (1000 * 60 * 60 * 24));
+      }
+    }
+
+    // Calculate estimated exposure
+    let estimatedExposure: string | null = null;
+    if (detentionDays && detentionDays > 0) {
+      const dailyRate = 150; // Average detention rate
+      const exposure = detentionDays * dailyRate;
+      estimatedExposure = `${detentionDays} days × $${dailyRate}/day = $${exposure.toLocaleString()} detention exposure`;
+    }
+
+    return {
+      totalDocumentedCharges: Math.round(totalUSD * 100) / 100,
+      chargeBreakdown,
+      detentionDays,
+      demurrageDays,
+      lastFreeDay,
+      estimatedExposure,
+    };
+  }
+
+  /**
+   * Generate intelligence warnings for data quality issues
+   */
+  private generateIntelligenceWarnings(
+    shipment: ShipmentContext,
+    milestones: MilestoneEvent[],
+    recent: RecentChronicle[],
+    financial: FinancialSummary
+  ): IntelligenceWarning[] {
+    const warnings: IntelligenceWarning[] = [];
+    const now = new Date();
+    const stage = (shipment.stage || 'PENDING').toUpperCase();
+
+    // 1. Staleness check - No activity in 14+ days
+    const latestActivity = recent[0]?.occurred_at || milestones[milestones.length - 1]?.occurred_at;
+    if (latestActivity) {
+      const daysSinceActivity = Math.ceil((now.getTime() - new Date(latestActivity).getTime()) / (1000 * 60 * 60 * 24));
+      if (daysSinceActivity > 14 && !['DELIVERED', 'COMPLETED', 'CANCELLED'].includes(stage)) {
+        warnings.push({
+          type: 'staleness',
+          message: `No activity for ${daysSinceActivity} days`,
+          severity: daysSinceActivity > 30 ? 'critical' : 'warning',
+        });
+      }
+    }
+
+    // 2. Zombie shipment check - ETD 90+ days old without delivery
+    if (shipment.etd) {
+      const etdDate = new Date(shipment.etd);
+      const daysSinceETD = Math.ceil((now.getTime() - etdDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysSinceETD > 90 && !['DELIVERED', 'COMPLETED', 'CANCELLED'].includes(stage)) {
+        warnings.push({
+          type: 'staleness',
+          message: `ETD was ${daysSinceETD} days ago, shipment still not delivered`,
+          severity: 'critical',
+        });
+      }
+    }
+
+    // 3. Financial data check - Has issues but no financial impact documented
+    const hasIssues = recent.some(r => r.has_issue) || milestones.some(m => m.has_issue);
+    if (hasIssues && financial.totalDocumentedCharges === 0 && !financial.estimatedExposure) {
+      warnings.push({
+        type: 'financial',
+        message: 'Has issues flagged but no financial impact documented',
+        severity: 'warning',
+      });
+    }
+
+    // 4. Post-arrival without pickup - Detention risk
+    const POST_ARRIVAL_STAGES = ['ARRIVED', 'CUSTOMS_CLEARED'];
+    if (POST_ARRIVAL_STAGES.includes(stage) && shipment.eta) {
+      const etaDate = new Date(shipment.eta);
+      const daysSinceArrival = Math.ceil((now.getTime() - etaDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysSinceArrival > 7) {
+        warnings.push({
+          type: 'financial',
+          message: `Container at port ${daysSinceArrival} days - detention charges likely`,
+          severity: daysSinceArrival > 14 ? 'critical' : 'warning',
+        });
+      }
+    }
+
+    // 5. Missing core data check
+    const missingCore: string[] = [];
+    if (!shipment.booking_number && !shipment.mbl_number) missingCore.push('booking/MBL');
+    if (!shipment.port_of_loading && !shipment.port_of_loading_code) missingCore.push('POL');
+    if (!shipment.port_of_discharge && !shipment.port_of_discharge_code) missingCore.push('POD');
+    if (!shipment.etd && !shipment.atd) missingCore.push('ETD');
+
+    if (missingCore.length > 0 && !['PENDING', 'DRAFT', 'REQUESTED'].includes(stage)) {
+      warnings.push({
+        type: 'data_quality',
+        message: `Missing core data: ${missingCore.join(', ')}`,
+        severity: 'warning',
+      });
+    }
+
+    return warnings;
   }
 
   /**
@@ -782,7 +1022,9 @@ export class HaikuSummaryService {
       consignee: ConsigneeProfileContext | null;
       carrier: CarrierProfileContext | null;
       route: RouteProfileContext | null;
-    }
+    },
+    financial: FinancialSummary,
+    warnings: IntelligenceWarning[]
   ): string {
     const today = new Date().toLocaleDateString('en-US', {
       weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
@@ -865,9 +1107,61 @@ Cargo Cutoff: ${this.formatDateWithDays(shipment.cargo_cutoff)}`;
       const actions = pendingActions.map(a => {
         const deadline = a.action_deadline ? this.formatDateWithDays(a.action_deadline) : 'no deadline';
         const priority = a.action_priority || 'medium';
-        return `- [${priority.toUpperCase()}] ${a.action_description} (${deadline})`;
+        const contact = a.from_address ? ` [Contact: ${a.from_address}]` : '';
+        return `- [${priority.toUpperCase()}] ${a.action_description} (${deadline})${contact}`;
       }).join('\n');
       actionsSection = `\n## PENDING ACTIONS\n${actions}`;
+    }
+
+    // Build financial section - CRITICAL for accurate summaries
+    let financialSection = '';
+    if (financial.totalDocumentedCharges > 0 || financial.estimatedExposure) {
+      const parts: string[] = [];
+
+      if (financial.totalDocumentedCharges > 0) {
+        parts.push(`Total Documented Charges: $${financial.totalDocumentedCharges.toLocaleString()}`);
+        // Show top 5 charge breakdown
+        const topCharges = financial.chargeBreakdown.slice(0, 5);
+        if (topCharges.length > 0) {
+          const breakdown = topCharges.map(c => `  - ${c.type}: ${c.currency} ${c.amount}`).join('\n');
+          parts.push(`Breakdown:\n${breakdown}`);
+        }
+      }
+
+      if (financial.lastFreeDay) {
+        parts.push(`Last Free Day: ${this.formatDateWithDays(financial.lastFreeDay)}`);
+      }
+
+      if (financial.detentionDays && financial.detentionDays > 0) {
+        parts.push(`Detention Days: ${financial.detentionDays} (calculate: ${financial.detentionDays} × $150/day = $${financial.detentionDays * 150})`);
+      }
+
+      if (financial.estimatedExposure) {
+        parts.push(`⚠️ EXPOSURE: ${financial.estimatedExposure}`);
+      }
+
+      financialSection = `\n## FINANCIAL CHARGES (Use these actual amounts!)\n${parts.join('\n')}`;
+    }
+
+    // Build warnings section
+    let warningsSection = '';
+    if (warnings.length > 0) {
+      const warningLines = warnings.map(w => {
+        const icon = w.severity === 'critical' ? '🔴' : w.severity === 'warning' ? '🟡' : 'ℹ️';
+        return `${icon} ${w.type.toUpperCase()}: ${w.message}`;
+      }).join('\n');
+      warningsSection = `\n## INTELLIGENCE WARNINGS\n${warningLines}`;
+    }
+
+    // Calculate days overdue for context
+    let daysOverdueSection = '';
+    if (shipment.eta) {
+      const etaDate = new Date(shipment.eta);
+      const now = new Date();
+      const daysOverdue = Math.ceil((now.getTime() - etaDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysOverdue > 0 && !['DELIVERED', 'COMPLETED'].includes((shipment.stage || '').toUpperCase())) {
+        daysOverdueSection = `\n## DAYS OVERDUE\n⏰ ${daysOverdue} days past ETA - INCLUDE THIS IN STORY AND RISK ASSESSMENT`;
+      }
     }
 
     // Build intelligence sections with STAGE-AWARE filtering
@@ -991,9 +1285,14 @@ Cargo Cutoff: ${this.formatDateWithDays(shipment.cargo_cutoff)}`;
       }
     }
 
-    return `${header}${schedule}${alertSection}${intelligenceSection}${milestoneSection}${recentSection}${actionsSection}
+    return `${header}${schedule}${alertSection}${daysOverdueSection}${financialSection}${warningsSection}${intelligenceSection}${milestoneSection}${recentSection}${actionsSection}
 
-Analyze this shipment and return the JSON summary:`;
+Analyze this shipment and return the JSON summary. Remember:
+1. Use ACTUAL documented charges from FINANCIAL CHARGES section
+2. Calculate detention: [days] × $150/day = $[total]
+3. Include days overdue in story if past ETA
+4. Distinguish BLOCKER (external dependency) vs TASK (Intoglo can do now)
+5. Set customerActionRequired=true if customer must act`;
   }
 
   // ===========================================================================
@@ -1010,9 +1309,11 @@ Analyze this shipment and return the JSON summary:`;
       consignee: ConsigneeProfileContext | null;
       carrier: CarrierProfileContext | null;
       route: RouteProfileContext | null;
-    }
+    },
+    financial: FinancialSummary,
+    warnings: IntelligenceWarning[]
   ): Promise<GenerationResult> {
-    const userPrompt = this.buildPrompt(shipment, milestones, recent, urgencies, profiles);
+    const userPrompt = this.buildPrompt(shipment, milestones, recent, urgencies, profiles, financial, warnings);
 
     const response = await this.anthropic.messages.create({
       model: 'claude-3-5-haiku-20241022',
@@ -1027,22 +1328,57 @@ Analyze this shipment and return the JSON summary:`;
     try {
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        summary = JSON.parse(jsonMatch[0]);
+        const parsed = JSON.parse(jsonMatch[0]);
+        // Ensure all fields are present (may be null)
+        summary = {
+          // V2 fields
+          narrative: parsed.narrative || null,
+          owner: parsed.owner || null,
+          ownerType: parsed.ownerType || null,
+          keyDeadline: parsed.keyDeadline || null,
+          keyInsight: parsed.keyInsight || null,
+          // V1 fields (enhanced)
+          story: parsed.story || 'Unable to generate summary',
+          currentBlocker: parsed.currentBlocker || null,
+          blockerOwner: parsed.blockerOwner || null,
+          blockerType: parsed.blockerType || null,
+          nextAction: parsed.nextAction || null,
+          actionOwner: parsed.actionOwner || null,
+          actionContact: parsed.actionContact || null,
+          actionPriority: parsed.actionPriority || null,
+          financialImpact: parsed.financialImpact || null,
+          customerImpact: parsed.customerImpact || null,
+          customerActionRequired: parsed.customerActionRequired || false,
+          riskLevel: parsed.riskLevel || 'amber',
+          riskReason: parsed.riskReason || null,
+          daysOverdue: parsed.daysOverdue || null,
+        };
       } else {
         throw new Error('No JSON found');
       }
     } catch {
       summary = {
+        // V2 fields
+        narrative: null,
+        owner: null,
+        ownerType: null,
+        keyDeadline: null,
+        keyInsight: null,
+        // V1 fields
         story: 'Unable to generate summary',
         currentBlocker: null,
         blockerOwner: null,
+        blockerType: null,
         nextAction: 'Review shipment manually',
         actionOwner: 'intoglo',
+        actionContact: null,
         actionPriority: 'medium',
         financialImpact: null,
         customerImpact: null,
+        customerActionRequired: false,
         riskLevel: 'amber',
         riskReason: 'AI parsing failed',
+        daysOverdue: null,
       };
     }
 
@@ -1064,22 +1400,36 @@ Analyze this shipment and return the JSON summary:`;
   // DATABASE OPERATIONS
   // ===========================================================================
 
-  async saveSummary(shipmentId: string, result: GenerationResult): Promise<void> {
+  async saveSummary(shipmentId: string, result: GenerationResult, warnings: IntelligenceWarning[] = []): Promise<void> {
     const { summary } = result;
 
     const { error } = await this.supabase.from('shipment_ai_summaries').upsert(
       {
         shipment_id: shipmentId,
+        // V2 fields (new tight format)
+        narrative: summary.narrative,
+        owner: summary.owner,
+        owner_type: summary.ownerType,
+        key_deadline: summary.keyDeadline,
+        key_insight: summary.keyInsight,
+        // V1 fields (enhanced)
         story: summary.story,
         current_blocker: summary.currentBlocker,
         blocker_owner: summary.blockerOwner,
+        blocker_type: summary.blockerType,
         next_action: summary.nextAction,
         action_owner: summary.actionOwner,
+        action_contact: summary.actionContact,
         action_priority: summary.actionPriority,
         financial_impact: summary.financialImpact,
         customer_impact: summary.customerImpact,
+        customer_action_required: summary.customerActionRequired,
         risk_level: summary.riskLevel,
         risk_reason: summary.riskReason,
+        days_overdue: summary.daysOverdue,
+        // Intelligence warnings
+        intelligence_warnings: warnings.map(w => w.message),
+        // Metadata
         model_used: 'claude-3-5-haiku',
         input_tokens: result.inputTokens,
         output_tokens: result.outputTokens,
@@ -1108,17 +1458,42 @@ Analyze this shipment and return the JSON summary:`;
     // Layer 2: Get key milestones (all-time) - includes confirmations to show what's DONE
     const milestones = await this.getMilestones(shipmentId);
 
-    // Layer 3: Get recent communications
-    const recent = await this.getRecentChronicles(shipmentId);
+    // Layer 3: Get recent communications (last 7 days)
+    let recent = await this.getRecentChronicles(shipmentId);
 
-    // Skip if no activity at all
+    // Fallback: If no milestones and no recent, fetch ANY chronicles (for older shipments)
     if (milestones.length === 0 && recent.length === 0) {
-      console.log('[HaikuSummary] No chronicle data for:', shipmentId);
-      return null;
+      const { data: anyChronicles } = await this.supabase
+        .from('chronicle')
+        .select(`
+          occurred_at, direction, from_party, from_address, message_type, summary,
+          has_issue, issue_type, issue_description,
+          has_action, action_description, action_priority, action_deadline, action_completed_at,
+          carrier_name, sentiment, thread_id, document_type,
+          amount, currency, last_free_day
+        `)
+        .eq('shipment_id', shipmentId)
+        .order('occurred_at', { ascending: false })
+        .limit(10);
+
+      if (!anyChronicles || anyChronicles.length === 0) {
+        console.log('[HaikuSummary] No chronicle data for:', shipmentId);
+        return null;
+      }
+
+      // Use older chronicles as "recent" for summary generation
+      recent = anyChronicles as RecentChronicle[];
+      console.log(`[HaikuSummary] Using ${recent.length} older chronicles for:`, shipmentId);
     }
+
+    // Layer 3.5: Get financial summary (ALL chronicles with amounts)
+    const financial = await this.getFinancialSummary(shipmentId, shipment.stage, shipment.eta);
 
     // Layer 4: Compute date-derived urgency
     const urgencies = this.computeDateUrgency(shipment);
+
+    // Layer 4.5: Generate intelligence warnings
+    const warnings = this.generateIntelligenceWarnings(shipment, milestones, recent, financial);
 
     // Layer 5-8: Cross-shipment intelligence profiles
     const [shipperProfile, consigneeProfile, carrierProfile, routeProfile] = await Promise.all([
@@ -1128,16 +1503,24 @@ Analyze this shipment and return the JSON summary:`;
       this.getRouteProfile(shipment.port_of_loading_code, shipment.port_of_discharge_code),
     ]);
 
-    // Generate AI summary
-    const result = await this.generateSummary(shipment, milestones, recent, urgencies, {
-      shipper: shipperProfile,
-      consignee: consigneeProfile,
-      carrier: carrierProfile,
-      route: routeProfile,
-    });
+    // Generate AI summary with financial data and warnings
+    const result = await this.generateSummary(
+      shipment,
+      milestones,
+      recent,
+      urgencies,
+      {
+        shipper: shipperProfile,
+        consignee: consigneeProfile,
+        carrier: carrierProfile,
+        route: routeProfile,
+      },
+      financial,
+      warnings
+    );
 
-    // Save to database
-    await this.saveSummary(shipmentId, result);
+    // Save to database with warnings
+    await this.saveSummary(shipmentId, result, warnings);
 
     return result;
   }
