@@ -82,19 +82,19 @@ export function FilterBar({
         />
       </div>
 
-      {/* Filter Row */}
-      <div className="flex flex-wrap items-center gap-4">
+      {/* Filter Row - stacks on mobile */}
+      <div className="flex flex-wrap items-center gap-3 sm:gap-4">
         {/* Risk Level Toggle */}
         {onRiskFilterChange && (
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 w-full sm:w-auto">
             <span
-              className="mr-2 text-xs font-medium"
+              className="mr-2 text-xs font-medium shrink-0"
               style={{ color: 'var(--ink-text-muted)' }}
             >
               Risk
             </span>
             <div
-              className="flex rounded-lg border p-0.5"
+              className="flex flex-wrap rounded-lg border p-0.5 flex-1 sm:flex-initial"
               style={{
                 backgroundColor: 'var(--ink-surface)',
                 borderColor: 'var(--ink-border-subtle)',
@@ -104,7 +104,7 @@ export function FilterBar({
                 <button
                   key={r.value}
                   onClick={() => onRiskFilterChange(r.value)}
-                  className="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                  className="rounded-md px-2 sm:px-3 py-2 sm:py-1.5 text-xs sm:text-sm font-medium transition-colors flex-1 sm:flex-initial min-w-0"
                   style={{
                     backgroundColor: riskFilter === r.value ? 'var(--ink-elevated)' : 'transparent',
                     color: riskFilter === r.value ? r.color : 'var(--ink-text-muted)',
@@ -118,15 +118,15 @@ export function FilterBar({
         )}
 
         {/* Phase Toggle */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 w-full sm:w-auto">
           <span
-            className="mr-2 text-xs font-medium"
+            className="mr-2 text-xs font-medium shrink-0"
             style={{ color: 'var(--ink-text-muted)' }}
           >
             Phase
           </span>
           <div
-            className="flex rounded-lg border p-0.5"
+            className="flex rounded-lg border p-0.5 flex-1 sm:flex-initial"
             style={{
               backgroundColor: 'var(--ink-surface)',
               borderColor: 'var(--ink-border-subtle)',
@@ -136,7 +136,7 @@ export function FilterBar({
               <button
                 key={p.value}
                 onClick={() => onPhaseChange(p.value)}
-                className="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                className="rounded-md px-2 sm:px-3 py-2 sm:py-1.5 text-xs sm:text-sm font-medium transition-colors flex-1 sm:flex-initial"
                 style={{
                   backgroundColor: phase === p.value ? 'var(--ink-elevated)' : 'transparent',
                   color: phase === p.value ? 'var(--ink-text)' : 'var(--ink-text-muted)',
@@ -149,15 +149,15 @@ export function FilterBar({
         </div>
 
         {/* Time Window Toggle */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 w-full sm:w-auto">
           <span
-            className="mr-2 text-xs font-medium"
+            className="mr-2 text-xs font-medium shrink-0"
             style={{ color: 'var(--ink-text-muted)' }}
           >
             Time
           </span>
           <div
-            className="flex rounded-lg border p-0.5"
+            className="flex rounded-lg border p-0.5 flex-1 sm:flex-initial"
             style={{
               backgroundColor: 'var(--ink-surface)',
               borderColor: 'var(--ink-border-subtle)',
@@ -167,7 +167,7 @@ export function FilterBar({
               <button
                 key={t.value}
                 onClick={() => onTimeWindowChange(t.value)}
-                className="rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+                className="rounded-md px-2 sm:px-3 py-2 sm:py-1.5 text-xs sm:text-sm font-medium transition-colors flex-1 sm:flex-initial"
                 style={{
                   backgroundColor: timeWindow === t.value ? 'var(--ink-elevated)' : 'transparent',
                   color: timeWindow === t.value ? 'var(--ink-text)' : 'var(--ink-text-muted)',
@@ -180,10 +180,10 @@ export function FilterBar({
           </div>
         </div>
 
-        {/* Score Distribution (if provided) */}
+        {/* Score Distribution - hidden on mobile, shown on tablet+ */}
         {scoreDistribution && (
           <div
-            className="ml-auto flex items-center gap-3 text-xs"
+            className="hidden sm:flex ml-auto items-center gap-3 text-xs"
             style={{ color: 'var(--ink-text-muted)' }}
           >
             {scoreDistribution.strong > 0 && (

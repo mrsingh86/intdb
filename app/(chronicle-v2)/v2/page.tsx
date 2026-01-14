@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2, ChevronRight } from 'lucide-react';
 import {
@@ -13,13 +13,15 @@ import { FilterBar } from '@/components/chronicle-v2/FilterBar';
 
 type RiskFilter = 'all' | 'critical' | 'warning' | 'on_track';
 
+const INITIAL_PAGE_SIZE = 30;
+const LOAD_MORE_SIZE = 30;
+
 /**
  * Chronicle V2 - Clean Unified List
  *
  * Filters:
  * - Risk: Critical (red) | Warning (amber) | On Track (green)
- * - Direction: Export | Import | All
- * - Phase: Origin | In Transit | Destination | Completed
+ * - Phase: Departure | Arrival | All
  * - Time: Today | 3 Days | Week | All
  */
 
@@ -35,18 +37,29 @@ export default function ChronicleListPage() {
   // Data state
   const [shipments, setShipments] = useState<ShipmentListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [total, setTotal] = useState(0);
+  const currentPage = useRef(1);
 
-  // Fetch ALL shipments (filtering done client-side for counts)
-  const fetchShipments = useCallback(async () => {
-    setLoading(true);
+  // Fetch shipments with server-side filtering
+  const fetchShipments = useCallback(async (isLoadMore = false) => {
+    if (isLoadMore) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      currentPage.current = 1;
+    }
     setError(null);
 
     try {
       const params = new URLSearchParams();
-      params.set('timeWindow', 'all'); // Always fetch all, filter client-side
+      params.set('phase', phase);
+      params.set('timeWindow', timeWindow);
       params.set('showWatchlist', 'true');
-      params.set('pageSize', '500');
+      params.set('page', String(currentPage.current));
+      params.set('pageSize', String(isLoadMore ? LOAD_MORE_SIZE : INITIAL_PAGE_SIZE));
       if (search) params.set('search', search);
 
       const res = await fetch(`/api/chronicle-v2/shipments?${params.toString()}`);
@@ -54,97 +67,52 @@ export default function ChronicleListPage() {
       if (!res.ok) throw new Error('Failed to fetch shipments');
 
       const data: ShipmentListResponse = await res.json();
-      setShipments(data.shipments);
+
+      const pageSize = isLoadMore ? LOAD_MORE_SIZE : INITIAL_PAGE_SIZE;
+
+      if (isLoadMore) {
+        setShipments(prev => {
+          const newList = [...prev, ...data.shipments];
+          // Check if there's more to load
+          setHasMore(data.shipments.length === pageSize && newList.length < data.total);
+          return newList;
+        });
+      } else {
+        setShipments(data.shipments);
+        setHasMore(data.shipments.length === pageSize && data.shipments.length < data.total);
+      }
+
+      setTotal(data.total);
     } catch (err) {
       console.error('Error fetching shipments:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, [search]);
+  }, [search, phase, timeWindow]);
+
+  // Load more handler
+  const loadMore = useCallback(() => {
+    if (!loadingMore && hasMore) {
+      currentPage.current += 1;
+      fetchShipments(true);
+    }
+  }, [loadingMore, hasMore, fetchShipments]);
 
   useEffect(() => {
     const timer = setTimeout(() => fetchShipments(), search ? 300 : 0);
     return () => clearTimeout(timer);
   }, [fetchShipments]);
 
-  // Helper: Check if shipment is within time window based on phase
-  const isInTimeWindow = useCallback((s: ShipmentListItem, window: TimeWindow, phaseFilter: Phase): boolean => {
-    if (window === 'all') return true;
-
-    // Parse date string to day timestamp (midnight UTC)
-    const parseDate = (dateStr: string | null): number | null => {
-      if (!dateStr) return null;
-      const d = new Date(dateStr + 'T00:00:00Z');
-      return d.getTime();
-    };
-
-    const now = new Date();
-    const todayMs = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-    const dayMs = 24 * 60 * 60 * 1000;
-
-    // Define window ranges
-    let startMs: number;
-    let endMs: number;
-
-    if (window === 'today') {
-      startMs = todayMs;
-      endMs = todayMs + dayMs;
-    } else if (window === '3days') {
-      startMs = todayMs;
-      endMs = todayMs + 3 * dayMs;
-    } else {
-      startMs = todayMs;
-      endMs = todayMs + 7 * dayMs;
-    }
-
-    // Check date based on phase filter
-    // Departure (origin) -> check ETD only
-    // Arrival (destination) -> check ETA only
-    // All -> check either ETD or ETA
-    if (phaseFilter === 'origin') {
-      const etdMs = parseDate(s.etd);
-      return etdMs !== null && etdMs >= startMs && etdMs < endMs;
-    } else if (phaseFilter === 'destination') {
-      const etaMs = parseDate(s.eta);
-      return etaMs !== null && etaMs >= startMs && etaMs < endMs;
-    } else {
-      // All phases - check either date
-      const etdMs = parseDate(s.etd);
-      const etaMs = parseDate(s.eta);
-      const etdInRange = etdMs !== null && etdMs >= startMs && etdMs < endMs;
-      const etaInRange = etaMs !== null && etaMs >= startMs && etaMs < endMs;
-      return etdInRange || etaInRange;
-    }
-  }, []);
-
-  // Helper: Check if shipment matches phase filter
-  const matchesPhase = useCallback((s: ShipmentListItem, phaseFilter: Phase): boolean => {
-    if (phaseFilter === 'all') return true;
-
-    const stage = (s.stage || '').toUpperCase();
-    const departureStages = ['PENDING', 'REQUESTED', 'BOOKED', 'SI_SUBMITTED', 'SI_CONFIRMED', 'BL_DRAFT', 'BL_ISSUED'];
-    const arrivalStages = ['DEPARTED', 'IN_TRANSIT', 'ARRIVED', 'CUSTOMS_CLEARED', 'DELIVERED', 'COMPLETED'];
-
-    if (phaseFilter === 'origin') return departureStages.includes(stage);
-    if (phaseFilter === 'destination') return arrivalStages.includes(stage);
-    return true;
-  }, []);
-
-  // Categorize and filter shipments
+  // Categorize and filter shipments (only risk filter is client-side now)
   const { filtered, stats } = useMemo(() => {
-    // First apply phase filter
-    const phaseFiltered = shipments.filter(s => matchesPhase(s, phase));
-
-    // Apply time window filter (respects phase for date selection)
-    const timeFiltered = phaseFiltered.filter(s => isInTimeWindow(s, timeWindow, phase));
-
     // Categorize by risk level
     const criticalList: ShipmentListItem[] = [];
     const warningList: ShipmentListItem[] = [];
     const onTrackList: ShipmentListItem[] = [];
 
-    timeFiltered.forEach((s) => {
+    shipments.forEach((s) => {
       const aiRisk = s.aiSummary?.riskLevel;
       const hasOverdue = s.actions?.overdue > 0;
 
@@ -156,20 +124,6 @@ export default function ChronicleListPage() {
         onTrackList.push(s);
       }
     });
-
-    // Sort by ETD (closest first)
-    const sortByEtd = (a: ShipmentListItem, b: ShipmentListItem) => {
-      const dateA = a.etd || a.eta;
-      const dateB = b.etd || b.eta;
-      if (!dateA && !dateB) return 0;
-      if (!dateA) return 1;
-      if (!dateB) return -1;
-      return new Date(dateA).getTime() - new Date(dateB).getTime();
-    };
-
-    criticalList.sort(sortByEtd);
-    warningList.sort(sortByEtd);
-    onTrackList.sort(sortByEtd);
 
     // Apply risk filter
     let filteredList: ShipmentListItem[] = [];
@@ -186,13 +140,13 @@ export default function ChronicleListPage() {
     return {
       filtered: filteredList,
       stats: {
-        total: timeFiltered.length,
+        total: shipments.length,
         criticalCount: criticalList.length,
         warningCount: warningList.length,
         onTrackCount: onTrackList.length,
       },
     };
-  }, [shipments, phase, timeWindow, riskFilter, isInTimeWindow, matchesPhase]);
+  }, [shipments, riskFilter]);
 
   const handleViewDetails = (shipmentId: string) => {
     router.push(`/v2/${shipmentId}`);
@@ -212,13 +166,13 @@ export default function ChronicleListPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold" style={{ color: 'var(--ink-text)' }}>
+        <h1 className="text-xl sm:text-2xl font-semibold" style={{ color: 'var(--ink-text)' }}>
           Shipments
         </h1>
-        <div className="mt-2 flex items-center gap-4 text-sm">
+        <div className="mt-2 flex items-center gap-3 sm:gap-4 text-sm">
           {stats.criticalCount > 0 && (
             <span style={{ color: '#ef4444' }}>
               {stats.criticalCount} critical
@@ -257,14 +211,38 @@ export default function ChronicleListPage() {
 
       {/* Content */}
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-6 w-6 animate-spin" style={{ color: 'var(--ink-text-muted)' }} />
+        <div className="space-y-2">
+          {/* Skeleton cards for faster perceived loading */}
+          {[...Array(6)].map((_, i) => (
+            <div
+              key={i}
+              className="rounded-lg border p-4 animate-pulse"
+              style={{
+                backgroundColor: 'var(--ink-surface)',
+                borderColor: 'var(--ink-border-subtle)',
+              }}
+            >
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="h-5 w-32 rounded" style={{ backgroundColor: 'var(--ink-elevated)' }} />
+                  <div className="h-4 w-24 rounded" style={{ backgroundColor: 'var(--ink-elevated)' }} />
+                  <div className="h-4 w-16 rounded" style={{ backgroundColor: 'var(--ink-elevated)' }} />
+                </div>
+                <div className="h-6 w-20 rounded" style={{ backgroundColor: 'var(--ink-elevated)' }} />
+              </div>
+              <div className="mt-2 flex flex-col sm:flex-row gap-2">
+                <div className="h-4 w-48 rounded" style={{ backgroundColor: 'var(--ink-elevated)' }} />
+                <div className="h-4 w-32 rounded ml-auto" style={{ backgroundColor: 'var(--ink-elevated)' }} />
+              </div>
+              <div className="mt-3 h-12 rounded" style={{ backgroundColor: 'var(--ink-elevated)' }} />
+            </div>
+          ))}
         </div>
       ) : error ? (
-        <div className="rounded-lg p-6 text-center" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
-          <p style={{ color: '#ef4444' }}>{error}</p>
+        <div className="rounded-lg p-4 sm:p-6 text-center" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
+          <p className="text-sm sm:text-base" style={{ color: '#ef4444' }}>{error}</p>
           <button
-            onClick={fetchShipments}
+            onClick={() => fetchShipments()}
             className="mt-3 rounded-md px-4 py-2 text-sm font-medium"
             style={{ backgroundColor: '#ef4444', color: 'white' }}
           >
@@ -272,8 +250,8 @@ export default function ChronicleListPage() {
           </button>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16" style={{ color: 'var(--ink-text-muted)' }}>
-          <p className="text-lg">No shipments found</p>
+        <div className="text-center py-12 sm:py-16" style={{ color: 'var(--ink-text-muted)' }}>
+          <p className="text-base sm:text-lg">No shipments found</p>
           <p className="mt-1 text-sm">
             Try adjusting your search or filters
           </p>
@@ -297,15 +275,15 @@ export default function ChronicleListPage() {
                 }}
               >
                 {/* Row 1: Booking | Route | Carrier | Risk Badge */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     <span
-                      className="font-semibold"
+                      className="font-semibold text-sm sm:text-base"
                       style={{ color: 'var(--ink-text)', fontFamily: 'var(--ink-font-mono)' }}
                     >
                       {shipment.bookingNumber || shipment.mblNumber || '—'}
                     </span>
-                    <span className="text-sm" style={{ color: 'var(--ink-text-secondary)' }}>
+                    <span className="text-xs sm:text-sm" style={{ color: 'var(--ink-text-secondary)' }}>
                       {shipment.route.origin || '?'} → {shipment.route.destination || '?'}
                     </span>
                     {shipment.carrier && (
@@ -317,7 +295,7 @@ export default function ChronicleListPage() {
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3">
                     {/* Risk Level Badge */}
                     <span
                       className="text-xs font-medium px-2 py-1 rounded"
@@ -329,18 +307,18 @@ export default function ChronicleListPage() {
                       {risk === 'critical' ? '🔴 Critical' : risk === 'warning' ? '🟡 Warning' : '🟢 On Track'}
                     </span>
                     <ChevronRight
-                      className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity hidden sm:block"
                       style={{ color: 'var(--ink-text-muted)' }}
                     />
                   </div>
                 </div>
 
                 {/* Row 2: Shipper → Consignee + Dates */}
-                <div className="mt-1.5 flex items-center justify-between text-sm">
-                  <span style={{ color: 'var(--ink-text-muted)' }}>
+                <div className="mt-1.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-0 text-xs sm:text-sm">
+                  <span className="truncate" style={{ color: 'var(--ink-text-muted)' }}>
                     {shipment.shipper || '—'} → {shipment.consignee || '—'}
                   </span>
-                  <div className="flex items-center gap-3" style={{ color: 'var(--ink-text-secondary)' }}>
+                  <div className="flex items-center gap-2 sm:gap-3 shrink-0" style={{ color: 'var(--ink-text-secondary)' }}>
                     <span>ETD {formatDate(shipment.etd) || '—'}</span>
                     <span style={{ color: 'var(--ink-text-muted)' }}>→</span>
                     <span>ETA {formatDate(shipment.eta) || '—'}</span>
@@ -469,6 +447,31 @@ export default function ChronicleListPage() {
               </div>
             );
           })}
+
+          {/* Load More button */}
+          {hasMore && filtered.length > 0 && (
+            <div className="flex justify-center pt-4 pb-8">
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
+                style={{
+                  backgroundColor: 'var(--ink-elevated)',
+                  color: 'var(--ink-text)',
+                  border: '1px solid var(--ink-border-subtle)',
+                }}
+              >
+                {loadingMore ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  `Load More`
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

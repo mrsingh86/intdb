@@ -99,28 +99,41 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Apply time window filter (in-memory)
-    if (timeWindow === 'today') {
-      const todayEnd = new Date(now);
-      todayEnd.setHours(23, 59, 59, 999);
-      shipments = shipments.filter((s: any) =>
-        (s.etd && new Date(s.etd) <= todayEnd) ||
-        (s.eta && new Date(s.eta) <= todayEnd)
-      );
-    } else if (timeWindow === '3days') {
-      const future = new Date(now);
-      future.setDate(future.getDate() + 3);
-      shipments = shipments.filter((s: any) =>
-        (s.etd && new Date(s.etd) <= future) ||
-        (s.eta && new Date(s.eta) <= future)
-      );
-    } else if (timeWindow === '7days') {
-      const future = new Date(now);
-      future.setDate(future.getDate() + 7);
-      shipments = shipments.filter((s: any) =>
-        (s.etd && new Date(s.etd) <= future) ||
-        (s.eta && new Date(s.eta) <= future)
-      );
+    // Apply time window filter (in-memory) - respects phase selection
+    // Departure (origin) -> check ETD only
+    // Arrival (destination) -> check ETA only
+    // All -> check either ETD or ETA
+    if (timeWindow !== 'all') {
+      const todayStart = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+      const dayMs = 24 * 60 * 60 * 1000;
+
+      let endDate: Date;
+      if (timeWindow === 'today') {
+        endDate = new Date(todayStart.getTime() + dayMs);
+      } else if (timeWindow === '3days') {
+        endDate = new Date(todayStart.getTime() + 3 * dayMs);
+      } else {
+        endDate = new Date(todayStart.getTime() + 7 * dayMs);
+      }
+
+      shipments = shipments.filter((s: any) => {
+        const etdDate = s.etd ? new Date(s.etd + 'T00:00:00Z') : null;
+        const etaDate = s.eta ? new Date(s.eta + 'T00:00:00Z') : null;
+
+        // Check based on phase
+        if (phase === 'origin') {
+          // Departure phase: only check ETD
+          return etdDate && etdDate >= todayStart && etdDate < endDate;
+        } else if (phase === 'destination') {
+          // Arrival phase: only check ETA
+          return etaDate && etaDate >= todayStart && etaDate < endDate;
+        } else {
+          // All phases: check either date
+          const etdInRange = etdDate && etdDate >= todayStart && etdDate < endDate;
+          const etaInRange = etaDate && etaDate >= todayStart && etaDate < endDate;
+          return etdInRange || etaInRange;
+        }
+      });
     }
 
     const count = shipments.length;
