@@ -249,12 +249,12 @@ function parseAttachments(attachments: unknown): Attachment[] {
   if (!attachments || !Array.isArray(attachments)) return [];
 
   return attachments.map((att, index) => ({
-    id: att.id || `att-${index}`,
+    id: att.attachmentId || att.id || `att-${index}`,
     filename: att.filename || att.name || 'Unknown',
     mimeType: att.mimeType || att.mime_type || 'application/octet-stream',
     size: att.size || att.size_bytes || 0,
-    hasOcr: !!att.ocr_text,
-    ocrText: att.ocr_text,
+    hasOcr: !!att.extractedText || !!att.ocr_text,
+    ocrText: att.extractedText || att.ocr_text,
     extractedData: att.extracted_data,
   }));
 }
