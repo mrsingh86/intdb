@@ -325,107 +325,56 @@ export default function ChronicleListPage() {
                   </div>
                 </div>
 
-                {/* Row 3: AI Summary - V2 format (narrative) or V1 fallback */}
+                {/* Row 3: AI Summary - Always show Blocker/Next/Impacts when available */}
                 {shipment.aiSummary ? (
                   <div className="mt-3 space-y-2">
-                    {/* V2 Format: Tight narrative with inline intelligence */}
-                    {shipment.aiSummary.narrative ? (
-                      <>
-                        {/* Narrative - the main intelligence paragraph */}
-                        <div className="text-sm leading-relaxed" style={{ color: 'var(--ink-text-secondary)' }}>
-                          {shipment.aiSummary.narrative}
-                        </div>
+                    {/* Story/Narrative paragraph */}
+                    {(shipment.aiSummary.narrative || shipment.aiSummary.story) && (
+                      <div className="text-sm leading-relaxed" style={{ color: 'var(--ink-text-secondary)' }}>
+                        {shipment.aiSummary.narrative || shipment.aiSummary.story}
+                      </div>
+                    )}
 
-                        {/* Key insight + owner + deadline badges */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {shipment.aiSummary.keyInsight && (
-                            <span
-                              className="text-xs px-2 py-0.5 rounded font-medium"
-                              style={{
-                                backgroundColor: shipment.aiSummary.riskLevel === 'red'
-                                  ? 'rgba(239, 68, 68, 0.15)'
-                                  : shipment.aiSummary.riskLevel === 'amber'
-                                  ? 'rgba(245, 158, 11, 0.15)'
-                                  : 'rgba(34, 197, 94, 0.15)',
-                                color: shipment.aiSummary.riskLevel === 'red'
-                                  ? '#ef4444'
-                                  : shipment.aiSummary.riskLevel === 'amber'
-                                  ? '#f59e0b'
-                                  : '#22c55e',
-                              }}
-                            >
-                              {shipment.aiSummary.keyInsight}
-                            </span>
-                          )}
-                          {shipment.aiSummary.owner && (
-                            <span
-                              className="text-xs px-2 py-0.5 rounded"
-                              style={{
-                                backgroundColor: 'var(--ink-elevated)',
-                                color: shipment.aiSummary.ownerType === 'intoglo' ? '#3b82f6' : 'var(--ink-text-muted)',
-                              }}
-                            >
-                              → {shipment.aiSummary.owner}
-                            </span>
-                          )}
-                          {shipment.aiSummary.keyDeadline && (
-                            <span
-                              className="text-xs px-2 py-0.5 rounded"
-                              style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }}
-                            >
-                              ⏰ {shipment.aiSummary.keyDeadline}
-                            </span>
-                          )}
-                        </div>
-                      </>
-                    ) : (
-                      /* V1 Legacy Format: Story + Blocker/Action */
-                      <>
-                        {shipment.aiSummary.story && (
-                          <div className="text-sm" style={{ color: 'var(--ink-text-secondary)' }}>
-                            {shipment.aiSummary.story}
-                          </div>
+                    {/* Blocker (red) - always show if exists */}
+                    {shipment.aiSummary.currentBlocker && (
+                      <div className="text-sm" style={{ color: '#ef4444' }}>
+                        <span className="font-medium">Blocker:</span> {shipment.aiSummary.currentBlocker}
+                        {shipment.aiSummary.blockerOwner && (
+                          <span
+                            className="ml-2 text-xs px-1.5 py-0.5 rounded"
+                            style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}
+                          >
+                            {shipment.aiSummary.blockerOwner}
+                          </span>
                         )}
+                      </div>
+                    )}
 
-                        {shipment.aiSummary.currentBlocker && (
-                          <div className="text-sm" style={{ color: '#ef4444' }}>
-                            <span className="font-medium">Blocker:</span> {shipment.aiSummary.currentBlocker}
-                            {shipment.aiSummary.blockerOwner && (
-                              <span
-                                className="ml-2 text-xs px-1.5 py-0.5 rounded"
-                                style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}
-                              >
-                                {shipment.aiSummary.blockerOwner}
-                              </span>
-                            )}
-                          </div>
+                    {/* Next Action (orange) - always show if exists */}
+                    {shipment.aiSummary.nextAction && (
+                      <div className="text-sm" style={{ color: '#f59e0b' }}>
+                        <span className="font-medium">Next:</span> {shipment.aiSummary.nextAction}
+                        {shipment.aiSummary.actionOwner && (
+                          <span
+                            className="ml-2 text-xs px-1.5 py-0.5 rounded"
+                            style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}
+                          >
+                            {shipment.aiSummary.actionOwner}
+                          </span>
                         )}
+                      </div>
+                    )}
 
-                        {shipment.aiSummary.nextAction && (
-                          <div className="text-sm" style={{ color: '#f59e0b' }}>
-                            <span className="font-medium">Next:</span> {shipment.aiSummary.nextAction}
-                            {shipment.aiSummary.actionOwner && (
-                              <span
-                                className="ml-2 text-xs px-1.5 py-0.5 rounded"
-                                style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}
-                              >
-                                {shipment.aiSummary.actionOwner}
-                              </span>
-                            )}
-                          </div>
+                    {/* Financial & Customer Impact - always show if exists */}
+                    {(shipment.aiSummary.financialImpact || shipment.aiSummary.customerImpact) && (
+                      <div className="text-xs flex flex-wrap gap-x-3 gap-y-1" style={{ color: 'var(--ink-text-muted)' }}>
+                        {shipment.aiSummary.financialImpact && (
+                          <span>💰 {shipment.aiSummary.financialImpact}</span>
                         )}
-
-                        {(shipment.aiSummary.financialImpact || shipment.aiSummary.customerImpact) && (
-                          <div className="text-xs" style={{ color: 'var(--ink-text-muted)' }}>
-                            {shipment.aiSummary.financialImpact && (
-                              <span className="mr-3">💰 {shipment.aiSummary.financialImpact}</span>
-                            )}
-                            {shipment.aiSummary.customerImpact && (
-                              <span>⚠️ {shipment.aiSummary.customerImpact}</span>
-                            )}
-                          </div>
+                        {shipment.aiSummary.customerImpact && (
+                          <span>⚠️ {shipment.aiSummary.customerImpact}</span>
                         )}
-                      </>
+                      </div>
                     )}
                   </div>
                 ) : (
