@@ -132,13 +132,13 @@ function ShipmentsContent() {
     }
 
     // Phase filter
+    // Departure = has ETD, Arrival = has ETA
     if (phaseFilter !== 'all') {
       list = list.filter(s => {
-        const phase = (s.phase || '').toLowerCase();
         if (phaseFilter === 'departure') {
-          return phase.includes('departure');
+          return !!s.etd;
         } else if (phaseFilter === 'arrival') {
-          return phase.includes('arrival');
+          return !!s.eta;
         }
         return true;
       });
