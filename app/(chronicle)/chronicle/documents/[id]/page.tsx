@@ -255,7 +255,7 @@ export default function ChronicleEvidencePage() {
             <ContentView chronicle={chronicle} />
           )}
           {activeTab === 'attachments' && (
-            <AttachmentsView attachments={attachments} />
+            <AttachmentsView attachments={attachments} messageId={chronicle.messageId} />
           )}
         </div>
 
@@ -482,7 +482,12 @@ function ContentView({ chronicle }: { chronicle: ChronicleData['chronicle'] }) {
   );
 }
 
-function AttachmentsView({ attachments }: { attachments: ChronicleData['attachments'] }) {
+function AttachmentsView({ attachments, messageId }: { attachments: ChronicleData['attachments']; messageId: string }) {
+  const handleDownload = (attachmentId: string, filename: string) => {
+    const url = `/api/chronicle-v2/attachments/${messageId}/${attachmentId}?filename=${encodeURIComponent(filename)}`;
+    window.open(url, '_blank');
+  };
+
   if (attachments.length === 0) {
     return (
       <div className="bg-terminal-surface border border-terminal-border rounded-lg p-8 text-center">
@@ -513,7 +518,11 @@ function AttachmentsView({ attachments }: { attachments: ChronicleData['attachme
                   OCR
                 </span>
               )}
-              <button className="p-1.5 text-terminal-muted hover:text-terminal-text transition-colors">
+              <button
+                onClick={() => handleDownload(attachment.id, attachment.filename)}
+                className="p-1.5 text-terminal-muted hover:text-terminal-text transition-colors"
+                title="Download"
+              >
                 <Download className="h-4 w-4" />
               </button>
             </div>
