@@ -178,7 +178,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Apply sorting
-    const sortColumn = sort === 'booking_number' ? 'booking_number' : sort === 'created_at' ? 'created_at' : 'etd';
+    const sortMap: Record<string, string> = {
+      booking_number: 'booking_number',
+      created_at: 'created_at',
+      etd: 'etd',
+      eta: 'eta',
+    };
+    const sortColumn = sortMap[sort] || 'etd';
     query = query.order(sortColumn, { ascending: order === 'asc', nullsFirst: false });
 
     // Apply pagination

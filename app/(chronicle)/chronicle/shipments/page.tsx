@@ -91,11 +91,13 @@ function ShipmentsContent() {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
   const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>('all');
 
-  const fetchShipments = useCallback(async () => {
+  const fetchShipments = useCallback(async (phase: PhaseFilter) => {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ page: '1', pageSize: '100', sort: 'etd', order: 'desc' });
+      // Sort by ETA for arrivals, ETD for departures/all
+      const sortField = phase === 'arrival' ? 'eta' : 'etd';
+      const params = new URLSearchParams({ page: '1', pageSize: '200', sort: sortField, order: 'desc' });
       const res = await fetch(`/api/chronicle/shipments?${params}`);
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
@@ -108,8 +110,8 @@ function ShipmentsContent() {
   }, []);
 
   useEffect(() => {
-    fetchShipments();
-  }, [fetchShipments]);
+    fetchShipments(phaseFilter);
+  }, [fetchShipments, phaseFilter]);
 
   // Filter and categorize
   const { filtered, stats } = useMemo(() => {
