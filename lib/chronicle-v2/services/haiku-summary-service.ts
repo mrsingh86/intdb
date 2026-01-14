@@ -176,12 +176,21 @@ export interface AISummary {
   actionOwner: string | null;
   actionContact: string | null; // NEW: Contact info for action owner
   actionPriority: 'critical' | 'high' | 'medium' | 'low' | null;
-  financialImpact: string | null;
+  financialImpact: string | null; // Legacy combined field
+  documentedCharges: string | null; // NEW: Actual invoiced amounts from chronicles
+  estimatedDetention: string | null; // NEW: Calculated detention (days × rate)
   customerImpact: string | null;
   customerActionRequired: boolean; // NEW: Flag for customer-facing actions
   riskLevel: 'red' | 'amber' | 'green';
   riskReason: string | null;
   daysOverdue: number | null; // NEW: Days past ETA/ETD for headline
+  // Intelligence signals
+  escalationCount: number | null; // How many escalations sent
+  daysSinceActivity: number | null; // Days since last chronicle
+  issueCount: number | null; // Total issues detected
+  urgentMessageCount: number | null; // Urgent/negative sentiment messages
+  carrierPerformance: string | null; // "MSC: 72% on-time"
+  shipperRiskSignal: string | null; // "SI late 45%, high risk"
 }
 
 export interface GenerationResult {
@@ -313,7 +322,9 @@ In milestones, entries marked with **✓CONFIRMED** mean that step is COMPLETE:
   "actionOwner": "Who should act: intoglo|customer|[specific party name]",
   "actionContact": "Contact info from chronicles if available: email or phone | null",
   "actionPriority": "critical|high|medium|low",
-  "financialImpact": "Calculated amount: '[X] days × $[rate]/day = $[total]' OR 'Total documented: $X' | null",
+  "documentedCharges": "ONLY actual invoiced amounts from FINANCIAL CHARGES section: 'Total: $18,218 (freight $12,500 + customs $3,218 + trucking $2,500)' | null",
+  "estimatedDetention": "ONLY for post-arrival: '[X] days × $150/day = $[total] detention' | null for pre-arrival stages",
+  "financialImpact": "Combined summary for display: 'Documented: $18,218 | Detention: $450' | null",
   "customerImpact": "How customer affected with days: 'Delivery delayed 14 days from original ETA' | null",
   "customerActionRequired": true/false,
   "riskLevel": "red|amber|green",
@@ -736,6 +747,57 @@ export class HaikuSummaryService {
   }
 
   /**
+   * Layer 4.5: Fetch intelligence signals for enhanced context
+   * Escalations, sentiment, staleness, issue counts
+   */
+  private async getIntelligenceSignals(shipmentId: string): Promise<{
+    escalationCount: number;
+    urgentCount: number;
+    negativeCount: number;
+    issueCount: number;
+    daysSinceActivity: number | null;
+    lastActivityDate: string | null;
+  }> {
+    const { data } = await this.supabase
+      .from('chronicle')
+      .select('message_type, sentiment, has_issue, occurred_at')
+      .eq('shipment_id', shipmentId)
+      .order('occurred_at', { ascending: false });
+
+    if (!data || data.length === 0) {
+      return {
+        escalationCount: 0,
+        urgentCount: 0,
+        negativeCount: 0,
+        issueCount: 0,
+        daysSinceActivity: null,
+        lastActivityDate: null,
+      };
+    }
+
+    const escalationCount = data.filter(d => d.message_type === 'escalation').length;
+    const urgentCount = data.filter(d => d.sentiment === 'urgent').length;
+    const negativeCount = data.filter(d => d.sentiment === 'negative').length;
+    const issueCount = data.filter(d => d.has_issue).length;
+
+    const lastActivity = data[0]?.occurred_at;
+    let daysSinceActivity: number | null = null;
+    if (lastActivity) {
+      const lastDate = new Date(lastActivity);
+      daysSinceActivity = Math.ceil((Date.now() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+    }
+
+    return {
+      escalationCount,
+      urgentCount,
+      negativeCount,
+      issueCount,
+      daysSinceActivity,
+      lastActivityDate: lastActivity,
+    };
+  }
+
+  /**
    * Layer 4: Compute date-derived urgency
    */
   private computeDateUrgency(shipment: ShipmentContext): DateUrgency[] {
@@ -1024,7 +1086,14 @@ export class HaikuSummaryService {
       route: RouteProfileContext | null;
     },
     financial: FinancialSummary,
-    warnings: IntelligenceWarning[]
+    warnings: IntelligenceWarning[],
+    signals: {
+      escalationCount: number;
+      urgentCount: number;
+      negativeCount: number;
+      issueCount: number;
+      daysSinceActivity: number | null;
+    }
   ): string {
     const today = new Date().toLocaleDateString('en-US', {
       weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
@@ -1151,6 +1220,36 @@ Cargo Cutoff: ${this.formatDateWithDays(shipment.cargo_cutoff)}`;
         return `${icon} ${w.type.toUpperCase()}: ${w.message}`;
       }).join('\n');
       warningsSection = `\n## INTELLIGENCE WARNINGS\n${warningLines}`;
+    }
+
+    // Build response velocity & escalation signals section
+    let signalsSection = '';
+    const signalParts: string[] = [];
+
+    if (signals.escalationCount > 0) {
+      const urgency = signals.escalationCount >= 3 ? '🔴 CRITICAL' : signals.escalationCount >= 2 ? '🟡 HIGH' : 'ℹ️';
+      signalParts.push(`${urgency}: ${signals.escalationCount} escalation(s) sent - REQUIRES IMMEDIATE ATTENTION`);
+    }
+
+    if (signals.negativeCount > 0) {
+      signalParts.push(`⚠️ ${signals.negativeCount} negative sentiment message(s) detected`);
+    }
+
+    if (signals.urgentCount > 0) {
+      signalParts.push(`⚡ ${signals.urgentCount} urgent message(s) in thread`);
+    }
+
+    if (signals.issueCount > 0) {
+      signalParts.push(`📋 ${signals.issueCount} issue(s) detected in chronicle`);
+    }
+
+    if (signals.daysSinceActivity !== null && signals.daysSinceActivity > 3) {
+      const staleness = signals.daysSinceActivity > 7 ? '🔴 STALE' : '🟡 SLOW';
+      signalParts.push(`${staleness}: No activity for ${signals.daysSinceActivity} days - needs follow-up`);
+    }
+
+    if (signalParts.length > 0) {
+      signalsSection = `\n## RESPONSE VELOCITY & ESCALATION SIGNALS\n${signalParts.join('\n')}`;
     }
 
     // Calculate days overdue for context
@@ -1311,9 +1410,16 @@ Analyze this shipment and return the JSON summary. Remember:
       route: RouteProfileContext | null;
     },
     financial: FinancialSummary,
-    warnings: IntelligenceWarning[]
+    warnings: IntelligenceWarning[],
+    signals: {
+      escalationCount: number;
+      urgentCount: number;
+      negativeCount: number;
+      issueCount: number;
+      daysSinceActivity: number | null;
+    }
   ): Promise<GenerationResult> {
-    const userPrompt = this.buildPrompt(shipment, milestones, recent, urgencies, profiles, financial, warnings);
+    const userPrompt = this.buildPrompt(shipment, milestones, recent, urgencies, profiles, financial, warnings, signals);
 
     const response = await this.anthropic.messages.create({
       model: 'claude-3-5-haiku-20241022',
@@ -1347,11 +1453,20 @@ Analyze this shipment and return the JSON summary. Remember:
           actionContact: parsed.actionContact || null,
           actionPriority: parsed.actionPriority || null,
           financialImpact: parsed.financialImpact || null,
+          documentedCharges: parsed.documentedCharges || null,
+          estimatedDetention: parsed.estimatedDetention || null,
           customerImpact: parsed.customerImpact || null,
           customerActionRequired: parsed.customerActionRequired || false,
           riskLevel: parsed.riskLevel || 'amber',
           riskReason: parsed.riskReason || null,
           daysOverdue: parsed.daysOverdue || null,
+          // Intelligence signals (populated from signals param, not AI)
+          escalationCount: signals.escalationCount > 0 ? signals.escalationCount : null,
+          daysSinceActivity: signals.daysSinceActivity,
+          issueCount: signals.issueCount > 0 ? signals.issueCount : null,
+          urgentMessageCount: (signals.urgentCount + signals.negativeCount) > 0 ? signals.urgentCount + signals.negativeCount : null,
+          carrierPerformance: profiles.carrier ? `${profiles.carrier.carrierName}: ${profiles.carrier.onTimeArrivalRate ?? 'N/A'}% on-time` : null,
+          shipperRiskSignal: profiles.shipper && profiles.shipper.riskScore >= 30 ? `${profiles.shipper.siLateRate ?? 0}% SI late, risk ${profiles.shipper.riskScore}` : null,
         };
       } else {
         throw new Error('No JSON found');
@@ -1374,11 +1489,20 @@ Analyze this shipment and return the JSON summary. Remember:
         actionContact: null,
         actionPriority: 'medium',
         financialImpact: null,
+        documentedCharges: null,
+        estimatedDetention: null,
         customerImpact: null,
         customerActionRequired: false,
         riskLevel: 'amber',
         riskReason: 'AI parsing failed',
         daysOverdue: null,
+        // Intelligence signals (populate from signals even on error)
+        escalationCount: signals.escalationCount > 0 ? signals.escalationCount : null,
+        daysSinceActivity: signals.daysSinceActivity,
+        issueCount: signals.issueCount > 0 ? signals.issueCount : null,
+        urgentMessageCount: (signals.urgentCount + signals.negativeCount) > 0 ? signals.urgentCount + signals.negativeCount : null,
+        carrierPerformance: profiles.carrier ? `${profiles.carrier.carrierName}: ${profiles.carrier.onTimeArrivalRate ?? 'N/A'}% on-time` : null,
+        shipperRiskSignal: profiles.shipper && profiles.shipper.riskScore >= 30 ? `${profiles.shipper.siLateRate ?? 0}% SI late, risk ${profiles.shipper.riskScore}` : null,
       };
     }
 
@@ -1394,6 +1518,214 @@ Analyze this shipment and return the JSON summary. Remember:
       cost,
       chronicleCount: milestones.length + recent.length,
     };
+  }
+
+  // ===========================================================================
+  // POST-GENERATION VALIDATION (Business Rules Layer)
+  // ===========================================================================
+
+  /**
+   * Validates and corrects AI output based on business rules.
+   * This layer catches logical errors that the AI may make.
+   *
+   * Rules:
+   * 1. DELIVERED = No urgency (clear daysOverdue, set green)
+   * 2. Future ETA = Not overdue (daysOverdue must be null)
+   * 3. Pre-Arrival = No detention (remove detention from financial impact)
+   * 4. Customer Action = Set flag when customer must act
+   * 5. Blocker Type = Infer if missing but blocker exists
+   * 6. Correct daysOverdue = Recalculate from ETA if needed
+   * 7. Risk Level Consistency
+   * 8. Sentiment-based Risk Boost (escalations/urgent messages boost risk)
+   */
+  private validateAndEnrich(
+    result: GenerationResult,
+    shipment: ShipmentContext,
+    signals?: { escalationCount: number; urgentCount: number; negativeCount: number; issueCount: number; daysSinceActivity: number | null }
+  ): GenerationResult {
+    const summary = { ...result.summary };
+    const stage = (shipment.stage || 'PENDING').toUpperCase();
+    const today = new Date();
+    const eta = shipment.eta ? new Date(shipment.eta) : null;
+
+
+    // Stage categories
+    const TERMINAL_STAGES = ['DELIVERED', 'COMPLETED', 'CANCELLED'];
+    const PRE_ARRIVAL_STAGES = ['PENDING', 'DRAFT', 'BOOKED', 'BOOKING_CONFIRMED', 'SI_SUBMITTED', 'SI_CONFIRMED', 'DRAFT_BL', 'BL_ISSUED', 'DEPARTED', 'IN_TRANSIT', 'TRANSSHIPMENT'];
+
+    // =========================================================================
+    // RULE 1: DELIVERED/COMPLETED = No Urgency
+    // Delivered shipments should be green unless post-delivery payment issue
+    // =========================================================================
+    if (TERMINAL_STAGES.includes(stage)) {
+      summary.daysOverdue = null;
+
+      // Only keep blocker if it's payment-related
+      const isPaymentBlocker = summary.currentBlocker?.toLowerCase().includes('payment') ||
+                               summary.currentBlocker?.toLowerCase().includes('invoice') ||
+                               summary.currentBlocker?.toLowerCase().includes('outstanding');
+
+      if (!isPaymentBlocker) {
+        summary.riskLevel = 'green';
+        summary.currentBlocker = null;
+        summary.blockerOwner = null;
+        summary.blockerType = null;
+      }
+    }
+
+    // =========================================================================
+    // RULE 2: Future ETA = Not Overdue
+    // If ETA is in the future, daysOverdue MUST be null (not positive)
+    // =========================================================================
+    if (eta && eta > today) {
+      if (summary.daysOverdue !== null && summary.daysOverdue > 0) {
+        // AI incorrectly set overdue for future ETA - correct it
+        summary.daysOverdue = null;
+      }
+    }
+
+    // =========================================================================
+    // RULE 3: Pre-Arrival = No Detention
+    // Detention/demurrage cannot occur before cargo arrives
+    // =========================================================================
+    if (PRE_ARRIVAL_STAGES.includes(stage)) {
+      // Clear estimated detention for pre-arrival (detention is impossible)
+      summary.estimatedDetention = null;
+
+      // Clean financialImpact to remove detention references
+      if (summary.financialImpact) {
+        const lower = summary.financialImpact.toLowerCase();
+        if (lower.includes('detention') || lower.includes('demurrage')) {
+          // Keep only documented charges in combined field
+          summary.financialImpact = summary.documentedCharges || null;
+        }
+      }
+    }
+
+    // =========================================================================
+    // RULE 4: Customer Action Logic Coherence
+    // If action owner is customer/shipper/consignee, flag it
+    // =========================================================================
+    const customerParties = ['customer', 'shipper', 'consignee'];
+    const isCustomerOwner =
+      customerParties.some(p => summary.actionOwner?.toLowerCase().includes(p)) ||
+      summary.blockerOwner?.toLowerCase() === shipment.shipper_name?.toLowerCase() ||
+      summary.blockerOwner?.toLowerCase() === shipment.consignee_name?.toLowerCase();
+
+    if (isCustomerOwner && !summary.customerActionRequired) {
+      summary.customerActionRequired = true;
+    }
+
+    // =========================================================================
+    // RULE 5: Blocker Type Required
+    // If there's a blocker but no type, infer it
+    // =========================================================================
+    if (summary.currentBlocker && !summary.blockerType) {
+      // Infer type based on blocker owner
+      const intogloIndicators = ['intoglo', 'ops', 'team', 'we ', 'our '];
+      const isInternal = intogloIndicators.some(ind =>
+        summary.blockerOwner?.toLowerCase().includes(ind) ||
+        summary.currentBlocker?.toLowerCase().includes(ind)
+      );
+
+      summary.blockerType = isInternal ? 'internal_task' : 'external_dependency';
+    }
+
+    // =========================================================================
+    // RULE 6: Correct daysOverdue Calculation
+    // Recalculate if ETA is past and not in terminal stage
+    // =========================================================================
+    if (!TERMINAL_STAGES.includes(stage) && eta && eta <= today) {
+      const correctDays = Math.ceil((today.getTime() - eta.getTime()) / (1000 * 60 * 60 * 24));
+
+      // Only override if AI got it significantly wrong (off by more than 1 day)
+      if (summary.daysOverdue === null || Math.abs(summary.daysOverdue - correctDays) > 1) {
+        summary.daysOverdue = correctDays;
+      }
+    }
+
+    // =========================================================================
+    // RULE 7: Risk Level Consistency
+    // Ensure risk level matches the actual situation
+    // =========================================================================
+    if (!TERMINAL_STAGES.includes(stage)) {
+      // High overdue = should be red or amber
+      if (summary.daysOverdue !== null && summary.daysOverdue > 14 && summary.riskLevel === 'green') {
+        summary.riskLevel = 'red';
+        if (!summary.riskReason?.includes('overdue')) {
+          summary.riskReason = `${summary.daysOverdue} days overdue`;
+        }
+      } else if (summary.daysOverdue !== null && summary.daysOverdue > 7 && summary.riskLevel === 'green') {
+        summary.riskLevel = 'amber';
+      }
+    }
+
+    // =========================================================================
+    // RULE 8: Sentiment-Based Risk Boost
+    // Multiple escalations or negative sentiment indicates elevated risk
+    // =========================================================================
+    if (signals && !TERMINAL_STAGES.includes(stage)) {
+      const { escalationCount, urgentCount, negativeCount, issueCount, daysSinceActivity } = signals;
+
+      // Critical: 3+ escalations = always red
+      if (escalationCount >= 3 && summary.riskLevel !== 'red') {
+        summary.riskLevel = 'red';
+        summary.riskReason = `${escalationCount} escalations sent - requires immediate attention`;
+      }
+      // High: 2 escalations OR (1 escalation + multiple issues)
+      else if (escalationCount >= 2 && summary.riskLevel === 'green') {
+        summary.riskLevel = 'amber';
+        if (!summary.riskReason) {
+          summary.riskReason = `${escalationCount} escalations detected`;
+        }
+      }
+      else if (escalationCount >= 1 && issueCount >= 2 && summary.riskLevel === 'green') {
+        summary.riskLevel = 'amber';
+        if (!summary.riskReason) {
+          summary.riskReason = `${issueCount} issues with escalation`;
+        }
+      }
+
+      // High urgency/negative sentiment combo
+      const sentimentScore = urgentCount * 2 + negativeCount;
+      if (sentimentScore >= 4 && summary.riskLevel === 'green') {
+        summary.riskLevel = 'amber';
+        if (!summary.riskReason) {
+          summary.riskReason = `${urgentCount + negativeCount} urgent/negative messages`;
+        }
+      }
+
+      // Staleness boost: No activity for 7+ days
+      if (daysSinceActivity !== null && daysSinceActivity >= 7 && summary.riskLevel === 'green') {
+        summary.riskLevel = 'amber';
+        if (!summary.riskReason) {
+          summary.riskReason = `No activity for ${daysSinceActivity} days - needs follow-up`;
+        }
+      }
+    }
+
+    // =========================================================================
+    // RULE 9: Stale Data Cap (>90 days overdue = data quality issue)
+    // Shipments >90 days past ETA are likely closed but not properly marked
+    // Cap at 90 days to avoid showing unrealistic numbers like 377d
+    // =========================================================================
+    const STALE_DATA_THRESHOLD_DAYS = 90;
+    if (summary.daysOverdue !== null && summary.daysOverdue > STALE_DATA_THRESHOLD_DAYS) {
+      // This is likely a data quality issue - shipment should be DELIVERED/CANCELLED
+      summary.riskLevel = 'amber'; // Flag as needing attention but not critical
+      summary.riskReason = `Stale data: ${summary.daysOverdue}d past ETA - verify shipment status`;
+      summary.daysOverdue = STALE_DATA_THRESHOLD_DAYS; // Cap the display value
+
+      // Add a data quality note to the narrative if it mentions extreme days
+      if (summary.narrative && /\d{3,}\s*days?/i.test(summary.narrative)) {
+        summary.narrative = summary.narrative.replace(
+          /(\d{3,})\s*(days?)/gi,
+          `90+ $2 (data review needed)`
+        );
+      }
+    }
+
+    return { ...result, summary };
   }
 
   // ===========================================================================
@@ -1422,11 +1754,20 @@ Analyze this shipment and return the JSON summary. Remember:
         action_contact: summary.actionContact,
         action_priority: summary.actionPriority,
         financial_impact: summary.financialImpact,
+        documented_charges: summary.documentedCharges,
+        estimated_detention: summary.estimatedDetention,
         customer_impact: summary.customerImpact,
         customer_action_required: summary.customerActionRequired,
         risk_level: summary.riskLevel,
         risk_reason: summary.riskReason,
         days_overdue: summary.daysOverdue,
+        // Intelligence signals
+        escalation_count: summary.escalationCount,
+        days_since_activity: summary.daysSinceActivity,
+        issue_count: summary.issueCount,
+        urgent_message_count: summary.urgentMessageCount,
+        carrier_performance: summary.carrierPerformance,
+        shipper_risk_signal: summary.shipperRiskSignal,
         // Intelligence warnings
         intelligence_warnings: warnings.map(w => w.message),
         // Metadata
@@ -1495,6 +1836,9 @@ Analyze this shipment and return the JSON summary. Remember:
     // Layer 4.5: Generate intelligence warnings
     const warnings = this.generateIntelligenceWarnings(shipment, milestones, recent, financial);
 
+    // Layer 4.6: Get intelligence signals (escalations, sentiment, staleness)
+    const signals = await this.getIntelligenceSignals(shipmentId);
+
     // Layer 5-8: Cross-shipment intelligence profiles
     const [shipperProfile, consigneeProfile, carrierProfile, routeProfile] = await Promise.all([
       this.getShipperProfile(shipment.shipper_name),
@@ -1503,8 +1847,8 @@ Analyze this shipment and return the JSON summary. Remember:
       this.getRouteProfile(shipment.port_of_loading_code, shipment.port_of_discharge_code),
     ]);
 
-    // Generate AI summary with financial data and warnings
-    const result = await this.generateSummary(
+    // Generate AI summary with financial data, warnings, and intelligence signals
+    const rawResult = await this.generateSummary(
       shipment,
       milestones,
       recent,
@@ -1516,13 +1860,18 @@ Analyze this shipment and return the JSON summary. Remember:
         route: routeProfile,
       },
       financial,
-      warnings
+      warnings,
+      signals
     );
 
-    // Save to database with warnings
-    await this.saveSummary(shipmentId, result, warnings);
+    // CRITICAL: Validate and enrich AI output with business rules
+    // This catches logical errors like "DELIVERED with overdue" or "future ETA overdue"
+    const validatedResult = this.validateAndEnrich(rawResult, shipment, signals);
 
-    return result;
+    // Save validated result to database
+    await this.saveSummary(shipmentId, validatedResult, warnings);
+
+    return validatedResult;
   }
 
   async getShipmentsNeedingSummary(limit: number = 100): Promise<string[]> {

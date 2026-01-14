@@ -203,12 +203,39 @@ export async function GET(request: NextRequest) {
       docCountMap.set(d.shipment_id, count + 1);
     });
 
+    // Get AI summaries for intelligence signals
+    const { data: aiSummaries } = await supabase
+      .from('shipment_ai_summaries')
+      .select(`
+        shipment_id,
+        risk_level,
+        risk_reason,
+        days_overdue,
+        escalation_count,
+        issue_count,
+        urgent_message_count,
+        days_since_activity,
+        current_blocker,
+        blocker_owner,
+        narrative,
+        key_insight,
+        next_action,
+        action_owner,
+        documented_charges,
+        estimated_detention
+      `)
+      .in('shipment_id', shipmentIds);
+
+    const summaryMap = new Map<string, NonNullable<typeof aiSummaries>[number]>();
+    aiSummaries?.forEach(s => summaryMap.set(s.shipment_id, s));
+
     // Transform to response format
     const transformedShipments = shipments?.map(ship => {
       const siCutoff = ship.si_cutoff ? new Date(ship.si_cutoff) : null;
       const vgmCutoff = ship.vgm_cutoff ? new Date(ship.vgm_cutoff) : null;
       const phase = stageToPhase(ship.stage);
       const progress = stageToProgress(ship.stage);
+      const summary = summaryMap.get(ship.id);
 
       return {
         id: ship.id,
@@ -239,6 +266,26 @@ export async function GET(request: NextRequest) {
         },
         carrier: ship.carrier_name,
         createdAt: ship.created_at,
+        // AI Intelligence signals
+        aiSummary: summary ? {
+          riskLevel: summary.risk_level,
+          riskReason: summary.risk_reason,
+          daysOverdue: summary.days_overdue,
+          escalationCount: summary.escalation_count,
+          issueCount: summary.issue_count,
+          urgentCount: summary.urgent_message_count,
+          daysSinceActivity: summary.days_since_activity,
+          currentBlocker: summary.current_blocker,
+          blockerOwner: summary.blocker_owner,
+          narrative: summary.narrative,
+          keyInsight: summary.key_insight,
+          nextAction: summary.next_action,
+          nextActionOwner: summary.action_owner,
+          financialImpact: {
+            documentedCharges: summary.documented_charges,
+            estimatedDetention: summary.estimated_detention,
+          },
+        } : null,
       };
     }) || [];
 

@@ -1,30 +1,37 @@
 'use client';
 
-import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import {
-  Ship,
-  Anchor,
-  Package,
-  Truck,
-  Search,
-  Filter,
-  ChevronRight,
-  ChevronDown,
-  RefreshCw,
-  AlertTriangle,
-  Clock,
-  MapPin,
-  Calendar,
-  CheckCircle,
-  ArrowUpDown,
-  X,
-} from 'lucide-react';
+import { Loader2, ChevronRight, AlertTriangle, Clock, DollarSign } from 'lucide-react';
 
-// ============================================================================
-// TYPES
-// ============================================================================
+/**
+ * Chronicle Shipments - v2 Style with Full AI Intelligence
+ *
+ * Filters:
+ * - Risk: Critical | Attention | On Track | All
+ * - Time: Today | 3 Days | Week | All
+ * - Phase: Departure | Arrival | All
+ */
+
+interface AISummary {
+  riskLevel: 'red' | 'amber' | 'green' | null;
+  riskReason: string | null;
+  daysOverdue: number | null;
+  escalationCount: number | null;
+  issueCount: number | null;
+  urgentCount: number | null;
+  daysSinceActivity: number | null;
+  currentBlocker: string | null;
+  blockerOwner: string | null;
+  narrative: string | null;
+  keyInsight: string | null;
+  nextAction: string | null;
+  nextActionOwner: string | null;
+  financialImpact: {
+    documentedCharges: string | null;
+    estimatedDetention: string | null;
+  } | null;
+}
 
 interface ShipmentRow {
   id: string;
@@ -49,399 +56,450 @@ interface ShipmentRow {
   };
   carrier?: string;
   createdAt: string;
+  aiSummary?: AISummary | null;
 }
 
-interface FleetData {
-  shipments: ShipmentRow[];
-  total: number;
-  page: number;
-  pageSize: number;
-  filters: {
-    phases: string[];
-    carriers: string[];
-  };
-}
+type RiskFilter = 'all' | 'red' | 'amber' | 'green';
+type TimeFilter = 'all' | 'today' | '3days' | 'week';
+type PhaseFilter = 'all' | 'departure' | 'arrival';
 
-// ============================================================================
-// FLEET VIEW
-// ============================================================================
-
-export default function FleetViewPage() {
+export default function ShipmentsPage() {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center py-20">
-        <RefreshCw className="h-5 w-5 animate-spin text-terminal-muted" />
-        <span className="ml-2 text-sm font-mono text-terminal-muted">Loading...</span>
-      </div>
-    }>
-      <FleetViewContent />
+    <Suspense fallback={<LoadingState />}>
+      <ShipmentsContent />
     </Suspense>
   );
 }
 
-function FleetViewContent() {
+function LoadingState() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="h-6 w-6 animate-spin text-terminal-muted" />
+    </div>
+  );
+}
+
+function ShipmentsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [data, setData] = useState<FleetData | null>(null);
+  const [shipments, setShipments] = useState<ShipmentRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
-  const [selectedPhase, setSelectedPhase] = useState(searchParams.get('phase') || '');
-  const [sortBy, setSortBy] = useState(searchParams.get('sort') || 'etd');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(
-    (searchParams.get('order') as 'asc' | 'desc') || 'asc'
-  );
-  const [showFilters, setShowFilters] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState(searchParams.get('q') || '');
+  const [riskFilter, setRiskFilter] = useState<RiskFilter>('all');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
+  const [phaseFilter, setPhaseFilter] = useState<PhaseFilter>('all');
 
   const fetchShipments = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const params = new URLSearchParams();
-      if (searchQuery) params.set('q', searchQuery);
-      if (selectedPhase) params.set('phase', selectedPhase);
-      params.set('sort', sortBy);
-      params.set('order', sortOrder);
-      params.set('page', '1');
-      params.set('pageSize', '50');
-
-      const response = await fetch(`/api/chronicle/shipments?${params.toString()}`);
-      if (response.ok) {
-        const result = await response.json();
-        setData(result);
-      }
-    } catch (error) {
-      console.error('Failed to fetch shipments:', error);
+      const params = new URLSearchParams({ page: '1', pageSize: '100', sort: 'etd', order: 'desc' });
+      const res = await fetch(`/api/chronicle/shipments?${params}`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      const data = await res.json();
+      setShipments(data.shipments || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
-  }, [searchQuery, selectedPhase, sortBy, sortOrder]);
+  }, []);
 
   useEffect(() => {
     fetchShipments();
   }, [fetchShipments]);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    fetchShipments();
-  };
-
-  const toggleSort = (field: string) => {
-    if (sortBy === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(field);
-      setSortOrder('asc');
+  // Filter and categorize
+  const { filtered, stats } = useMemo(() => {
+    if (!shipments || shipments.length === 0) {
+      return { filtered: [], stats: { red: 0, amber: 0, green: 0, total: 0 } };
     }
-  };
 
-  const clearFilters = () => {
-    setSearchQuery('');
-    setSelectedPhase('');
-    setSortBy('etd');
-    setSortOrder('asc');
-  };
+    let list = [...shipments];
 
-  const phases = [
-    { value: '', label: 'All Phases', icon: Ship, color: 'text-terminal-muted' },
-    { value: 'pre_departure', label: 'Pre-Departure', icon: Package, color: 'text-terminal-blue' },
-    { value: 'post_departure', label: 'Post-Departure', icon: Ship, color: 'text-terminal-purple' },
-    { value: 'pre_arrival', label: 'Pre-Arrival', icon: Anchor, color: 'text-terminal-amber' },
-    { value: 'post_arrival', label: 'Post-Arrival', icon: Truck, color: 'text-terminal-green' },
-  ];
+    // Search filter
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter(s =>
+        s.bookingNumber?.toLowerCase().includes(q) ||
+        s.blNumber?.toLowerCase().includes(q) ||
+        s.shipper?.toLowerCase().includes(q) ||
+        s.consignee?.toLowerCase().includes(q) ||
+        s.vesselName?.toLowerCase().includes(q)
+      );
+    }
+
+    // Phase filter
+    if (phaseFilter !== 'all') {
+      list = list.filter(s => {
+        const phase = (s.phase || '').toLowerCase();
+        if (phaseFilter === 'departure') {
+          return phase.includes('departure');
+        } else if (phaseFilter === 'arrival') {
+          return phase.includes('arrival');
+        }
+        return true;
+      });
+    }
+
+    // Time filter - use ETA for arrivals, ETD for departures
+    if (timeFilter !== 'all') {
+      const now = Date.now();
+      const DAY = 86400000;
+
+      list = list.filter(s => {
+        // Choose date based on phase filter: arrival=ETA, departure=ETD, all=ETD
+        const dateStr = phaseFilter === 'arrival' ? s.eta : s.etd;
+        if (!dateStr) return false;
+
+        const dateTime = new Date(dateStr).getTime();
+        const diff = dateTime - now;
+
+        switch (timeFilter) {
+          case 'today': return Math.abs(diff) < DAY;
+          case '3days': return diff > -3 * DAY && diff < 3 * DAY;
+          case 'week': return diff > -7 * DAY && diff < 7 * DAY;
+          default: return true;
+        }
+      });
+    }
+
+    // Categorize by risk
+    const red: ShipmentRow[] = [];
+    const amber: ShipmentRow[] = [];
+    const green: ShipmentRow[] = [];
+
+    list.forEach(s => {
+      const risk = s.aiSummary?.riskLevel || 'green';
+      if (risk === 'red') red.push(s);
+      else if (risk === 'amber') amber.push(s);
+      else green.push(s);
+    });
+
+    // Apply risk filter
+    let result: ShipmentRow[];
+    if (riskFilter === 'red') result = red;
+    else if (riskFilter === 'amber') result = amber;
+    else if (riskFilter === 'green') result = green;
+    else result = [...red, ...amber, ...green];
+
+    // Sort by date: future first, then past (descending)
+    result.sort((a, b) => {
+      const dateA = new Date(a.etd || a.eta || '1970-01-01').getTime();
+      const dateB = new Date(b.etd || b.eta || '1970-01-01').getTime();
+      return dateB - dateA; // Descending: future first
+    });
+
+    return {
+      filtered: result,
+      stats: { red: red.length, amber: amber.length, green: green.length, total: list.length }
+    };
+  }, [shipments, search, riskFilter, timeFilter, phaseFilter]);
+
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return '—';
+    return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-terminal-text">Fleet View</h1>
-          <p className="text-xs font-mono text-terminal-muted mt-1">
-            ~/chronicle/shipments • {data?.total || 0} shipments
-          </p>
+      <div className="mb-6">
+        <h1 className="text-xl font-semibold text-terminal-text">Shipments</h1>
+        <div className="mt-2 flex items-center gap-4 text-sm">
+          {stats.red > 0 && <span className="text-red-500">{stats.red} critical</span>}
+          {stats.amber > 0 && <span className="text-amber-500">{stats.amber} attention</span>}
+          <span className="text-green-500">{stats.green} on track</span>
         </div>
-        <button
-          onClick={fetchShipments}
-          disabled={loading}
-          className="flex items-center gap-2 px-3 py-1.5 text-sm font-mono bg-terminal-surface border border-terminal-border rounded-lg hover:bg-terminal-elevated transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
-        </button>
       </div>
 
-      {/* Search & Filters */}
-      <div className="flex items-center gap-4">
+      {/* Filters - All in one row */}
+      <div className="mb-6 flex flex-wrap items-center gap-2">
         {/* Search */}
-        <form onSubmit={handleSearch} className="flex-1 max-w-md">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-terminal-muted" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search booking, BL, vessel..."
-              className="w-full pl-10 pr-4 py-2 bg-terminal-surface border border-terminal-border rounded-lg text-sm font-mono text-terminal-text placeholder:text-terminal-muted focus:outline-none focus:border-terminal-purple"
-            />
-          </div>
-        </form>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search..."
+          className="w-40 rounded-lg border border-terminal-border bg-terminal-surface px-3 py-1.5 text-sm text-terminal-text placeholder:text-terminal-muted focus:outline-none focus:ring-1 focus:ring-terminal-purple"
+        />
 
-        {/* Phase Filter Pills */}
-        <div className="flex items-center gap-1">
-          {phases.map((phase) => {
-            const Icon = phase.icon;
-            const isActive = selectedPhase === phase.value;
-            return (
-              <button
-                key={phase.value}
-                onClick={() => setSelectedPhase(phase.value)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded-lg border transition-colors ${
-                  isActive
-                    ? 'bg-terminal-purple/10 text-terminal-purple border-terminal-purple/30'
-                    : 'bg-terminal-surface text-terminal-muted border-terminal-border hover:border-terminal-muted'
-                }`}
-              >
-                <Icon className={`h-3.5 w-3.5 ${isActive ? phase.color : ''}`} />
-                {phase.label}
-              </button>
-            );
-          })}
+        {/* Time Filter */}
+        <div className="flex gap-0.5 rounded-lg border border-terminal-border bg-terminal-surface p-0.5">
+          {(['all', 'today', '3days', 'week'] as const).map((filter) => (
+            <button
+              key={filter}
+              onClick={() => setTimeFilter(filter)}
+              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                timeFilter === filter
+                  ? 'bg-terminal-elevated text-terminal-text'
+                  : 'text-terminal-muted hover:text-terminal-text'
+              }`}
+            >
+              {filter === 'all' ? 'All' : filter === 'today' ? 'Today' : filter === '3days' ? '3d' : '7d'}
+            </button>
+          ))}
         </div>
 
-        {/* Clear Filters */}
-        {(searchQuery || selectedPhase) && (
+        {/* Phase Filter */}
+        <div className="flex gap-0.5 rounded-lg border border-terminal-border bg-terminal-surface p-0.5">
+          {(['all', 'departure', 'arrival'] as const).map((filter) => (
+            <button
+              key={filter}
+              onClick={() => setPhaseFilter(filter)}
+              className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+                phaseFilter === filter
+                  ? 'bg-terminal-elevated text-terminal-text'
+                  : 'text-terminal-muted hover:text-terminal-text'
+              }`}
+            >
+              {filter === 'all' ? 'All' : filter === 'departure' ? 'Dep' : 'Arr'}
+            </button>
+          ))}
+        </div>
+
+        {/* Risk Filter */}
+        <div className="flex gap-0.5 rounded-lg border border-terminal-border bg-terminal-surface p-0.5">
           <button
-            onClick={clearFilters}
-            className="flex items-center gap-1 px-2 py-1.5 text-xs font-mono text-terminal-muted hover:text-terminal-text transition-colors"
+            onClick={() => setRiskFilter('all')}
+            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+              riskFilter === 'all' ? 'bg-terminal-elevated text-terminal-text' : 'text-terminal-muted hover:text-terminal-text'
+            }`}
           >
-            <X className="h-3.5 w-3.5" />
-            Clear
+            All
+          </button>
+          <button
+            onClick={() => setRiskFilter('red')}
+            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+              riskFilter === 'red' ? 'bg-red-500/20 text-red-500' : 'text-red-500/70 hover:text-red-500'
+            }`}
+          >
+            Critical
+          </button>
+          <button
+            onClick={() => setRiskFilter('amber')}
+            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+              riskFilter === 'amber' ? 'bg-amber-500/20 text-amber-500' : 'text-amber-500/70 hover:text-amber-500'
+            }`}
+          >
+            Attention
+          </button>
+          <button
+            onClick={() => setRiskFilter('green')}
+            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
+              riskFilter === 'green' ? 'bg-green-500/20 text-green-500' : 'text-green-500/70 hover:text-green-500'
+            }`}
+          >
+            On Track
+          </button>
+        </div>
+
+        {/* Clear */}
+        {(timeFilter !== 'all' || phaseFilter !== 'all' || riskFilter !== 'all' || search) && (
+          <button
+            onClick={() => {
+              setTimeFilter('all');
+              setPhaseFilter('all');
+              setRiskFilter('all');
+              setSearch('');
+            }}
+            className="px-2 py-1 text-xs text-terminal-muted hover:text-red-500 transition-colors"
+          >
+            ✕
           </button>
         )}
       </div>
 
-      {/* Table */}
-      <div className="rounded-lg border border-terminal-border bg-terminal-surface overflow-hidden">
-        {/* Table Header */}
-        <div className="bg-terminal-elevated border-b border-terminal-border px-4 py-2 grid grid-cols-12 gap-4 text-xs font-mono text-terminal-muted uppercase tracking-wide">
-          <div className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-terminal-text" onClick={() => toggleSort('booking_number')}>
-            Booking
-            <SortIndicator field="booking_number" currentSort={sortBy} currentOrder={sortOrder} />
-          </div>
-          <div className="col-span-2">Route</div>
-          <div className="col-span-1 flex items-center gap-1 cursor-pointer hover:text-terminal-text" onClick={() => toggleSort('etd')}>
-            ETD
-            <SortIndicator field="etd" currentSort={sortBy} currentOrder={sortOrder} />
-          </div>
-          <div className="col-span-2">Vessel</div>
-          <div className="col-span-2">Progress</div>
-          <div className="col-span-2">Cutoffs</div>
-          <div className="col-span-1 text-right">Docs</div>
+      {/* Content */}
+      {loading ? (
+        <div className="space-y-2">
+          {[...Array(6)].map((_, i) => (
+            <div
+              key={i}
+              className="rounded-lg border border-terminal-border bg-terminal-surface p-4 animate-pulse"
+              style={{ borderLeftWidth: '3px', borderLeftColor: 'var(--terminal-border)' }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-5 w-32 rounded bg-terminal-elevated" />
+                  <div className="h-4 w-24 rounded bg-terminal-elevated" />
+                </div>
+                <div className="h-6 w-16 rounded bg-terminal-elevated" />
+              </div>
+              <div className="mt-2 flex items-center justify-between">
+                <div className="h-4 w-48 rounded bg-terminal-elevated" />
+                <div className="h-4 w-32 rounded bg-terminal-elevated" />
+              </div>
+              <div className="mt-3 h-12 rounded bg-terminal-elevated" />
+            </div>
+          ))}
         </div>
+      ) : error ? (
+        <div className="rounded-lg bg-red-500/10 p-6 text-center">
+          <p className="text-red-500">{error}</p>
+          <button onClick={fetchShipments} className="mt-3 px-4 py-2 bg-red-500 text-white rounded-md text-sm">
+            Retry
+          </button>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="text-center py-16 text-terminal-muted">
+          <p className="text-lg">No shipments found</p>
+          <p className="mt-1 text-sm">Try adjusting your search or filters</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((shipment) => {
+            const risk = shipment.aiSummary?.riskLevel || 'green';
+            const ai = shipment.aiSummary;
+            const borderColor = risk === 'red' ? '#ef4444' : risk === 'amber' ? '#f59e0b' : 'transparent';
 
-        {/* Table Body */}
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <RefreshCw className="h-5 w-5 animate-spin text-terminal-muted" />
-            <span className="ml-2 text-sm font-mono text-terminal-muted">Loading...</span>
-          </div>
-        ) : data?.shipments && data.shipments.length > 0 ? (
-          <div className="divide-y divide-terminal-border">
-            {data.shipments.map((shipment) => (
-              <ShipmentRow key={shipment.id} shipment={shipment} />
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-12 text-terminal-muted">
-            <Ship className="h-10 w-10 mb-2" />
-            <p className="font-mono text-sm">No shipments found</p>
-            {(searchQuery || selectedPhase) && (
-              <button
-                onClick={clearFilters}
-                className="mt-2 text-xs font-mono text-terminal-blue hover:text-terminal-green transition-colors"
+            return (
+              <div
+                key={shipment.id}
+                onClick={() => router.push(`/chronicle/shipments/${shipment.id}`)}
+                className="group cursor-pointer rounded-lg border border-terminal-border bg-terminal-surface p-4 transition-all hover:shadow-md"
+                style={{ borderLeftWidth: '3px', borderLeftColor: borderColor }}
               >
-                [clear filters]
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+                {/* Row 1: Booking | Route | Carrier | Risk Badge */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="font-semibold font-mono text-terminal-text">
+                      {shipment.bookingNumber || shipment.blNumber || '—'}
+                    </span>
+                    <span className="text-sm text-terminal-secondary">
+                      {shipment.pol?.split(',')[0] || shipment.polCode || '?'} → {shipment.pod?.split(',')[0] || shipment.podCode || '?'}
+                    </span>
+                    {shipment.carrier && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-terminal-elevated text-terminal-muted">
+                        {shipment.carrier}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-xs font-medium px-2 py-1 rounded"
+                      style={{
+                        backgroundColor: risk === 'red' ? 'rgba(239, 68, 68, 0.15)' : risk === 'amber' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(34, 197, 94, 0.15)',
+                        color: risk === 'red' ? '#ef4444' : risk === 'amber' ? '#f59e0b' : '#22c55e',
+                      }}
+                    >
+                      {risk === 'red' ? 'Critical' : risk === 'amber' ? 'Attention' : 'On Track'}
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-terminal-muted opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </div>
 
-      {/* Pagination */}
-      {data && data.total > data.pageSize && (
-        <div className="flex items-center justify-between text-xs font-mono text-terminal-muted">
-          <span>
-            Showing {(data.page - 1) * data.pageSize + 1}-{Math.min(data.page * data.pageSize, data.total)} of {data.total}
-          </span>
-          <div className="flex items-center gap-2">
-            <button className="px-3 py-1 bg-terminal-surface border border-terminal-border rounded hover:bg-terminal-elevated transition-colors">
-              Previous
-            </button>
-            <button className="px-3 py-1 bg-terminal-surface border border-terminal-border rounded hover:bg-terminal-elevated transition-colors">
-              Next
-            </button>
-          </div>
+                {/* Row 2: Shipper → Consignee | Dates */}
+                <div className="mt-1.5 flex items-center justify-between text-sm">
+                  <span className="text-terminal-muted truncate">
+                    {shipment.shipper || '—'} → {shipment.consignee || '—'}
+                  </span>
+                  <div className="flex items-center gap-3 text-terminal-secondary shrink-0">
+                    <span>ETD {formatDate(shipment.etd)}</span>
+                    <span className="text-terminal-muted">→</span>
+                    <span>ETA {formatDate(shipment.eta)}</span>
+                  </div>
+                </div>
+
+                {/* Row 3: AI Intelligence */}
+                {ai && (
+                  <div className="mt-3 space-y-2">
+                    {/* Narrative */}
+                    {ai.narrative && (
+                      <p className="text-sm text-terminal-text/70 leading-relaxed">
+                        {ai.narrative}
+                      </p>
+                    )}
+
+                    {/* Blocker (red) */}
+                    {ai.currentBlocker && (
+                      <div className="text-sm" style={{ color: '#ef4444' }}>
+                        <span className="font-medium">Blocker:</span> {ai.currentBlocker}
+                        {ai.blockerOwner && (
+                          <span
+                            className="ml-2 text-xs px-1.5 py-0.5 rounded"
+                            style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)' }}
+                          >
+                            {ai.blockerOwner}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Next Action (amber) */}
+                    {ai.nextAction && (
+                      <div className="text-sm" style={{ color: '#f59e0b' }}>
+                        <span className="font-medium">Next:</span> {ai.nextAction}
+                        {ai.nextActionOwner && (
+                          <span
+                            className="ml-2 text-xs px-1.5 py-0.5 rounded"
+                            style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)' }}
+                          >
+                            {ai.nextActionOwner}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Badges: Issues, Escalations, Financial, Overdue */}
+                    {(ai.issueCount || ai.escalationCount || ai.daysOverdue || ai.financialImpact?.documentedCharges || ai.financialImpact?.estimatedDetention) && (
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        {ai.daysOverdue && ai.daysOverdue > 0 && ai.daysOverdue <= 90 && (
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
+                            <Clock className="h-3 w-3" />
+                            {ai.daysOverdue}d overdue
+                          </span>
+                        )}
+                        {ai.daysOverdue && ai.daysOverdue > 90 && (
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-terminal-elevated text-terminal-muted">
+                            <Clock className="h-3 w-3" />
+                            Stale data
+                          </span>
+                        )}
+                        {ai.issueCount && ai.issueCount > 0 && (
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
+                            <AlertTriangle className="h-3 w-3" />
+                            {ai.issueCount} issues
+                          </span>
+                        )}
+                        {ai.escalationCount && ai.escalationCount > 0 && (
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}>
+                            {ai.escalationCount} escalations
+                          </span>
+                        )}
+                        {ai.financialImpact?.documentedCharges && (
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-terminal-elevated text-terminal-muted">
+                            <DollarSign className="h-3 w-3" />
+                            {ai.financialImpact.documentedCharges}
+                          </span>
+                        )}
+                        {ai.financialImpact?.estimatedDetention && (
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}>
+                            <DollarSign className="h-3 w-3" />
+                            {ai.financialImpact.estimatedDetention}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Fallback for shipments without AI summary */}
+                {!ai?.narrative && !ai?.currentBlocker && !ai?.nextAction && (
+                  <div className="mt-3 flex items-center gap-4 text-sm text-terminal-muted">
+                    <span>Stage: {shipment.stage || 'PENDING'}</span>
+                    {shipment.documentsCount > 0 && (
+                      <span>{shipment.documentsCount} documents</span>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
-  );
-}
-
-// ============================================================================
-// SUB-COMPONENTS
-// ============================================================================
-
-function SortIndicator({
-  field,
-  currentSort,
-  currentOrder,
-}: {
-  field: string;
-  currentSort: string;
-  currentOrder: 'asc' | 'desc';
-}) {
-  if (currentSort !== field) {
-    return <ArrowUpDown className="h-3 w-3 opacity-30" />;
-  }
-  return (
-    <ArrowUpDown className={`h-3 w-3 text-terminal-purple ${currentOrder === 'desc' ? 'rotate-180' : ''}`} />
-  );
-}
-
-function ShipmentRow({ shipment }: { shipment: ShipmentRow }) {
-  const getPhaseIcon = (phase: string) => {
-    switch (phase?.toLowerCase()) {
-      case 'pre_departure': return Package;
-      case 'post_departure': return Ship;
-      case 'pre_arrival': return Anchor;
-      case 'post_arrival': return Truck;
-      default: return Package;
-    }
-  };
-
-  const getPhaseColor = (phase: string) => {
-    switch (phase?.toLowerCase()) {
-      case 'pre_departure': return 'text-terminal-blue bg-terminal-blue/10 border-terminal-blue/30';
-      case 'post_departure': return 'text-terminal-purple bg-terminal-purple/10 border-terminal-purple/30';
-      case 'pre_arrival': return 'text-terminal-amber bg-terminal-amber/10 border-terminal-amber/30';
-      case 'post_arrival': return 'text-terminal-green bg-terminal-green/10 border-terminal-green/30';
-      default: return 'text-terminal-muted bg-terminal-muted/10 border-terminal-border';
-    }
-  };
-
-  const getProgressColor = (progress: number) => {
-    if (progress >= 75) return 'bg-terminal-green';
-    if (progress >= 50) return 'bg-terminal-blue';
-    if (progress >= 25) return 'bg-terminal-amber';
-    return 'bg-terminal-red';
-  };
-
-  const PhaseIcon = getPhaseIcon(shipment.phase);
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '--';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
-  return (
-    <Link
-      href={`/chronicle/shipments/${shipment.id}`}
-      className="grid grid-cols-12 gap-4 px-4 py-3 hover:bg-terminal-elevated transition-colors group"
-    >
-      {/* Booking */}
-      <div className="col-span-2">
-        <div className="flex items-center gap-2">
-          <span className={`p-1 rounded border ${getPhaseColor(shipment.phase)}`}>
-            <PhaseIcon className="h-3.5 w-3.5" />
-          </span>
-          <div>
-            <div className="text-sm font-mono font-medium text-terminal-text group-hover:text-terminal-purple transition-colors">
-              {shipment.bookingNumber}
-            </div>
-            {shipment.blNumber && (
-              <div className="text-[10px] font-mono text-terminal-muted">
-                BL: {shipment.blNumber}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Route */}
-      <div className="col-span-2 flex items-center">
-        <div className="flex items-center gap-1 text-xs font-mono">
-          <span className="text-terminal-blue font-medium">{shipment.polCode || shipment.pol || '--'}</span>
-          <ChevronRight className="h-3 w-3 text-terminal-muted" />
-          <span className="text-terminal-green font-medium">{shipment.podCode || shipment.pod || '--'}</span>
-        </div>
-      </div>
-
-      {/* ETD */}
-      <div className="col-span-1 flex items-center">
-        <span className="text-xs font-mono text-terminal-text">
-          {formatDate(shipment.etd)}
-        </span>
-      </div>
-
-      {/* Vessel */}
-      <div className="col-span-2 flex items-center">
-        <span className="text-xs font-mono text-terminal-muted truncate">
-          {shipment.vesselName || '--'}
-        </span>
-      </div>
-
-      {/* Progress */}
-      <div className="col-span-2 flex items-center gap-2">
-        <div className="flex-1 h-1.5 bg-terminal-bg rounded-full overflow-hidden border border-terminal-border">
-          <div
-            className={`h-full ${getProgressColor(shipment.journeyProgress)} transition-all`}
-            style={{ width: `${shipment.journeyProgress}%` }}
-          />
-        </div>
-        <span className="text-xs font-mono text-terminal-muted w-8 text-right">
-          {shipment.journeyProgress}%
-        </span>
-      </div>
-
-      {/* Cutoffs */}
-      <div className="col-span-2 flex items-center gap-2">
-        {shipment.cutoffs.si && (
-          <CutoffBadge type="SI" daysRemaining={shipment.cutoffs.si.daysRemaining} />
-        )}
-        {shipment.cutoffs.vgm && (
-          <CutoffBadge type="VGM" daysRemaining={shipment.cutoffs.vgm.daysRemaining} />
-        )}
-        {!shipment.cutoffs.si && !shipment.cutoffs.vgm && (
-          <span className="text-[10px] font-mono text-terminal-muted">--</span>
-        )}
-      </div>
-
-      {/* Docs Count */}
-      <div className="col-span-1 flex items-center justify-end">
-        <span className="px-2 py-0.5 text-[10px] font-mono bg-terminal-bg text-terminal-muted border border-terminal-border rounded">
-          {shipment.documentsCount}
-        </span>
-      </div>
-    </Link>
-  );
-}
-
-function CutoffBadge({ type, daysRemaining }: { type: string; daysRemaining: number }) {
-  const isUrgent = daysRemaining <= 2;
-  const isWarning = daysRemaining <= 5;
-  const isOverdue = daysRemaining < 0;
-
-  const colorClass = isOverdue
-    ? 'bg-terminal-red/20 text-terminal-red border-terminal-red/30'
-    : isUrgent
-      ? 'bg-terminal-red/10 text-terminal-red border-terminal-red/30'
-      : isWarning
-        ? 'bg-terminal-amber/10 text-terminal-amber border-terminal-amber/30'
-        : 'bg-terminal-muted/10 text-terminal-muted border-terminal-border';
-
-  return (
-    <span className={`px-1.5 py-0.5 text-[10px] font-mono border rounded ${colorClass} ${isUrgent ? 'animate-pulse' : ''}`}>
-      {type}:{isOverdue ? 'OD' : `${daysRemaining}d`}
-    </span>
   );
 }
