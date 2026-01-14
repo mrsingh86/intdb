@@ -1,0 +1,715 @@
+{
+  "schemaVersion": "1.0",
+  "timestamp": "2026-01-14T12:00:00Z",
+  "mode": "research+generate",
+  "projectName": "Chronicle Intelligence Dashboard",
+  "featureName": "AI-First Shipment Operations Center",
+
+  "executiveSummary": {
+    "problem": "Current Chronicle shipments page uses a traditional table-based UI that buries AI intelligence in columns. The narrative, blockers, and actionable insights are hidden in truncated text, making the AI investment invisible to users.",
+    "solution": "Transform from data table to AI Operations Center using an exception-based management approach. Put intelligence front-and-center with a priority queue layout that surfaces problems first, shows narratives prominently, and makes actions immediately clickable.",
+    "keyPrinciple": "Show me what's bleeding first (Flexport insight) - users only care about exceptions, not the 90% that's on track."
+  },
+
+  "research": {
+    "sourcesAnalyzed": 15,
+    "industryLeaders": [
+      {
+        "name": "Flexport Dashboard 2.0",
+        "url": "https://medium.com/flexport-ux/the-flexport-dashboard-2-0-2524f8e92245",
+        "keyInsight": "Users said 'I only want to see a shipment if it's bleeding'. Exception-based management is the key pattern.",
+        "applicablePatterns": ["Exception-first view", "Filterable subsets", "Deep drill-down"]
+      },
+      {
+        "name": "project44 Visibility Platform",
+        "url": "https://www.project44.com/platform/visibility/",
+        "keyInsight": "AI-powered ETAs, door-to-door tracking, single easy-to-parse view. Decision intelligence over raw data.",
+        "applicablePatterns": ["AI-powered predictions", "Stitched journey view", "SKU-level visibility"]
+      },
+      {
+        "name": "AI Dashboard Design Guide",
+        "url": "https://www.eleken.co/blog-posts/ai-dashboard-design",
+        "keyInsight": "Traditional dashboards show what happened. AI dashboards tell you what it means and what might happen next.",
+        "applicablePatterns": ["Natural language summaries", "Predictive callouts", "Interactive explanations"]
+      }
+    ],
+    "designPatterns": {
+      "exceptionBasedManagement": {
+        "description": "Surface problems first, hide healthy shipments. Users scan exceptions, not lists.",
+        "sources": ["QAD Transportation", "Moxo", "Beacon Use Cases", "Terminal49"],
+        "implementation": "Priority queue with red/amber/green sections, critical always visible"
+      },
+      "operationsCommandCenter": {
+        "description": "Centralized view bringing clarity to chaos with real-time insights and actionable alerts",
+        "sources": ["Xenia", "Cortex XSIAM", "ServiceNow"],
+        "implementation": "KPI summary bar, priority queue, alert management"
+      },
+      "cardBasedLayout": {
+        "description": "Cards instead of rows allow rich content display: narratives, actions, financial impact",
+        "sources": ["Logistics Dashboard Templates", "Dribbble", "Behance"],
+        "implementation": "Shipment intelligence cards with expandable deep-dive"
+      },
+      "swimlaneKanban": {
+        "description": "Organize by risk level or phase, visual flow of shipment states",
+        "sources": ["ClickUp", "Figma Community"],
+        "implementation": "Optional kanban view by risk level: Critical | Warning | On Track"
+      }
+    },
+    "accessibilityRequirements": [
+      "WCAG 2.1 AA compliance",
+      "Keyboard navigation for all actions",
+      "Screen reader support for risk levels and actions",
+      "Color-blind safe indicators (not color-only)",
+      "Touch targets >= 44x44px for mobile"
+    ],
+    "performanceTargets": {
+      "initialLoad": "< 1.5s for first meaningful paint",
+      "interactionResponse": "< 100ms for filter changes",
+      "bundleSize": "< 80kb for dashboard components"
+    }
+  },
+
+  "designSpecification": {
+    "layoutArchitecture": {
+      "name": "AI Operations Center",
+      "description": "Three-zone layout: Command Bar (top), Priority Queue (main), Intelligence Panel (slide-over)",
+      "zones": [
+        {
+          "name": "Command Bar",
+          "position": "top fixed",
+          "height": "auto (responsive)",
+          "components": ["RiskSummaryBadges", "QuickFilters", "SearchBar", "RefreshButton"],
+          "purpose": "At-a-glance health status, instant filtering"
+        },
+        {
+          "name": "Priority Queue",
+          "position": "main scrollable",
+          "components": ["ShipmentIntelligenceCard[]"],
+          "purpose": "Exception-first list of shipments, grouped by risk when filtered to 'All'",
+          "layout": "Vertical card stack, critical shipments always first"
+        },
+        {
+          "name": "Intelligence Panel",
+          "position": "right slide-over (Sheet)",
+          "width": "480px desktop, full-width mobile",
+          "components": ["ShipmentDeepDive", "EscalationList", "IssueList", "UrgentMessages", "ActionQueue"],
+          "purpose": "Deep dive into a single shipment without losing list context"
+        }
+      ]
+    },
+
+    "designOptions": {
+      "recommended": {
+        "name": "Option A: Priority Queue with Intelligence Cards",
+        "description": "Exception-based vertical list with rich intelligence cards. Each card shows narrative prominently, blockers in red, next actions in amber. Click to expand into deep-dive panel.",
+        "rationale": "Best for operations teams scanning for problems. Matches Flexport insight: 'I only want to see a shipment if it's bleeding'",
+        "wireframe": "See wireframes section below"
+      },
+      "alternative1": {
+        "name": "Option B: Risk Swimlane Kanban",
+        "description": "Three columns: Critical | Warning | On Track. Drag shipments between lanes to manually adjust risk. Cards show key insight + blocker.",
+        "rationale": "Good for teams that want visual organization by risk. More manual control.",
+        "tradeoff": "Less information density, requires horizontal scrolling on mobile"
+      },
+      "alternative2": {
+        "name": "Option C: Dashboard + Table Hybrid",
+        "description": "KPI cards at top (critical count, total financial impact, overdue actions), then condensed table below with risk indicator column.",
+        "rationale": "Familiar table pattern but with intelligence summary at top",
+        "tradeoff": "Still buries individual shipment intelligence in table rows"
+      }
+    },
+
+    "wireframes": {
+      "priorityQueueLayout": {
+        "ascii": [
+          "+------------------------------------------------------------------+",
+          "| [Command Bar]                                                    |",
+          "| +------------------+ +--------+ +--------+ +--------+ +--------+ |",
+          "| | 3 Critical       | | All    | | Depart | | Arrive | | Search | |",
+          "| | $12,500 at risk  | +--------+ +--------+ +--------+ +--------+ |",
+          "| +------------------+                                             |",
+          "+------------------------------------------------------------------+",
+          "| [Priority Queue - Scrollable]                        [Panel]    |",
+          "| +------------------------------------------+    +--------------+ |",
+          "| | [CRITICAL] BKG-12345 | MSKU -> USLAX    |    | Deep Dive    | |",
+          "| |                                          |    |              | |",
+          "| | \"Shipper delayed SI submission. Carrier |    | Escalations: | |",
+          "| | deadline missed yesterday. Risk of      |    | - SI cutoff  | |",
+          "| | $2,500 detention if not resolved.\"      |    |   missed     | |",
+          "| |                                          |    |              | |",
+          "| | [BLOCKER] Missing SI from ABC Trading   |    | Issues:      | |",
+          "| | [-> Intoglo Operations]                  |    | - Container  | |",
+          "| |                                          |    |   not picked | |",
+          "| | [Next: Send follow-up to shipper]       |    |              | |",
+          "| | [3 escalations] [2 issues] [5d stale]   |    | Financial:   | |",
+          "| +------------------------------------------+    | $2,500 risk  | |",
+          "| +------------------------------------------+    |              | |",
+          "| | [WARNING] BKG-67890 | CNSHA -> GBFXT    |    +--------------+ |",
+          "| |                                          |                    |",
+          "| | \"Container picked up, awaiting VGM.     |                    |",
+          "| | VGM cutoff in 2 days.\"                  |                    |",
+          "| |                                          |                    |",
+          "| | [Next: Submit VGM by Jan 16]            |                    |",
+          "| | [-> Shipper]                             |                    |",
+          "| +------------------------------------------+                    |",
+          "| +------------------------------------------+                    |",
+          "| | [ON TRACK] BKG-11111 | INMUN -> NLRTM   |                    |",
+          "| | \"Vessel departed on schedule.\"          |                    |",
+          "| +------------------------------------------+                    |",
+          "+------------------------------------------------------------------+"
+        ]
+      },
+      "mobileLayout": {
+        "ascii": [
+          "+------------------------+",
+          "| [Command Bar]          |",
+          "| 3 Critical | $12.5k    |",
+          "| [All][Depart][Arrive]  |",
+          "+------------------------+",
+          "| [Search...]            |",
+          "+------------------------+",
+          "| [CRITICAL]             |",
+          "| BKG-12345 MSKU->USLAX  |",
+          "|                        |",
+          "| Shipper delayed SI...  |",
+          "|                        |",
+          "| [BLOCKER] Missing SI   |",
+          "| -> Intoglo Ops         |",
+          "|                        |",
+          "| [3 esc] [2 iss] [$2.5k]|",
+          "+------------------------+",
+          "| [WARNING]              |",
+          "| BKG-67890 CNSHA->GBFXT |",
+          "| ...                    |",
+          "+------------------------+"
+        ]
+      }
+    }
+  },
+
+  "componentSpecifications": {
+    "components": [
+      {
+        "name": "CommandBar",
+        "description": "Fixed top bar with risk summary and quick filters",
+        "file": "components/chronicle-v3/CommandBar.tsx",
+        "props": {
+          "stats": "{ critical: number, warning: number, onTrack: number, totalFinancialRisk: number }",
+          "activeFilter": "RiskFilter",
+          "phase": "Phase",
+          "search": "string",
+          "onFilterChange": "(filter: RiskFilter) => void",
+          "onPhaseChange": "(phase: Phase) => void",
+          "onSearchChange": "(search: string) => void"
+        },
+        "features": [
+          "Risk summary badges with counts and financial impact",
+          "Click badge to filter to that risk level",
+          "Phase toggle: All | Departure | Arrival",
+          "Search with debounce",
+          "Responsive: stacks on mobile"
+        ],
+        "accessibility": [
+          "aria-label on all filter buttons",
+          "aria-pressed for toggle states",
+          "Focus visible indicators"
+        ]
+      },
+      {
+        "name": "ShipmentIntelligenceCard",
+        "description": "Rich card showing AI narrative, blocker, next action, signals",
+        "file": "components/chronicle-v3/ShipmentIntelligenceCard.tsx",
+        "props": {
+          "shipment": "ShipmentWithAI",
+          "onSelect": "(id: string) => void",
+          "isSelected": "boolean"
+        },
+        "sections": [
+          {
+            "name": "Header",
+            "content": "Risk badge + Booking # + Route + Carrier + ETD/ETA",
+            "layout": "Flex row, wraps on mobile"
+          },
+          {
+            "name": "Narrative",
+            "content": "AI-generated story of what's happening",
+            "style": "Prominent text, full width, not truncated",
+            "purpose": "This is the KEY intelligence - must be visible"
+          },
+          {
+            "name": "Blocker",
+            "content": "Current blocker + owner badge",
+            "style": "Red background highlight, attention-grabbing",
+            "visibility": "Only shown if blocker exists"
+          },
+          {
+            "name": "NextAction",
+            "content": "Next action + owner + deadline",
+            "style": "Amber/orange, actionable",
+            "visibility": "Always shown if exists"
+          },
+          {
+            "name": "SignalBar",
+            "content": "Clickable badges: escalations, issues, urgent messages, staleness",
+            "style": "Horizontal badge row",
+            "interaction": "Click to open deep dive panel to that section"
+          },
+          {
+            "name": "FinancialImpact",
+            "content": "Documented charges + estimated detention",
+            "style": "Prominent for red items, subtle for others",
+            "visibility": "Always shown if > $0"
+          }
+        ],
+        "states": [
+          "default: Compact view with narrative visible",
+          "selected: Highlighted border, deep dive panel open",
+          "hover: Subtle elevation, cursor pointer"
+        ],
+        "accessibility": [
+          "role='article' for card container",
+          "aria-label describing shipment status",
+          "Signal badges have aria-label with counts",
+          "Keyboard: Enter/Space to select"
+        ]
+      },
+      {
+        "name": "IntelligencePanel",
+        "description": "Slide-over panel with deep dive into selected shipment",
+        "file": "components/chronicle-v3/IntelligencePanel.tsx",
+        "props": {
+          "shipmentId": "string",
+          "onClose": "() => void",
+          "initialSection": "'overview' | 'escalations' | 'issues' | 'urgent' | 'actions'"
+        },
+        "sections": [
+          {
+            "name": "Header",
+            "content": "Booking #, close button, full narrative"
+          },
+          {
+            "name": "EscalationList",
+            "content": "Expandable list of all escalations with details",
+            "data": "escalations[] from AI summary"
+          },
+          {
+            "name": "IssueList",
+            "content": "Expandable list of all issues with severity",
+            "data": "issues[] from AI summary"
+          },
+          {
+            "name": "UrgentMessages",
+            "content": "List of urgent/time-sensitive communications",
+            "data": "urgent_messages[] from AI summary"
+          },
+          {
+            "name": "ActionQueue",
+            "content": "All pending actions with owners and deadlines",
+            "interaction": "Mark complete, snooze, reassign"
+          },
+          {
+            "name": "FinancialBreakdown",
+            "content": "Documented charges, estimated detention, total exposure"
+          }
+        ],
+        "behavior": {
+          "desktop": "Right slide-over, 480px wide",
+          "mobile": "Full screen modal with back button",
+          "animation": "Slide from right, 200ms ease-out"
+        }
+      },
+      {
+        "name": "SignalBadge",
+        "description": "Clickable badge for escalations, issues, etc.",
+        "file": "components/chronicle-v3/SignalBadge.tsx",
+        "props": {
+          "type": "'escalation' | 'issue' | 'urgent' | 'stale'",
+          "count": "number",
+          "severity": "'critical' | 'high' | 'medium' | 'low'",
+          "onClick": "() => void"
+        },
+        "variants": {
+          "escalation": { "icon": "AlertTriangle", "colors": "red/amber based on count" },
+          "issue": { "icon": "AlertCircle", "colors": "purple" },
+          "urgent": { "icon": "Bell", "colors": "red" },
+          "stale": { "icon": "Clock", "colors": "gray" }
+        },
+        "accessibility": [
+          "aria-label: '3 escalations, click to view details'",
+          "role='button'",
+          "Focus visible"
+        ]
+      },
+      {
+        "name": "RiskBadge",
+        "description": "Visual risk level indicator",
+        "file": "components/chronicle-v3/RiskBadge.tsx",
+        "props": {
+          "level": "'critical' | 'warning' | 'on_track'",
+          "reason": "string (tooltip)",
+          "size": "'sm' | 'md' | 'lg'"
+        },
+        "design": {
+          "critical": { "bg": "#ef4444", "text": "white", "icon": "AlertOctagon" },
+          "warning": { "bg": "#f59e0b", "text": "black", "icon": "AlertTriangle" },
+          "on_track": { "bg": "#22c55e", "text": "black", "icon": "CheckCircle" }
+        },
+        "accessibility": [
+          "Not color-only: includes icon and text",
+          "aria-label: 'Critical risk: [reason]'",
+          "Title attribute with full reason"
+        ]
+      },
+      {
+        "name": "BlockerBanner",
+        "description": "Prominent display of current blocker with owner",
+        "file": "components/chronicle-v3/BlockerBanner.tsx",
+        "props": {
+          "blocker": "string",
+          "owner": "string",
+          "ownerType": "'intoglo' | 'shipper' | 'carrier' | 'consignee' | 'agent'",
+          "onDraftEmail": "() => void"
+        },
+        "design": {
+          "background": "rgba(239, 68, 68, 0.15)",
+          "border": "left 3px solid #ef4444",
+          "ownerBadge": "Colored by owner type"
+        },
+        "interaction": "Click 'Draft Email' to open email composer for owner"
+      },
+      {
+        "name": "NextActionBanner",
+        "description": "Display of next required action with owner and deadline",
+        "file": "components/chronicle-v3/NextActionBanner.tsx",
+        "props": {
+          "action": "string",
+          "owner": "string",
+          "ownerType": "string",
+          "deadline": "Date | null",
+          "onMarkComplete": "() => void"
+        },
+        "design": {
+          "background": "rgba(245, 158, 11, 0.15)",
+          "border": "left 3px solid #f59e0b",
+          "deadlineBadge": "Red if overdue, amber if within 2 days"
+        }
+      },
+      {
+        "name": "FinancialImpactBadge",
+        "description": "Display of documented and estimated financial exposure",
+        "file": "components/chronicle-v3/FinancialImpactBadge.tsx",
+        "props": {
+          "documentedCharges": "number",
+          "estimatedDetention": "number",
+          "currency": "string"
+        },
+        "design": {
+          "style": "Money icon + formatted amount",
+          "prominence": "More prominent for red items (larger, highlighted)",
+          "breakdown": "Tooltip shows documented vs estimated split"
+        }
+      }
+    ]
+  },
+
+  "dataRequirements": {
+    "apiEndpoint": "/api/chronicle-v3/shipments",
+    "queryParams": {
+      "risk": "'all' | 'critical' | 'warning' | 'on_track'",
+      "phase": "'all' | 'departure' | 'arrival'",
+      "search": "string",
+      "page": "number",
+      "pageSize": "number"
+    },
+    "responseShape": {
+      "shipments": "ShipmentWithAI[]",
+      "stats": {
+        "critical": "number",
+        "warning": "number",
+        "onTrack": "number",
+        "totalFinancialRisk": "number"
+      },
+      "total": "number",
+      "hasMore": "boolean"
+    },
+    "shipmentShape": {
+      "id": "string",
+      "bookingNumber": "string",
+      "blNumber": "string | null",
+      "route": { "origin": "string", "destination": "string" },
+      "carrier": "string",
+      "etd": "string | null",
+      "eta": "string | null",
+      "shipper": "string | null",
+      "consignee": "string | null",
+      "aiSummary": {
+        "riskLevel": "'red' | 'amber' | 'green'",
+        "riskReason": "string | null",
+        "daysOverdue": "number | null",
+        "escalationCount": "number",
+        "issueCount": "number",
+        "urgentMessageCount": "number",
+        "daysSinceActivity": "number | null",
+        "currentBlocker": "string | null",
+        "blockerOwner": "string | null",
+        "blockerOwnerType": "string | null",
+        "narrative": "string",
+        "keyInsight": "string | null",
+        "nextAction": "string | null",
+        "nextActionOwner": "string | null",
+        "nextActionDeadline": "string | null",
+        "financialImpact": {
+          "documentedCharges": "number",
+          "estimatedDetention": "number"
+        }
+      }
+    },
+    "deepDiveEndpoint": "/api/chronicle-v3/shipments/{id}/intelligence",
+    "deepDiveShape": {
+      "escalations": [
+        {
+          "id": "string",
+          "title": "string",
+          "description": "string",
+          "severity": "string",
+          "createdAt": "string",
+          "status": "string"
+        }
+      ],
+      "issues": [
+        {
+          "id": "string",
+          "title": "string",
+          "description": "string",
+          "severity": "string",
+          "createdAt": "string"
+        }
+      ],
+      "urgentMessages": [
+        {
+          "id": "string",
+          "subject": "string",
+          "from": "string",
+          "preview": "string",
+          "receivedAt": "string"
+        }
+      ],
+      "pendingActions": [
+        {
+          "id": "string",
+          "action": "string",
+          "owner": "string",
+          "deadline": "string | null",
+          "priority": "string"
+        }
+      ]
+    }
+  },
+
+  "implementationPlan": {
+    "phases": [
+      {
+        "phase": 1,
+        "name": "Foundation Components",
+        "duration": "2-3 days",
+        "tasks": [
+          "Create chronicle-v3 component directory",
+          "Implement RiskBadge with accessibility",
+          "Implement SignalBadge with click handlers",
+          "Implement BlockerBanner",
+          "Implement NextActionBanner",
+          "Implement FinancialImpactBadge",
+          "Write unit tests for all components"
+        ],
+        "deliverables": [
+          "components/chronicle-v3/RiskBadge.tsx",
+          "components/chronicle-v3/SignalBadge.tsx",
+          "components/chronicle-v3/BlockerBanner.tsx",
+          "components/chronicle-v3/NextActionBanner.tsx",
+          "components/chronicle-v3/FinancialImpactBadge.tsx",
+          "Tests with 90%+ coverage"
+        ]
+      },
+      {
+        "phase": 2,
+        "name": "Intelligence Card",
+        "duration": "2-3 days",
+        "tasks": [
+          "Implement ShipmentIntelligenceCard composing foundation components",
+          "Add responsive layout (mobile-first)",
+          "Add selection state and hover effects",
+          "Add keyboard navigation",
+          "Write comprehensive tests"
+        ],
+        "deliverables": [
+          "components/chronicle-v3/ShipmentIntelligenceCard.tsx",
+          "Integration tests"
+        ]
+      },
+      {
+        "phase": 3,
+        "name": "Command Bar and Filtering",
+        "duration": "1-2 days",
+        "tasks": [
+          "Implement CommandBar with risk summary badges",
+          "Add quick filters with toggle state",
+          "Add search with debounce",
+          "Connect to API with proper query params",
+          "Add keyboard shortcuts (optional)"
+        ],
+        "deliverables": [
+          "components/chronicle-v3/CommandBar.tsx",
+          "Updated API endpoint if needed"
+        ]
+      },
+      {
+        "phase": 4,
+        "name": "Intelligence Panel (Deep Dive)",
+        "duration": "2-3 days",
+        "tasks": [
+          "Implement IntelligencePanel slide-over",
+          "Implement EscalationList section",
+          "Implement IssueList section",
+          "Implement UrgentMessages section",
+          "Implement ActionQueue section",
+          "Implement FinancialBreakdown section",
+          "Add section navigation (tabs or accordion)",
+          "Add mobile full-screen mode"
+        ],
+        "deliverables": [
+          "components/chronicle-v3/IntelligencePanel.tsx",
+          "Section components as needed"
+        ]
+      },
+      {
+        "phase": 5,
+        "name": "Page Integration",
+        "duration": "1-2 days",
+        "tasks": [
+          "Create /v3/page.tsx with full layout",
+          "Implement infinite scroll or pagination",
+          "Connect all components",
+          "Add loading states and skeletons",
+          "Add error states with retry",
+          "Add empty states"
+        ],
+        "deliverables": [
+          "app/(chronicle-v3)/v3/page.tsx",
+          "app/(chronicle-v3)/layout.tsx"
+        ]
+      },
+      {
+        "phase": 6,
+        "name": "Polish and Accessibility",
+        "duration": "1-2 days",
+        "tasks": [
+          "Full accessibility audit",
+          "Screen reader testing",
+          "Keyboard navigation testing",
+          "Performance optimization",
+          "Mobile testing",
+          "Documentation"
+        ],
+        "deliverables": [
+          "Accessibility report",
+          "Performance benchmarks",
+          "Component documentation"
+        ]
+      }
+    ],
+    "totalEstimate": "9-15 days"
+  },
+
+  "qualityChecks": {
+    "accessibility": {
+      "colorContrast": "All text passes WCAG AA (4.5:1 ratio)",
+      "keyboardNavigation": "All interactive elements focusable and operable",
+      "screenReader": "ARIA labels on all dynamic content",
+      "colorBlindSafe": "Risk indicators use icons + text, not color alone",
+      "touchTargets": "All buttons >= 44x44px on mobile"
+    },
+    "performance": {
+      "bundleSize": "< 80kb for dashboard components",
+      "firstPaint": "< 1.5s initial load",
+      "interaction": "< 100ms filter response",
+      "scrollPerformance": "60fps with 100+ cards"
+    },
+    "responsiveness": {
+      "mobile": "Full functionality at 320px width",
+      "tablet": "Optimized layout at 768px",
+      "desktop": "Full layout with panel at 1024px+"
+    },
+    "codeQuality": {
+      "componentSize": "Each component < 200 lines",
+      "testCoverage": ">= 80% for all components",
+      "typeScript": "Strict mode, no any types",
+      "claudeMdCompliance": "Follows all CLAUDE.md principles"
+    }
+  },
+
+  "claudeMdCompliance": {
+    "principles": {
+      "ETC": "Components designed for easy modification - styles via props, not hardcoded",
+      "DRY": "Shared components for badges, banners - no duplication",
+      "SRP": "Each component has single responsibility (card, badge, panel)",
+      "deepModules": "ShipmentIntelligenceCard has simple interface, composes complex internals",
+      "configOverCode": "Risk thresholds and colors from config, not hardcoded",
+      "interfaceBased": "Props interfaces defined, enables polymorphism",
+      "failFast": "TypeScript strict mode catches errors at compile time",
+      "idempotent": "All API calls safe to retry",
+      "smallFunctions": "Rendering logic in < 20 line functions",
+      "functionArgs": "Max 3 props objects, rest via context or composition"
+    }
+  },
+
+  "nextSteps": [
+    "1. Review this design specification with stakeholders",
+    "2. Decide on Option A (recommended Priority Queue) vs alternatives",
+    "3. Begin Phase 1: Foundation Components implementation",
+    "4. Create API endpoint if not already supporting required data shape",
+    "5. Iterate based on user feedback during development"
+  ],
+
+  "sources": [
+    {
+      "title": "Dashboard UI/UX Design for Logistics & Supply Chain Optimization",
+      "url": "https://www.aufaitux.com/blog/dashboard-design-logistics-supply-chain-ux/"
+    },
+    {
+      "title": "20 Best Dashboard UI/UX Design Principles 2025",
+      "url": "https://medium.com/@allclonescript/20-best-dashboard-ui-ux-design-principles-you-need-in-2025-30b661f2f795"
+    },
+    {
+      "title": "AI Dashboard Design Guide",
+      "url": "https://www.eleken.co/blog-posts/ai-dashboard-design"
+    },
+    {
+      "title": "Flexport Dashboard 2.0 (User Research)",
+      "url": "https://medium.com/flexport-ux/the-flexport-dashboard-2-0-2524f8e92245"
+    },
+    {
+      "title": "project44 Visibility Platform",
+      "url": "https://www.project44.com/platform/visibility/"
+    },
+    {
+      "title": "Risk Management Dashboard Guide",
+      "url": "https://www.metricstream.com/learn/risk-management-dashboard.html"
+    },
+    {
+      "title": "Exception Management for Logistics",
+      "url": "https://www.moxo.com/blog/logistics-exception-workflow"
+    },
+    {
+      "title": "Operations Dashboard Guide",
+      "url": "https://www.xenia.team/articles/operations-dashboard"
+    },
+    {
+      "title": "Carbon Design System - Status Indicators",
+      "url": "https://carbondesignsystem.com/patterns/status-indicator-pattern/"
+    },
+    {
+      "title": "Terminal49 Exception Alerts",
+      "url": "https://terminal49.com/glossary/exception-alerts"
+    }
+  ]
+}

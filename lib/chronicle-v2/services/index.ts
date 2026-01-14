@@ -19,6 +19,3 @@ export type { CarrierProfile, CarrierInsight } from './carrier-profile-service';
 
 export { RouteProfileService } from './route-profile-service';
 export type { RouteProfile, RouteInsight } from './route-profile-service';
-
-export { AskService } from './ask-service';
-export type { ChatMessage, AskMode, AskRequest } from './ask-service';

@@ -174,29 +174,33 @@ export default function ChronicleEvidencePage() {
   const { chronicle, linkedShipment, attachments, relatedDocuments } = data;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 md:gap-3 mb-2">
             <button
               onClick={() => router.back()}
-              className="p-1 text-terminal-muted hover:text-terminal-text transition-colors"
+              className="p-1 text-terminal-muted hover:text-terminal-text transition-colors flex-shrink-0"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
             <DocumentTypeIcon type={chronicle.documentType} />
-            <h1 className="text-lg font-semibold text-terminal-text truncate max-w-xl">{chronicle.subject}</h1>
+            <h1 className="text-base md:text-lg font-semibold text-terminal-text truncate">{chronicle.subject}</h1>
           </div>
-          <p className="text-xs font-mono text-terminal-muted ml-9 flex items-center gap-2">
-            <Mail className="h-3.5 w-3.5" />
-            {chronicle.sender.name || chronicle.sender.email}
-            <span className="text-terminal-border">•</span>
-            <Clock className="h-3.5 w-3.5" />
-            {formatDateTime(chronicle.receivedAt)}
+          <p className="text-xs font-mono text-terminal-muted ml-8 md:ml-9 flex flex-wrap items-center gap-2">
+            <span className="flex items-center gap-1">
+              <Mail className="h-3.5 w-3.5" />
+              <span className="truncate max-w-[150px] md:max-w-none">{chronicle.sender.name || chronicle.sender.email}</span>
+            </span>
+            <span className="text-terminal-border hidden md:inline">•</span>
+            <span className="flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5" />
+              {formatDateTime(chronicle.receivedAt)}
+            </span>
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 ml-8 md:ml-0 flex-shrink-0">
           <DocumentTypeBadge type={chronicle.documentType} />
           <ConfidenceBadge confidence={chronicle.classification.confidence} large />
         </div>
@@ -208,20 +212,20 @@ export default function ChronicleEvidencePage() {
           href={`/chronicle/shipments/${linkedShipment.id}`}
           className="flex items-center justify-between p-3 bg-terminal-purple/5 border border-terminal-purple/20 rounded-lg hover:border-terminal-purple/40 transition-colors"
         >
-          <div className="flex items-center gap-3">
-            <Link2 className="h-4 w-4 text-terminal-purple" />
-            <span className="text-sm font-mono text-terminal-text">Linked to Shipment</span>
-            <span className="font-mono font-medium text-terminal-purple">{linkedShipment.bookingNumber}</span>
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap min-w-0">
+            <Link2 className="h-4 w-4 text-terminal-purple flex-shrink-0" />
+            <span className="text-xs sm:text-sm font-mono text-terminal-text">Linked to Shipment</span>
+            <span className="font-mono font-medium text-terminal-purple text-xs sm:text-sm truncate">{linkedShipment.bookingNumber}</span>
             {linkedShipment.blNumber && (
-              <span className="text-xs font-mono text-terminal-muted">BL: {linkedShipment.blNumber}</span>
+              <span className="text-xs font-mono text-terminal-muted hidden sm:inline">BL: {linkedShipment.blNumber}</span>
             )}
           </div>
-          <ChevronRight className="h-4 w-4 text-terminal-muted" />
+          <ChevronRight className="h-4 w-4 text-terminal-muted flex-shrink-0" />
         </Link>
       )}
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 border-b border-terminal-border">
+      <div className="flex items-center gap-1 border-b border-terminal-border overflow-x-auto scrollbar-hide">
         <TabButton
           active={activeTab === 'extraction'}
           onClick={() => setActiveTab('extraction')}
@@ -245,9 +249,9 @@ export default function ChronicleEvidencePage() {
       </div>
 
       {/* Tab Content */}
-      <div className="grid grid-cols-3 gap-6">
-        {/* Main Content - 2 columns */}
-        <div className="col-span-2">
+      <div className="block xl:grid xl:grid-cols-3 xl:gap-6">
+        {/* Main Content - full width on mobile, 2 columns on desktop */}
+        <div className="xl:col-span-2 mb-4 xl:mb-0">
           {activeTab === 'extraction' && (
             <ExtractionView chronicle={chronicle} />
           )}
@@ -259,8 +263,8 @@ export default function ChronicleEvidencePage() {
           )}
         </div>
 
-        {/* Sidebar - 1 column */}
-        <div className="space-y-4">
+        {/* Sidebar - hidden on mobile, visible on desktop */}
+        <div className="hidden xl:block space-y-4">
           {/* Classification Details */}
           <div className="bg-terminal-surface border border-terminal-border rounded-lg p-4">
             <h3 className="text-xs font-mono text-terminal-muted uppercase tracking-wide mb-3 flex items-center gap-2">
@@ -422,7 +426,7 @@ function ExtractionView({ chronicle }: { chronicle: ChronicleData['chronicle'] }
               <span className="text-xs font-mono text-terminal-muted uppercase tracking-wide">{config.label}</span>
               <span className="text-[10px] font-mono text-terminal-muted">({fields.length})</span>
             </div>
-            <div className="p-4 grid grid-cols-2 gap-4">
+            <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               {fields.map(field => (
                 <ExtractedField key={field.key} field={field} />
               ))}
@@ -501,31 +505,32 @@ function AttachmentsView({ attachments, messageId }: { attachments: ChronicleDat
     <div className="space-y-4">
       {attachments.map(attachment => (
         <div key={attachment.id} className="bg-terminal-surface border border-terminal-border rounded-lg">
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-terminal-border">
-            <div className="flex items-center gap-3">
+          {/* Header with Download Button */}
+          <div className="px-3 py-3 border-b border-terminal-border">
+            <div className="flex items-start gap-2 mb-3">
               <FileTypeIcon mimeType={attachment.mimeType} />
-              <div>
-                <span className="text-sm font-mono text-terminal-text">{attachment.filename}</span>
-                <span className="text-xs font-mono text-terminal-muted ml-2">
-                  ({formatFileSize(attachment.size)})
-                </span>
+              <div className="min-w-0 flex-1">
+                <span className="text-xs sm:text-sm font-mono text-terminal-text block">{attachment.filename}</span>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] font-mono text-terminal-muted">
+                    {formatFileSize(attachment.size)}
+                  </span>
+                  {attachment.hasOcr && (
+                    <span className="px-1.5 py-0.5 text-[9px] font-mono bg-terminal-green/10 text-terminal-green border border-terminal-green/30 rounded">
+                      OCR
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {attachment.hasOcr && (
-                <span className="px-2 py-0.5 text-[10px] font-mono bg-terminal-green/10 text-terminal-green border border-terminal-green/30 rounded">
-                  OCR
-                </span>
-              )}
-              <button
-                onClick={() => handleDownload(attachment.id, attachment.filename)}
-                className="p-1.5 text-terminal-muted hover:text-terminal-text transition-colors"
-                title="Download"
-              >
-                <Download className="h-4 w-4" />
-              </button>
-            </div>
+            {/* Download Button - Always Visible */}
+            <button
+              onClick={() => handleDownload(attachment.id, attachment.filename)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-terminal-purple text-white hover:bg-terminal-purple/90 rounded font-mono text-sm transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              <span>Download PDF</span>
+            </button>
           </div>
 
           {/* Extracted Data */}
@@ -534,13 +539,13 @@ function AttachmentsView({ attachments, messageId }: { attachments: ChronicleDat
               <h4 className="text-[10px] font-mono text-terminal-muted uppercase tracking-wide mb-2">
                 Extracted from PDF
               </h4>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {Object.entries(attachment.extractedData).slice(0, 6).map(([key, value]) => (
                   <div key={key} className="bg-terminal-bg p-2 rounded border border-terminal-border">
                     <span className="text-[10px] font-mono text-terminal-muted block">
                       {key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                     </span>
-                    <span className="text-xs font-mono text-terminal-text">{String(value)}</span>
+                    <span className="text-xs font-mono text-terminal-text break-words">{String(value)}</span>
                   </div>
                 ))}
               </div>
@@ -583,14 +588,14 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2 text-sm font-mono transition-colors ${
+      className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 text-xs sm:text-sm font-mono transition-colors whitespace-nowrap flex-shrink-0 ${
         active
           ? 'text-terminal-purple border-b-2 border-terminal-purple -mb-px'
           : 'text-terminal-muted hover:text-terminal-text'
       }`}
     >
       {icon}
-      {label}
+      <span>{label}</span>
       {count !== undefined && (
         <span className={`text-[10px] px-1.5 py-0.5 rounded ${active ? 'bg-terminal-purple/10' : 'bg-terminal-bg'}`}>
           {count}
