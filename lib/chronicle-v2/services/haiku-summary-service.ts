@@ -1885,13 +1885,30 @@ Analyze this shipment and return the JSON summary. Remember:
     const sevenDaysAhead = new Date(today);
     sevenDaysAhead.setDate(sevenDaysAhead.getDate() + 7);
 
-    // Filter out shipments with recent summaries (< 12 hours old)
-    const { data: recentSummaries } = await this.supabase
+    // Get all summaries with their timestamps
+    const { data: allSummaries } = await this.supabase
       .from('shipment_ai_summaries')
-      .select('shipment_id')
-      .gte('updated_at', new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString());
+      .select('shipment_id, updated_at');
 
-    const recentIds = new Set((recentSummaries || []).map(r => r.shipment_id));
+    const summaryMap = new Map<string, Date>();
+    for (const s of allSummaries || []) {
+      summaryMap.set(s.shipment_id, new Date(s.updated_at));
+    }
+
+    // Find stale summaries: shipments with new chronicles AFTER summary was generated
+    // These need to be regenerated regardless of age
+    const { data: staleSummaries } = await this.supabase.rpc('get_stale_summaries');
+    const staleIds = new Set<string>((staleSummaries || []).map((r: { shipment_id: string }) => r.shipment_id));
+
+    // Filter out shipments with recent summaries (< 6 hours old) UNLESS they have new data
+    const recentCutoff = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    const recentIds = new Set<string>();
+    for (const [shipmentId, updatedAt] of summaryMap) {
+      // Skip if summary is recent AND not stale (no new data)
+      if (updatedAt > recentCutoff && !staleIds.has(shipmentId)) {
+        recentIds.add(shipmentId);
+      }
+    }
 
     // Priority 1: ETD today or within next 7 days (most urgent)
     const { data: upcomingShipments } = await this.supabase
@@ -1942,10 +1959,18 @@ Analyze this shipment and return the JSON summary. Remember:
       }
     };
 
+    // Priority 0: STALE summaries first (have new data since last summary)
+    // Convert Set to array of objects for addIds
+    const staleShipmentIds = Array.from(staleIds).map(id => ({ id }));
+    addIds(staleShipmentIds);
+
+    // Priority 1-4: Other shipments by ETD urgency
     addIds(upcomingShipments);
     addIds(recentPastShipments);
     addIds(noEtdShipments);
     addIds(olderShipments);
+
+    console.log(`[AI-Summary] Found ${staleIds.size} stale, ${allIds.length} total needing update`);
 
     return allIds.slice(0, limit);
   }
