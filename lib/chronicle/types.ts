@@ -80,8 +80,8 @@ export const analyzeShippingCommunicationSchema = z.object({
   document_type: z.enum([
     // Booking stage (REQUIRES ATTACHMENT)
     'rate_request', 'quotation', 'booking_request', 'booking_confirmation', 'booking_amendment',
-    // Documentation stage (REQUIRES ATTACHMENT)
-    'shipping_instructions', 'si_confirmation', 'draft_bl', 'final_bl', 'telex_release',
+    // Documentation stage (REQUIRES ATTACHMENT) - SI, VGM, Forwarding Note, BLs
+    'shipping_instructions', 'si_confirmation', 'forwarding_note', 'draft_bl', 'final_bl', 'telex_release',
     'sea_waybill', 'air_waybill', 'house_bl', 'sob_confirmation',
     // Arrival/Delivery stage (REQUIRES ATTACHMENT)
     'arrival_notice', 'delivery_order', 'release_order', 'gate_pass',
@@ -112,6 +112,7 @@ export const analyzeShippingCommunicationSchema = z.object({
   from_party: z.enum([
     'ocean_carrier',   // Maersk, Hapag, CMA CGM, etc.
     'airline',         // Delta Cargo, Emirates SkyCargo, etc.
+    'carrier',         // Generic carrier
     'nvocc',           // Non-Vessel Operating Common Carrier
     'trucker',         // Drayage/trucking company
     'warehouse',       // CFS, warehouse operator
@@ -123,6 +124,7 @@ export const analyzeShippingCommunicationSchema = z.object({
     'customer',        // Generic customer
     'notify_party',
     'intoglo',         // Internal
+    'system',          // Automated system notifications
     'unknown',
   ]),
 
@@ -156,11 +158,11 @@ export const analyzeShippingCommunicationSchema = z.object({
 
   // Port of Loading (ocean/air departure point)
   pol_location: z.string().nullish().describe('Port of Loading - UN/LOCODE (INNSA, USNYC) or airport code (BOM, JFK)'),
-  pol_type: z.enum(['port', 'airport', 'rail_terminal', 'unknown']).nullish(),
+  pol_type: z.enum(['port', 'airport', 'rail_terminal', 'address', 'unknown']).nullish(),
 
   // Port of Discharge (ocean/air arrival point)
   pod_location: z.string().nullish().describe('Port of Discharge - UN/LOCODE or airport code'),
-  pod_type: z.enum(['port', 'airport', 'rail_terminal', 'unknown']).nullish(),
+  pod_type: z.enum(['port', 'airport', 'rail_terminal', 'address', 'unknown']).nullish(),
 
   // Place of Final Delivery (destination - consignee's warehouse)
   pofd_location: z.string().nullish().describe('Place of Final Delivery - consignee warehouse/address or city'),
@@ -212,14 +214,14 @@ export const analyzeShippingCommunicationSchema = z.object({
   // =========================================================================
   container_type: z.string().nullish().describe('20GP, 40HC, 45HC, etc.'),
   weight: z.string().nullish().describe('Weight with unit (e.g., 18500 KGS)'),
-  pieces: z.number().nullish().describe('Number of pieces/packages'),
+  pieces: z.coerce.number().nullish().describe('Number of pieces/packages'),
   commodity: z.string().nullish().describe('Brief cargo description'),
 
   // =========================================================================
   // FINANCIAL
   // =========================================================================
   invoice_number: z.string().nullish().describe('Invoice or debit note number'),
-  amount: z.number().nullish().describe('Total amount'),
+  amount: z.coerce.number().nullish().describe('Total amount'),
   currency: z.string().nullish().describe('Currency code USD, EUR, INR'),
   payment_terms: z.string().nullish().describe('Prepaid, Collect, etc.'),
 
@@ -228,6 +230,7 @@ export const analyzeShippingCommunicationSchema = z.object({
   // =========================================================================
   message_type: z.enum([
     'confirmation',      // Acknowledging/confirming something
+    'approval',          // Approved, OK, Go ahead
     'request',           // Asking for something
     'update',            // Status or schedule update
     'action_required',   // Needs response/action
@@ -238,6 +241,7 @@ export const analyzeShippingCommunicationSchema = z.object({
     'instruction',       // Giving directions/orders
     'notification',      // FYI, no action needed
     'general',
+    'general_correspondence', // General discussion
     'unknown',           // When message intent is unclear
   ]),
 
@@ -501,6 +505,77 @@ export interface ThreadContext {
   firstEmailDate?: string;
   lastEmailDate?: string;
   linkedShipmentId?: string;
+}
+
+// ============================================================================
+// FLOW CONTEXT TYPES (for flow-based classification)
+// ============================================================================
+
+/**
+ * Flow context to provide shipment stage awareness to AI classification.
+ * Enables flow-based validation: "at SI_STAGE, expect vgm_confirmation"
+ */
+export interface FlowContext {
+  /** Current shipment stage: 'BOOKED', 'SI_STAGE', 'DRAFT_BL', etc. */
+  shipmentStage: string;
+
+  /** Document types expected at this stage (rule_type = 'expected') */
+  expectedDocuments: string[];
+
+  /** Document types allowed but unusual at this stage (rule_type = 'unexpected') */
+  unexpectedDocuments: string[];
+
+  /** Document types that should NOT appear at this stage (rule_type = 'impossible') */
+  impossibleDocuments: string[];
+
+  /** Open action tasks for this shipment (helps AI determine has_action) */
+  pendingActions: string[];
+
+  /** Shipment ID for reference */
+  shipmentId: string;
+
+  /** Last document type received (helps AI understand progression) */
+  lastDocumentType?: string;
+
+  /** Days since last document (helps detect stale threads) */
+  daysSinceLastDocument?: number;
+}
+
+/**
+ * Result of action keyword checking
+ */
+export interface ActionKeywordResult {
+  /** Whether a keyword override was triggered */
+  override: boolean;
+
+  /** The resulting has_action value (only valid if override=true) */
+  hasAction: boolean;
+
+  /** The keyword pattern that matched */
+  matchedKeyword: string | null;
+
+  /** Source: subject or body */
+  matchedIn?: 'subject' | 'body';
+}
+
+/**
+ * Result of flow validation with review flagging
+ */
+export interface FlowValidationResult {
+  /** Whether the document type is valid at this stage */
+  isValid: boolean;
+
+  /** The rule type that matched: expected, allowed, unexpected, impossible */
+  ruleType: 'expected' | 'allowed' | 'unexpected' | 'impossible' | 'no_rule';
+
+  /** Whether this needs human review */
+  needsReview: boolean;
+
+  /** Warning message if any */
+  warning: string | null;
+
+  /** Review reason if flagged */
+  reviewReason?: 'impossible_flow' | 'low_confidence' | 'unexpected_flow';
 }
 
 // ============================================================================

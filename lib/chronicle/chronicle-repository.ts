@@ -89,14 +89,20 @@ export class ChronicleRepository implements IChronicleRepository {
     // Map confirmation types to action keywords they resolve
     const resolutionMap: Record<string, string[]> = {
       // Pre-shipment confirmations
-      'vgm_confirmation': ['vgm', 'verified gross mass'],
+      'vgm_confirmation': ['vgm', 'verified gross mass', 'evgm'],
       'si_confirmation': ['si', 'shipping instruction', 'shipping instructions'],
+      'si_submitted': ['si', 'shipping instruction', 'shipping instructions'],
       'sob_confirmation': ['shipped', 'on board', 'sob'],
       'booking_confirmation': ['booking', 'book'],
-      'leo_copy': ['leo', 'let export'],
+      'leo_copy': ['leo', 'let export', 'let export order'],
+      'shipping_bill': ['shipping bill', 'sb copy', 'sb number'],
+      // US Customs & Compliance
+      'isf_filing': ['isf', 'importer security filing', '10+2'],
+      'customs_entry': ['customs entry', 'entry filing', 'customs clearance'],
+      'entry_summary': ['entry summary', 'customs entry'],
       // BL confirmations
-      'draft_bl': ['bl draft', 'draft bl'],
-      'final_bl': ['release bl', 'bl release', 'share bl', 'provide bl', 'bill of lading'],
+      'draft_bl': ['bl draft', 'draft bl', 'draft bill'],
+      'final_bl': ['release bl', 'bl release', 'share bl', 'provide bl', 'bill of lading', 'final bl'],
       'telex_release': ['release bl', 'bl release', 'telex', 'express release'],
       'sea_waybill': ['sea waybill', 'seaway', 'swb'],
       // Destination confirmations

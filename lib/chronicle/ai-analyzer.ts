@@ -34,13 +34,17 @@ export class AiAnalyzer implements IAiAnalyzer {
   /**
    * Analyze email and attachments using AI
    * @param threadContext - Optional context from previous emails in thread
+   * @param threadPosition - Position in thread (1 = first, 2+ = reply/forward)
+   *                         Position 2+ ignores subject (stale from forwarding)
    */
   async analyze(
     email: ProcessedEmail,
     attachmentText: string,
-    threadContext?: ThreadContext
+    threadContext?: ThreadContext,
+    threadPosition: number = 1
   ): Promise<ShippingAnalysis> {
-    const prompt = this.buildPrompt(email, attachmentText, threadContext);
+    const includeSubject = threadPosition === 1;
+    const prompt = this.buildPrompt(email, attachmentText, threadContext, includeSubject);
     const response = await this.callAnthropic(prompt);
     return this.parseResponse(response, email.receivedAt);
   }
@@ -52,7 +56,8 @@ export class AiAnalyzer implements IAiAnalyzer {
   private buildPrompt(
     email: ProcessedEmail,
     attachmentText: string,
-    threadContext?: ThreadContext
+    threadContext?: ThreadContext,
+    includeSubject: boolean = true
   ): string {
     const bodyPreview = email.bodyText.substring(0, AI_CONFIG.maxBodyChars);
     return buildAnalysisPrompt(
@@ -60,7 +65,8 @@ export class AiAnalyzer implements IAiAnalyzer {
       bodyPreview,
       attachmentText,
       email.receivedAt,
-      threadContext
+      threadContext,
+      includeSubject
     );
   }
 

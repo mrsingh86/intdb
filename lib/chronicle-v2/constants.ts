@@ -190,9 +190,14 @@ export const ISSUE_TYPES = {
 // =============================================================================
 
 export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
+  // Booking stage
+  rate_request: 'Rate Request',
+  quotation: 'Quotation',
+  booking_request: 'Booking Request',
   booking_confirmation: 'Booking Confirmation',
   booking_amendment: 'Booking Amendment',
-  booking_request: 'Booking Request',
+  forwarding_note: 'Forwarding Note',
+  // Documentation stage
   shipping_instructions: 'Shipping Instructions',
   si_confirmation: 'SI Confirmation',
   vgm_confirmation: 'VGM Confirmation',
@@ -200,22 +205,51 @@ export const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   final_bl: 'Final B/L',
   house_bl: 'House B/L',
   sea_waybill: 'Sea Waybill',
+  air_waybill: 'Air Waybill',
+  sob_confirmation: 'SOB Confirmation',
+  telex_release: 'Telex Release',
+  // Arrival & Delivery
   arrival_notice: 'Arrival Notice',
   delivery_order: 'Delivery Order',
+  release_order: 'Release Order',
+  gate_pass: 'Gate Pass',
   container_release: 'Container Release',
+  freight_release: 'Freight Release',
+  pod_proof_of_delivery: 'Proof of Delivery',
+  // Trucking
+  dispatch_order: 'Dispatch Order',
+  work_order: 'Work Order',
+  rate_confirmation: 'Rate Confirmation',
+  bol_truck: 'Truck BOL',
+  // Compliance
   customs_entry: 'Customs Entry',
+  entry_summary: 'Entry Summary',
+  isf_filing: 'ISF Filing',
+  duty_invoice: 'Duty Invoice',
+  shipping_bill: 'Shipping Bill',
+  leo_copy: 'LEO Copy',
+  checklist: 'Checklist',
+  // Financial
   invoice: 'Invoice',
-  packing_list: 'Packing List',
-  certificate: 'Certificate',
+  debit_note: 'Debit Note',
+  credit_note: 'Credit Note',
+  payment_receipt: 'Payment Receipt',
+  statement: 'Statement',
+  // Updates & Notifications
+  schedule_update: 'Schedule Update',
   tracking_update: 'Tracking Update',
   exception_notice: 'Exception Notice',
-  rate_request: 'Rate Request',
-  quotation: 'Quotation',
-  work_order: 'Work Order',
-  gate_pass: 'Gate Pass',
-  telex_release: 'Telex Release',
-  general_correspondence: 'General',
+  // Communication types
+  approval: 'Approval',
+  request: 'Request',
+  escalation: 'Escalation',
+  acknowledgement: 'Acknowledgement',
+  notification: 'Notification',
   internal_notification: 'Internal',
+  system_notification: 'System',
+  general_correspondence: 'General',
+  internal_communication: 'Internal Comm',
+  unknown: 'Unknown',
 };
 
 export function getDocumentTypeLabel(type: string): string {

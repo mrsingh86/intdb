@@ -130,6 +130,41 @@ export class ChronicleGmailService {
   }
 
   /**
+   * Fetch emails by specific message IDs
+   * Used for reprocessing specific emails
+   */
+  async fetchEmailsByMessageIds(messageIds: string[]): Promise<ProcessedEmail[]> {
+    console.log(`[ChronicleGmail] Fetching ${messageIds.length} emails by message ID`);
+
+    const emails: ProcessedEmail[] = [];
+    const total = messageIds.length;
+    let processed = 0;
+    const CONCURRENCY = 10;
+
+    for (let i = 0; i < messageIds.length; i += CONCURRENCY) {
+      const batch = messageIds.slice(i, i + CONCURRENCY);
+
+      const results = await Promise.allSettled(
+        batch.map(messageId => this.fetchFullMessage(messageId))
+      );
+
+      for (const result of results) {
+        processed++;
+        if (result.status === 'fulfilled' && result.value) {
+          emails.push(result.value);
+        }
+      }
+
+      if (processed % 50 === 0 || processed === total) {
+        console.log(`[ChronicleGmail] Fetched ${processed}/${total} emails (${Math.round(processed/total*100)}%)`);
+      }
+    }
+
+    console.log(`[ChronicleGmail] Successfully fetched ${emails.length}/${messageIds.length} emails`);
+    return emails;
+  }
+
+  /**
    * Hybrid fetch: Use historyId for efficiency, fall back to timestamp
    *
    * Strategy:

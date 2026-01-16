@@ -89,11 +89,14 @@ export interface IAiAnalyzer {
   /**
    * Analyze email and attachments using AI
    * @param threadContext - Optional context from previous emails in thread
+   * @param threadPosition - Position in thread (1 = first, 2+ = reply/forward)
+   *                         Position 2+ ignores subject (stale from forwarding)
    */
   analyze(
     email: ProcessedEmail,
     attachmentText: string,
-    threadContext?: ThreadContext
+    threadContext?: ThreadContext,
+    threadPosition?: number
   ): Promise<ShippingAnalysis>;
 }
 

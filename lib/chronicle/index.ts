@@ -45,6 +45,20 @@ export {
 } from './chronicle-repository';
 
 export {
+  PatternMatcherService,
+  createPatternMatcherService,
+  emailToPatternInput,
+} from './pattern-matcher';
+
+export type {
+  DetectionPattern,
+  PatternMatchResult,
+  PatternMatchInput,
+  PatternMatcherConfig,
+  IPatternMatcherService,
+} from './pattern-matcher';
+
+export {
   ReanalysisService,
   createReanalysisService,
 } from './reanalysis-service';
@@ -94,6 +108,9 @@ export type {
   ChronicleSyncState,
   SyncMode,
   SyncResult,
+  FlowContext,
+  ActionKeywordResult,
+  FlowValidationResult,
 } from './types';
 
 // Schema and Helpers (values, not types)
@@ -150,3 +167,51 @@ export type {
   EventType,
   ErrorSeverity,
 } from './chronicle-logger';
+
+// ============================================================================
+// LEARNING SYSTEM
+// ============================================================================
+// Note: Learning system is now integrated directly into ChronicleService
+// using simple database calls instead of separate service classes.
+// Tables used:
+// - enum_mappings: Normalizes AI enum values (e.g., "booking" → "booking_confirmation")
+// - flow_validation_rules: Validates document_type against shipment stage
+// - learning_episodes: Records every classification for feedback and learning
+// - document_type_action_rules: Determines has_action based on document type + context
+
+export {
+  ActionRulesService,
+} from './action-rules-service';
+
+export type {
+  ActionRule,
+  ActionDetermination,
+} from './action-rules-service';
+
+// ============================================================================
+// RECLASSIFICATION SYSTEM
+// ============================================================================
+
+export {
+  ReclassificationLogger,
+  createReclassificationLogger,
+} from './reclassification-logger';
+
+export type {
+  ClassificationChange,
+  BatchError,
+  BatchSummary,
+  ReclassificationReport,
+} from './reclassification-logger';
+
+export {
+  ReclassificationTester,
+  createReclassificationTester,
+  DEFAULT_TEST_CATEGORIES,
+} from './reclassification-tester';
+
+export type {
+  TestCategory,
+  TestResult,
+  BatchTestReport,
+} from './reclassification-tester';

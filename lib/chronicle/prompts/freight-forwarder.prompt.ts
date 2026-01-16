@@ -10,7 +10,7 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { ThreadContext } from '../types';
+import { ThreadContext, FlowContext } from '../types';
 
 // ============================================================================
 // AI MODEL CONFIGURATION
@@ -99,6 +99,40 @@ THREAD PROGRESSION:
 - Do NOT assume all emails in thread have same document_type
 
 ==============================================================================
+IRON-CLAD CLASSIFICATION RULE #4 (INQUIRY TYPE - CRITICAL):
+==============================================================================
+
+NOT EVERYTHING IS A RATE REQUEST! Use this decision tree:
+
+rate_request - ONLY when asking for PRICING/QUOTES:
+  ✓ "Please quote rates for Mumbai to New York"
+  ✓ "Need freight rates for 40HC"
+  ✓ "What's your rate for LCL?"
+  ✗ "Can you handle warehouse in Chicago?" (NOT rate_request)
+  ✗ "Do you have coverage in Texas?" (NOT rate_request)
+  ✗ "Following up on arrival notice" (NOT rate_request)
+
+general_correspondence - For SERVICE INQUIRIES and DISCUSSIONS:
+  ✓ "Warehouse coverage" questions
+  ✓ "Do you service this area?"
+  ✓ "Can you handle customs clearance?"
+  ✓ Follow-up discussions without specific document
+
+tracking_update - For SHIPMENT STATUS discussions:
+  ✓ "Re: Arrival Notice" with questions/updates
+  ✓ "When will container be released?"
+  ✓ "What's the delivery status?"
+  ✓ Discussion about existing shipment progress
+
+sob_confirmation - For SHIPPED ON BOARD discussions:
+  ✓ Subject/body contains "SOB" or "Shipped on Board"
+  ✓ Confirmation that cargo is on vessel
+
+SIMPLE TEST: Does the email explicitly ask "how much?" or "what's the rate?"
+  YES → rate_request
+  NO → general_correspondence, tracking_update, or the appropriate document type
+
+==============================================================================
 CRITICAL RULES FOR IDENTIFICATION:
 
 1. TRANSPORT MODE - Determine FIRST:
@@ -165,10 +199,12 @@ CRITICAL RULES FOR IDENTIFICATION:
    - For trucking-only (road mode): use por_location and pofd_location only
 
 4. DOCUMENT TYPE CLUES:
+   - "Forwarding Note" / "Forwarding Instructions" = forwarding_note (pre-departure origin document)
    - "Booking Confirmation" from carrier = booking_confirmation
    - "Shipping Instructions" / "SI" = shipping_instructions
    - "Checklist" / "Document Checklist" = checklist
    - "Shipping Bill" / "LEO" / "Let Export Order" = shipping_bill or leo_copy
+   - "Form 13" / "FORM-13" / "Form13" = form_13 (Indian customs export declaration)
    - "SI Confirmation" / "Instructions Confirmed" = si_confirmation
    - "VGM" / "Verified Gross Mass" = vgm_confirmation
    - "SOB" / "Shipped on Board" / "On Board" = sob_confirmation
@@ -364,8 +400,9 @@ export const ANALYZE_TOOL_SCHEMA: Anthropic.Tool = {
         enum: [
           // Pre-shipment (REQUIRES ATTACHMENT)
           'rate_request', 'quotation', 'booking_request', 'booking_confirmation', 'booking_amendment',
-          'shipping_instructions', 'si_confirmation', 'checklist',
-          'shipping_bill', 'leo_copy', 'vgm_confirmation',
+          // Documentation stage - SI, VGM, Forwarding Note
+          'shipping_instructions', 'si_confirmation', 'forwarding_note', 'checklist',
+          'shipping_bill', 'leo_copy', 'form_13', 'vgm_confirmation',
           // In-transit (REQUIRES ATTACHMENT)
           'sob_confirmation', 'draft_bl', 'final_bl', 'house_bl', 'telex_release',
           'sea_waybill', 'air_waybill',
@@ -395,17 +432,17 @@ export const ANALYZE_TOOL_SCHEMA: Anthropic.Tool = {
       // Party
       from_party: {
         type: 'string',
-        enum: ['ocean_carrier', 'airline', 'nvocc', 'trucker', 'warehouse', 'terminal',
-               'customs_broker', 'freight_broker', 'shipper', 'consignee', 'customer', 'notify_party', 'intoglo', 'unknown'],
+        enum: ['ocean_carrier', 'airline', 'carrier', 'nvocc', 'trucker', 'warehouse', 'terminal',
+               'customs_broker', 'freight_broker', 'shipper', 'consignee', 'customer', 'notify_party', 'intoglo', 'system', 'unknown'],
       },
 
       // 4-Point Routing Locations
       por_location: { type: 'string', nullable: true, description: 'Place of Receipt - shipper warehouse/factory' },
       por_type: { type: 'string', enum: ['warehouse', 'factory', 'cfs', 'icd', 'address', 'unknown'], nullable: true },
       pol_location: { type: 'string', nullable: true, description: 'Port of Loading - UN/LOCODE (INNSA) or airport code' },
-      pol_type: { type: 'string', enum: ['port', 'airport', 'rail_terminal', 'unknown'], nullable: true },
+      pol_type: { type: 'string', enum: ['port', 'airport', 'rail_terminal', 'address', 'unknown'], nullable: true },
       pod_location: { type: 'string', nullable: true, description: 'Port of Discharge (FINAL DESTINATION) - UN/LOCODE or airport code. NOT transshipment ports! Look for "Port of Discharging" or "Port of Discharge".' },
-      pod_type: { type: 'string', enum: ['port', 'airport', 'rail_terminal', 'unknown'], nullable: true },
+      pod_type: { type: 'string', enum: ['port', 'airport', 'rail_terminal', 'address', 'unknown'], nullable: true },
       pofd_location: { type: 'string', nullable: true, description: 'Place of Final Delivery - consignee warehouse/address' },
       pofd_type: { type: 'string', enum: ['warehouse', 'factory', 'cfs', 'icd', 'address', 'unknown'], nullable: true },
 
@@ -468,8 +505,8 @@ export const ANALYZE_TOOL_SCHEMA: Anthropic.Tool = {
       // Intelligence
       message_type: {
         type: 'string',
-        enum: ['confirmation', 'request', 'update', 'action_required', 'issue_reported',
-               'escalation', 'acknowledgement', 'query', 'instruction', 'notification', 'general', 'unknown'],
+        enum: ['confirmation', 'approval', 'request', 'update', 'action_required', 'issue_reported',
+               'escalation', 'acknowledgement', 'query', 'instruction', 'notification', 'general', 'general_correspondence', 'unknown'],
       },
       sentiment: { type: 'string', enum: ['positive', 'neutral', 'negative', 'urgent'] },
       summary: { type: 'string', maxLength: 150 },
@@ -557,16 +594,79 @@ function buildThreadContextSection(threadContext: ThreadContext): string {
 }
 
 /**
+ * Build flow context section for the prompt
+ * Provides AI with shipment stage awareness for flow-based classification
+ */
+function buildFlowContextSection(flowContext: FlowContext): string {
+  let section = `\n=== SHIPMENT CONTEXT (Use to validate your classification) ===\n`;
+  section += `Current Stage: ${flowContext.shipmentStage}\n`;
+
+  if (flowContext.expectedDocuments.length > 0) {
+    section += `Expected documents: ${flowContext.expectedDocuments.join(', ')}\n`;
+  }
+
+  if (flowContext.unexpectedDocuments.length > 0) {
+    section += `Unusual at this stage: ${flowContext.unexpectedDocuments.join(', ')} (would be early or late)\n`;
+  }
+
+  if (flowContext.impossibleDocuments.length > 0) {
+    section += `Impossible at this stage: ${flowContext.impossibleDocuments.join(', ')}\n`;
+  }
+
+  if (flowContext.pendingActions.length > 0) {
+    section += `Pending actions: ${flowContext.pendingActions.slice(0, 3).join('; ')}\n`;
+  }
+
+  if (flowContext.lastDocumentType) {
+    section += `Last document received: ${flowContext.lastDocumentType}`;
+    if (flowContext.daysSinceLastDocument !== undefined) {
+      section += ` (${flowContext.daysSinceLastDocument} days ago)`;
+    }
+    section += '\n';
+  }
+
+  section += `\nIMPORTANT: If your classification would be "impossible" at this stage, reconsider - likely misclassification.\n`;
+  section += `Expected documents are more likely. Unusual documents need clear evidence.\n`;
+
+  return section;
+}
+
+/**
+ * Build deep thread warning section for position 10+ emails
+ * The subject line is very stale and misleading at this point
+ */
+function buildDeepThreadWarning(subject: string, threadPosition: number): string {
+  return `
+=== DEEP THREAD WARNING ===
+This email is message #${threadPosition} in a long thread.
+The subject line "${subject}" is INHERITED from the original email and is MISLEADING.
+DO NOT use the subject for classification.
+Classify based ONLY on:
+1. Email body content
+2. Attachment names and content
+3. Sender role
+
+The subject was relevant ${threadPosition - 1} emails ago but NOT for this email.
+`;
+}
+
+/**
  * Build the full prompt for AI analysis
  * @param emailDate - The date the email was received (for date context)
  * @param threadContext - Optional context from previous emails in thread
+ * @param includeSubject - Whether to include subject in analysis (false for position 2+ emails)
+ * @param flowContext - Optional shipment stage context for flow-based classification
+ * @param threadPosition - Position in thread (1 = first email, 10+ = deep thread)
  */
 export function buildAnalysisPrompt(
   subject: string,
   bodyPreview: string,
   attachmentText: string,
   emailDate?: Date | string,
-  threadContext?: ThreadContext
+  threadContext?: ThreadContext,
+  includeSubject: boolean = true,
+  flowContext?: FlowContext,
+  threadPosition: number = 1
 ): string {
   // Format email date for context
   const dateContext = emailDate
@@ -576,14 +676,40 @@ export function buildAnalysisPrompt(
   // Build thread context section if available
   const threadSection = threadContext ? buildThreadContextSection(threadContext) : '';
 
-  return `${FREIGHT_FORWARDER_PROMPT}
-${dateContext}${threadSection}
-=== CURRENT EMAIL (analyze this one) ===
+  // Build flow context section if available (provides shipment stage awareness)
+  const flowSection = flowContext ? buildFlowContextSection(flowContext) : '';
 
-=== SUBJECT LINE ===
+  // Build deep thread warning for position 10+ (subject is very stale)
+  const deepThreadSection = threadPosition >= 10 ? buildDeepThreadWarning(subject, threadPosition) : '';
+
+  // Subject section handling based on thread position
+  let subjectSection: string;
+  if (threadPosition >= 10) {
+    // Deep thread - subject is completely unreliable
+    subjectSection = `=== SUBJECT LINE ===
+"${subject}"
+⚠️ COMPLETELY IGNORE - This is message #${threadPosition}, subject is from original email.
+
+`;
+  } else if (!includeSubject) {
+    // Position 2-9 - subject is stale but still visible
+    subjectSection = `=== SUBJECT LINE ===
+(IGNORED - This is a reply/forward, subject is stale. Classify based on body and attachments only.)
+
+`;
+  } else {
+    // Position 1 - subject is fresh and reliable
+    subjectSection = `=== SUBJECT LINE ===
 ${subject}
 
-=== EMAIL BODY ===
+`;
+  }
+
+  return `${FREIGHT_FORWARDER_PROMPT}
+${dateContext}${threadSection}${flowSection}${deepThreadSection}
+=== CURRENT EMAIL (analyze this one) ===
+
+${subjectSection}=== EMAIL BODY ===
 ${bodyPreview}
 
 === ATTACHMENTS ===
