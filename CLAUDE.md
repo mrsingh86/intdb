@@ -7,89 +7,118 @@ AI-powered freight forwarding document intelligence system for Intoglo.
 ### Key Entry Points
 | What | Where |
 |------|-------|
-| Email Processing | `lib/services/email-processing-orchestrator.ts` |
-| Classification | `lib/services/enhanced-classification-service.ts` |
-| Extraction | `lib/services/shipment-extraction-service.ts` |
-| Shipment Linking | `lib/services/shipment-linking-service.ts` |
-| PDF Extraction | `lib/services/enhanced-pdf-extractor.ts` |
+| Email Processing | `lib/chronicle/chronicle-service.ts` |
+| AI Analysis | `lib/chronicle/ai-analyzer.ts` |
+| Pattern Matching | `lib/chronicle/pattern-matcher.ts` |
+| Action Rules | `lib/chronicle/action-rules-service.ts` |
+| Gmail Fetching | `lib/chronicle/gmail-service.ts` |
+| Data Access | `lib/chronicle/chronicle-repository.ts` |
 
 ### Database (Supabase)
 **Project:** `fdmcdbvkfdmrdowfjrcz`
 
-### Key Tables by Layer
+### Database Tables
 
-**Layer 1 - Raw Data (Immutable)**
+**Core Intelligence**
 | Table | Purpose |
 |-------|---------|
-| `raw_emails` | Gmail messages with headers, body, threading |
-| `raw_attachments` | PDFs, Excel files with OCR text |
+| `chronicle` | Main email intelligence (100+ fields, all extracted data) |
+| `chronicle_sync_state` | Gmail sync state for hybrid fetching |
+| `chronicle_runs` | Processing run logs |
+| `chronicle_errors` | Error tracking |
 
-**Layer 2 - AI Intelligence**
+**Action System**
 | Table | Purpose |
 |-------|---------|
-| `document_classifications` | AI document type detection (95%+ confidence) |
-| `entity_extractions` | Booking #, container #, BL #, dates |
-| `shipment_link_candidates` | AI-suggested document-to-shipment links |
+| `action_lookup` | Direct document type → action mapping |
+| `document_type_action_rules` | Configurable action rules |
+| `action_templates` | Reusable action templates |
+| `action_completion_keywords` | Keywords that auto-resolve actions |
 
-**Layer 3 - Decision Support**
+**Pattern & Learning**
+| Table | Purpose |
+|-------|---------|
+| `detection_patterns` | Sender/subject patterns for classification |
+| `enum_mappings` | AI output normalization (e.g., 'vgm' → 'vgm_confirmation') |
+| `learning_episodes` | Feedback for pattern improvement |
+| `pending_patterns` | Patterns awaiting approval |
+| `pattern_audit` | Pattern change history |
+
+**Shipment Layer**
 | Table | Purpose |
 |-------|---------|
 | `shipments` | Master shipment records |
-| `shipment_documents` | Documents linked to shipments |
 | `shipment_events` | Timeline/milestone tracking |
-| `shipment_containers` | Container details |
-| `action_tasks` | Action Center tasks |
-| `notifications` | Classified notifications |
+| `shipment_ai_summaries` | AI-generated shipment summaries |
+| `chronicle_shipment_health` | Health scores per shipment |
 
-**Layer 4 - Configuration**
+**Profiles**
 | Table | Purpose |
 |-------|---------|
-| `carrier_configs` | Carrier detection patterns |
-| `document_type_configs` | Document type definitions |
-| `linking_rules` | Auto-linking strategies |
+| `carrier_profiles` | Carrier metadata |
+| `shipper_profiles` | Shipper information |
+| `consignee_profiles` | Consignee information |
+| `route_profiles` | Common trade routes |
 
 ---
 
 ## Architecture
 
 ```
+/lib/chronicle/                  # Main production system
+  chronicle-service.ts           # Orchestrator (fetch → classify → extract → store)
+  ai-analyzer.ts                 # Anthropic tool_use with Haiku
+  pattern-matcher.ts             # Pattern-first classification
+  action-rules-service.ts        # Document type → action mapping
+  precise-action-service.ts      # Action extraction logic
+  gmail-service.ts               # Gmail API integration
+  chronicle-repository.ts        # Data access layer
+  types.ts                       # Type definitions
+  interfaces.ts                  # Service interfaces
+  prompts/
+    freight-forwarder.prompt.ts  # AI prompt + tool schema
+
 /app/
-  /api/                    # REST API Routes
-    /shipments/            # Shipment CRUD + linking
-    /emails/               # Email fetching + processing
-    /tasks/                # Action Center
-    /insights/             # AI-generated insights
-    /cron/                 # Scheduled jobs
-  /shipments/              # UI Pages
-    /dashboard/            # Main dashboard
-    /[id]/                 # Shipment detail
-    /link-review/          # Manual link review
+  /api/                          # REST API Routes
+    /chronicle/                  # Chronicle endpoints
+    /shipments/                  # Shipment CRUD
+    /cron/                       # Scheduled jobs
+  /shipments/                    # UI Pages
+    /dashboard/                  # Main dashboard
+    /[id]/                       # Shipment detail
 
-/lib/
-  /services/               # Business logic (USE index.ts)
-  /repositories/           # Data access (USE index.ts)
-  /types/                  # Shared types (USE index.ts)
-  /utils/                  # Utilities (USE index.ts)
-  /validation/             # Zod schemas (USE index.ts)
-  /config/                 # Carrier patterns, email parties
-
-/scripts/                  # Development scripts (NOT production)
-  /analysis/               # Data analysis scripts
-  /debugging/              # Debug & verification scripts
-  /reports/                # Report generation
-
-/types/                    # Domain type definitions
-  email-intelligence.ts    # Layer 1-2 types
-  shipment.ts              # Layer 3 types
-  intelligence-platform.ts # Tasks, notifications, insights
-  insight.ts               # Insight-specific types
-
-/components/
-  /ui/                     # Shadcn components
-  /tracking/               # Shipment tracking UI
-  /shipments/              # Shipment-specific components
-  /action-center/          # Task management UI
+/archive/dead-code/              # Archived legacy code (do not use)
 ```
+
+---
+
+## Hybrid Classification System
+
+INTDB uses a **pattern-first, AI-fallback** approach:
+
+```
+Email arrives
+    ↓
+Pattern Matcher (85%+ confidence?)
+    ├── YES → Use pattern result (fast, cheap)
+    └── NO  → AI Analyzer (Haiku with tool_use)
+                  ↓
+              Enum Normalization
+                  ↓
+              Store in chronicle
+```
+
+### Pattern Matching
+- Sender patterns in `detection_patterns` table
+- Subject keyword matching
+- Confidence scoring (0-100)
+- Thread position affects confidence
+
+### AI Analysis
+- Model: `claude-3-5-haiku-latest`
+- Uses Anthropic `tool_use` for structured extraction
+- 30+ enum normalizations before Zod validation
+- Thread context passed for reply/forward emails
 
 ---
 
@@ -97,100 +126,54 @@ AI-powered freight forwarding document intelligence system for Intoglo.
 
 ### Import from Index Files
 ```typescript
-// DO THIS
-import { EmailRepository, ShipmentRepository } from '@/lib/repositories';
-import { parseEntityDate, getAllRows } from '@/lib/utils';
-import { EmailIntelligenceService, ShipmentLinkingService } from '@/lib/services';
-import { ValidationError, validateRequestBody } from '@/lib/validation';
-
-// NOT THIS
-import { EmailRepository } from '@/lib/repositories/email-repository';
-```
-
-### Repository Pattern
-```typescript
-const repo = new ShipmentRepository(supabase);
-const shipments = await repo.findAll(filters, { page: 1, limit: 50 });
+// Chronicle system
+import { ChronicleService, createChronicleService } from '@/lib/chronicle';
+import { AiAnalyzer, createAiAnalyzer } from '@/lib/chronicle';
 ```
 
 ### Service Composition
 ```typescript
-const orchestrator = new EmailProcessingOrchestrator(supabase);
-const result = await orchestrator.processEmail(messageId);
-// Internally: fetch -> classify -> extract -> link -> store
+const chronicle = createChronicleService(supabase);
+const result = await chronicle.processEmail(messageId);
+// Internally: fetch → pattern match → AI fallback → extract → link → store
 ```
 
----
-
-## Carrier Configuration
-
-Carriers are configured in `lib/config/shipping-line-patterns.ts`:
-- Maersk, Hapag-Lloyd, CMA CGM, MSC, Evergreen, COSCO, ONE, Yang Ming
-
-Each carrier has:
-- Email sender patterns
-- Subject line patterns
-- Booking number regex
-- Document type detection rules
+### Repository Pattern
+```typescript
+const repo = createChronicleRepository(supabase);
+const existing = await repo.findByGmailMessageId(messageId);
+```
 
 ---
 
 ## Key Type Definitions
 
-### Shipment Status Flow
-```
-draft -> booked -> in_transit -> arrived -> delivered
-                                         -> cancelled
-```
-
-### Document Types
+### Document Types (from AI or pattern matching)
 - `booking_confirmation` - Initial booking
+- `booking_amendment` - Booking changes
 - `shipping_instructions` - SI submission
+- `si_confirmation` - SI confirmed
+- `vgm_confirmation` - VGM submitted
 - `draft_bl` - Draft Bill of Lading
-- `final_bl` - Final BL
+- `final_bl` - Final BL issued
+- `telex_release` - Telex release confirmation
 - `arrival_notice` - Arrival notification
+- `customs_entry` - Customs documentation
 - `invoice` - Commercial/freight invoice
-- `packing_list` - Cargo details
-- `certificate` - Various certificates
 
-### Task Categories
-- `document_action` - Document-related tasks
-- `deadline_action` - Cutoff/deadline tasks
-- `communication` - Follow-up communications
-- `compliance` - Regulatory compliance
+### Action Types
+- `submit` - Submit document (SI, VGM)
+- `review` - Review and approve
+- `respond` - Reply required
+- `verify` - Check/confirm
+- `follow_up` - Chase for response
 
----
-
-## API Endpoints
-
-### Shipments
-- `GET /api/shipments` - List with filters
-- `POST /api/shipments` - Create new
-- `GET /api/shipments/[id]` - Get details
-- `PUT /api/shipments/[id]` - Update
-- `GET /api/shipments/[id]/documents` - Linked documents
-- `POST /api/shipments/process-linking` - Run auto-linking
-
-### Emails
-- `GET /api/emails` - List processed emails
-- `GET /api/emails/[emailId]` - Email details
-- `POST /api/emails/process` - Process new emails
-
-### Tasks
-- `GET /api/tasks` - List action tasks
-- `PUT /api/tasks/[id]` - Update task status
-
----
-
-## Testing
-
-```bash
-npm test                    # Run all tests
-npm test -- --watch         # Watch mode
-npm test -- path/to/file    # Specific file
-```
-
-Tests location: `lib/repositories/__tests__/`
+### Message Types
+- `notification` - FYI, no action
+- `action_required` - Needs response
+- `approval` - Draft for approval
+- `confirmation` - Confirmation of prior action
+- `update` - Status update
 
 ---
 
@@ -205,28 +188,37 @@ GOOGLE_CLIENT_EMAIL=...
 GOOGLE_PRIVATE_KEY=...
 GOOGLE_ACCOUNT_EMAIL=...
 ANTHROPIC_API_KEY=...
-OPENAI_API_KEY=...
 ```
 
 ---
 
 ## Common Operations
 
-### Add New Carrier
-1. Add patterns to `lib/config/shipping-line-patterns.ts`
-2. Insert into `carrier_configs` table
-3. Test with sample emails
-
 ### Debug Email Processing
-1. Check `processing_logs` table for run status
-2. Check `raw_emails.processing_status` for individual emails
-3. Use `/api/debug/` endpoints for detailed inspection
-
-### Force Re-process Email
+1. Check `chronicle_runs` for run status
+2. Check `chronicle_errors` for specific failures
+3. Query `chronicle` table for processed emails:
 ```sql
-UPDATE raw_emails
-SET processing_status = 'pending'
+SELECT gmail_message_id, document_type, ai_confidence, created_at
+FROM chronicle
+ORDER BY created_at DESC
+LIMIT 20;
+```
+
+### Force Re-analyze Email
+```sql
+UPDATE chronicle
+SET needs_reanalysis = true
 WHERE gmail_message_id = 'xxx';
+```
+
+### Check Action System
+```sql
+-- Pending actions
+SELECT * FROM chronicle
+WHERE has_action = true
+AND action_completed_at IS NULL
+ORDER BY action_deadline;
 ```
 
 ---
@@ -236,5 +228,39 @@ WHERE gmail_message_id = 'xxx';
 1. **Services < 50 lines per method** - Extract to helpers
 2. **Repositories return empty arrays, not null** - Throw exceptions for missing items
 3. **Use TypeScript strict mode** - No `any` types
-4. **Index imports only** - Import from `@/lib/services`, not individual files
-5. **Database-driven config** - Patterns in DB, not hardcoded
+4. **Enum normalization** - Fix AI outputs before Zod validation
+5. **Pattern-first** - Only use AI when patterns fail
+6. **Thread context** - Pass previous emails for context in threads
+7. **Idempotent** - Check `findByGmailMessageId` before processing
+
+---
+
+## AI Model Configuration
+
+Located in `lib/chronicle/prompts/freight-forwarder.prompt.ts`:
+
+```typescript
+export const AI_CONFIG = {
+  model: 'claude-3-5-haiku-latest',
+  maxTokens: 4096,
+  maxBodyChars: 8000,
+};
+```
+
+### Enum Normalization (in ai-analyzer.ts)
+Common AI mistakes are fixed before validation:
+- `'vgm'` → `'vgm_confirmation'`
+- `'mbl'` → `'final_bl'`
+- `'hbl'` → `'house_bl'`
+- `'draft'` → `'approval'`
+
+---
+
+## Archived Code
+
+Legacy code that should NOT be used is in `/archive/dead-code/`:
+- `email-ingestion-agent.ts` - Old agent that used non-existent `raw_emails` table
+- `run-email-ingestion-cron.ts` - Cron for dead agent
+- `test-email-agent.ts` - Tests for dead agent
+
+The Chronicle system (`/lib/chronicle/`) is the current production system.
