@@ -62,33 +62,82 @@ AI-powered freight forwarding document intelligence system for Intoglo.
 
 ---
 
-## Architecture
+## Project Structure
 
 ```
-/lib/chronicle/                  # Main production system
-  chronicle-service.ts           # Orchestrator (fetch → classify → extract → store)
-  ai-analyzer.ts                 # Anthropic tool_use with Haiku
-  pattern-matcher.ts             # Pattern-first classification
-  action-rules-service.ts        # Document type → action mapping
-  precise-action-service.ts      # Action extraction logic
-  gmail-service.ts               # Gmail API integration
-  chronicle-repository.ts        # Data access layer
-  types.ts                       # Type definitions
-  interfaces.ts                  # Service interfaces
-  prompts/
-    freight-forwarder.prompt.ts  # AI prompt + tool schema
-
-/app/
-  /api/                          # REST API Routes
-    /chronicle/                  # Chronicle endpoints
-    /shipments/                  # Shipment CRUD
-    /cron/                       # Scheduled jobs
-  /shipments/                    # UI Pages
-    /dashboard/                  # Main dashboard
-    /[id]/                       # Shipment detail
-
-/archive/dead-code/              # Archived legacy code (do not use)
+/                                # Root (keep clean!)
+├── CLAUDE.md                    # This file - start here
+├── README.md                    # Project overview
+│
+├── /app/                        # Next.js app
+│   ├── /api/                    # REST API Routes
+│   │   ├── /chronicle/          # Chronicle endpoints
+│   │   ├── /shipments/          # Shipment CRUD
+│   │   └── /cron/               # Scheduled jobs
+│   └── /(chronicle)/            # UI Pages
+│
+├── /lib/                        # Core business logic
+│   ├── /chronicle/              # ⭐ MAIN SYSTEM - email intelligence
+│   │   ├── chronicle-service.ts     # Orchestrator
+│   │   ├── ai-analyzer.ts           # AI extraction (Haiku)
+│   │   ├── pattern-matcher.ts       # Pattern-first classification
+│   │   ├── action-rules-service.ts  # Action mapping
+│   │   ├── gmail-service.ts         # Gmail API
+│   │   └── prompts/                 # AI prompts
+│   ├── /repositories/           # Data access layer
+│   ├── /utils/                  # Utilities
+│   └── /validation/             # Zod schemas
+│
+├── /components/                 # React components
+│   ├── /chronicle/              # Chronicle UI
+│   ├── /shipments/              # Shipment UI
+│   └── /ui/                     # Shadcn components
+│
+├── /scripts/                    # Development scripts (organized!)
+│   ├── /analysis/               # Data analysis scripts
+│   ├── /backfill/               # Data migration scripts
+│   ├── /debugging/              # Debug & test scripts
+│   ├── /processing/             # Processing utilities
+│   ├── /reports/                # Report generation
+│   └── /archive/                # Old/unused scripts
+│
+├── /database/                   # Database resources
+│   ├── /migrations/             # Numbered migrations (001-049)
+│   └── /sql/                    # Reference SQL queries
+│
+├── /supabase/                   # Supabase CLI resources
+│   └── /migrations/             # Timestamped migrations
+│
+├── /docs/                       # Documentation
+│   ├── ARCHITECTURE.md          # System architecture
+│   ├── CHRONICLE_ARCHITECTURE.md
+│   └── /archive/                # Old docs
+│
+├── /archive/                    # Archived files
+│   ├── /dead-code/              # Legacy code (do not use)
+│   ├── /output/                 # Script output files
+│   └── /migrations-adhoc/       # Ad-hoc SQL fixes
+│
+├── /data/                       # Data files
+│   └── eng.traineddata          # OCR training data
+│
+├── /types/                      # TypeScript type definitions
+├── /utils/                      # Legacy utils (prefer /lib/utils)
+└── /logs/                       # Application logs
 ```
+
+### Where to Find Things
+
+| Looking for... | Go to... |
+|----------------|----------|
+| Email processing logic | `lib/chronicle/chronicle-service.ts` |
+| AI prompts & extraction | `lib/chronicle/ai-analyzer.ts` |
+| Pattern matching | `lib/chronicle/pattern-matcher.ts` |
+| Database schema | `database/migrations/` |
+| API endpoints | `app/api/` |
+| Debug a script | `scripts/debugging/` |
+| Run analysis | `scripts/analysis/` |
+| Backfill data | `scripts/backfill/` |
 
 ---
 
@@ -256,11 +305,16 @@ Common AI mistakes are fixed before validation:
 
 ---
 
-## Archived Code
+## Archived & Legacy Code
 
-Legacy code that should NOT be used is in `/archive/dead-code/`:
-- `email-ingestion-agent.ts` - Old agent that used non-existent `raw_emails` table
-- `run-email-ingestion-cron.ts` - Cron for dead agent
-- `test-email-agent.ts` - Tests for dead agent
+**DO NOT USE** files in these locations:
 
-The Chronicle system (`/lib/chronicle/`) is the current production system.
+| Location | Contents |
+|----------|----------|
+| `/archive/dead-code/` | Old agents using non-existent tables |
+| `/archive/output/` | Script output files (reference only) |
+| `/archive/migrations-adhoc/` | One-off SQL fixes |
+| `/scripts/archive/` | Old development scripts |
+| `/docs/archive/` | Outdated documentation |
+
+**The Chronicle system (`/lib/chronicle/`) is the current production system.**

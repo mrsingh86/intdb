@@ -1,23 +1,34 @@
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 dotenv.config();
 
+import { createClient } from '@supabase/supabase-js';
+
 const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-(async () => {
-  // Check schema by trying to select all columns
+async function main() {
+  // Get one shipment to see columns
   const { data, error } = await supabase
-    .from('raw_emails')
+    .from('shipments')
     .select('*')
-    .limit(1);
+    .limit(1)
+    .single();
 
   if (error) {
-    console.error('Error:', error);
+    console.log('Error:', error.message);
     return;
   }
 
-  console.log('Available columns:', data?.[0] ? Object.keys(data[0]) : 'No data');
-})();
+  console.log('=== SHIPMENT COLUMNS ===');
+  const columns = Object.keys(data || {});
+  columns.sort();
+  for (const col of columns) {
+    const val = data[col];
+    const type = val === null ? 'null' : typeof val;
+    console.log(`${col}: ${type} = ${JSON.stringify(val)?.substring(0, 50)}`);
+  }
+}
+
+main().catch(console.error);

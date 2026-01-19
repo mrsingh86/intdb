@@ -1,43 +1,34 @@
-import { createClient } from '@supabase/supabase-js';
-import dotenv from 'dotenv';
+import * as dotenv from 'dotenv';
 dotenv.config();
 
+import { createClient } from '@supabase/supabase-js';
+
 const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 );
 
-(async () => {
-  // Find PDFs that failed extraction or are still pending
-  const { data: failedPdfs } = await supabase
+async function main() {
+  // Get all PDFs
+  const { data: attachments } = await supabase
     .from('raw_attachments')
-    .select('id, email_id, filename, extraction_status, mime_type')
-    .eq('mime_type', 'application/pdf')
-    .or('extraction_status.eq.failed,extraction_status.eq.pending')
-    .limit(10);
+    .select('id, filename, mime_type, extracted_text')
+    .or('filename.ilike.%.pdf,mime_type.ilike.%pdf%');
 
-  console.log('=== PDFs NOT EXTRACTED ===');
-  console.log('Total:', failedPdfs?.length);
+  console.log(`Total PDFs: ${attachments?.length || 0}`);
 
-  failedPdfs?.forEach(pdf => {
-    console.log(`\n${pdf.filename}`);
-    console.log(`  Status: ${pdf.extraction_status}`);
-    console.log(`  Email ID: ${pdf.email_id}`);
-  });
+  const noText = (attachments || []).filter(a => !a.extracted_text || a.extracted_text.length < 100);
+  const withText = (attachments || []).filter(a => a.extracted_text && a.extracted_text.length >= 100);
 
-  // Check a specific email to understand the issue
-  if (failedPdfs && failedPdfs.length > 0) {
-    const emailId = failedPdfs[0].email_id;
-    const { data: email } = await supabase
-      .from('raw_emails')
-      .select('subject, body_text, gmail_message_id')
-      .eq('id', emailId)
-      .single();
+  console.log(`With text: ${withText.length}`);
+  console.log(`Without text: ${noText.length}`);
 
-    console.log('\n=== Sample Email ===');
-    console.log('Subject:', email?.subject);
-    console.log('Has body_text:', email?.body_text ? 'YES' : 'NO');
-    console.log('Body length:', email?.body_text?.length || 0);
-    console.log('Gmail ID:', email?.gmail_message_id);
+  console.log('\nPDFs without text:');
+  for (const pdf of noText) {
+    const textLen = pdf.extracted_text?.length || 0;
+    const textType = pdf.extracted_text === null ? 'NULL' : (textLen === 0 ? 'EMPTY' : `${textLen} chars`);
+    console.log(`  ${pdf.filename}: ${textType}`);
   }
-})();
+}
+
+main().catch(console.error);

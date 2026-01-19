@@ -188,6 +188,32 @@ export type {
   ActionDetermination,
 } from './action-rules-service';
 
+export {
+  ActionRulesEngine,
+  createActionRulesEngine,
+} from './action-rules-engine';
+
+export type {
+  DocumentActionRule,
+  TimeBasedRule,
+  DocumentFlow,
+  FlowStep,
+  ActionResult,
+  TimeBasedAction,
+  FlowPosition,
+} from './action-rules-engine';
+
+export {
+  PreciseActionService,
+  createPreciseActionService,
+} from './precise-action-service';
+
+export type {
+  ActionTemplate,
+  ShipmentContext,
+  PreciseActionRecommendation,
+} from './precise-action-service';
+
 // ============================================================================
 // RECLASSIFICATION SYSTEM
 // ============================================================================

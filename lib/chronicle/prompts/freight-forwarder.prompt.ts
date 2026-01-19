@@ -261,18 +261,105 @@ CRITICAL RULES FOR IDENTIFICATION:
 
 6. DATES - Use correct fields (CRITICAL FOR MULTI-LEG VOYAGES):
 
-   DATE FORMAT RULES (VERY IMPORTANT):
-   - ALL dates MUST be in YYYY-MM-DD format with FULL 4-DIGIT YEAR
-   - If email says "2nd Dec" or "Dec 2" without year, use the EMAIL DATE's year
-   - If date is "31st Dec" and email was sent in January, use PREVIOUS year
-   - If date is "5th Jan" and email was sent in December, use NEXT year
-   - NEVER output dates like "2023-12-02" for recent emails (system created 2025+)
-   - For relative dates like "tomorrow", "today", "within 48 hours" - calculate from EMAIL DATE
+   ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  DATE EXTRACTION RULES (ANTI-HALLUCINATION - READ CAREFULLY!)            ║
+   ╚══════════════════════════════════════════════════════════════════════════╝
 
-   VALIDATION RULES:
-   - Cutoff dates (SI, VGM, Cargo) MUST be BEFORE ETD (you can't submit after departure!)
-   - ETA must be AFTER ETD (arrival comes after departure)
-   - Transit time: International ocean typically 14-45 days
+   ANCHOR DATES (Use these to determine correct year):
+   - TODAY'S DATE will be provided in the prompt header
+   - EMAIL DATE will be provided in the prompt header
+   - Use these to infer missing years in dates
+
+   DATE FORMAT (ISO 8601 - MANDATORY):
+   - ALL dates MUST be YYYY-MM-DD format with FULL 4-DIGIT YEAR
+   - If document says "2nd Dec" without year → use EMAIL DATE's year
+   - If date is "31st Dec" and email is from January → use PREVIOUS year
+   - If date is "5th Jan" and email is from December → use NEXT year
+   - NEVER output years 2023 or 2024 for recent shipping documents
+   - For "tomorrow", "today", "within 48 hours" → calculate from EMAIL DATE
+
+   ┌────────────────────────────────────────────────────────────────────────┐
+   │ DATE SOURCE HIERARCHY (Extract dates based on document type!)         │
+   └────────────────────────────────────────────────────────────────────────┘
+
+   ╔═══════════════════════════════════════════════════════════════════════╗
+   ║ DOCUMENT TYPE → MANDATORY DATE EXTRACTION                             ║
+   ╠═══════════════════════════════════════════════════════════════════════╣
+   ║ booking_confirmation:                                                 ║
+   ║   MUST extract: etd, eta, si_cutoff, vgm_cutoff, cargo_cutoff        ║
+   ║   These are ALWAYS in booking confirmations - LOOK CAREFULLY!         ║
+   ║   Common labels: "CUT OFF", "SI CUT OFF", "VGM CUT OFF", "GATE IN"   ║
+   ╠═══════════════════════════════════════════════════════════════════════╣
+   ║ arrival_notice:                                                       ║
+   ║   MUST extract: eta, last_free_day                                   ║
+   ║   Common labels: "ETA", "ARRIVAL DATE", "LFD", "LAST FREE DAY",      ║
+   ║   "FREE TIME EXPIRES", "DEMURRAGE STARTS", "AVAILABLE DATE"          ║
+   ╠═══════════════════════════════════════════════════════════════════════╣
+   ║ delivery_order / container_release:                                   ║
+   ║   MUST extract: last_free_day, empty_return_date                     ║
+   ║   Common labels: "LFD", "RETURN BY", "EMPTY RETURN", "PER DIEM"      ║
+   ╠═══════════════════════════════════════════════════════════════════════╣
+   ║ schedule_update:                                                      ║
+   ║   MUST extract: etd, eta (new values after change)                   ║
+   ╚═══════════════════════════════════════════════════════════════════════╝
+
+   LAST_FREE_DAY (LFD) - Demurrage/detention deadline:
+     ✓ ONLY extract from: arrival_notice, delivery_order, container_release,
+                          customs_entry, work_order (destination)
+     ✗ NEVER extract from: booking_confirmation, booking_amendment, sea_waybill,
+                           draft_bl, invoice, shipping_instructions
+     WHY: LFD is assigned AFTER vessel arrives. Pre-departure docs don't have it.
+
+   CUTOFF DATES (si_cutoff, vgm_cutoff, cargo_cutoff, doc_cutoff):
+     ✓ Extract from: booking_confirmation, booking_amendment, schedule_update
+     Look for: "CUT OFF", "CUTOFF", "SI C/O", "VGM C/O", "GATE IN BY"
+     These are ALWAYS before ETD (you submit documents BEFORE departure)
+
+   ETD (Estimated Time of Departure) - FROM POL ONLY:
+     ✓ Extract from: booking_confirmation, schedule_update, draft_bl
+     ✓ This is departure from PORT OF LOADING (POL) - the ORIGIN port
+     ✗ IGNORE: Transshipment ETDs, feeder vessel ETDs, pre-carrier ETDs
+     Look for: "ETD", "POL ETD", "DEPARTURE", "SAILING DATE", "VESSEL ETD"
+
+   ETA (Estimated Time of Arrival) - TO POD/POFD ONLY:
+     ✓ Extract from: arrival_notice (BEST), booking_confirmation, schedule_update
+     ✓ This is arrival at PORT OF DISCHARGE (POD) or PLACE OF FINAL DELIVERY (POFD)
+     ✗ IGNORE: Transshipment ETAs, intermediate port ETAs, T/S dates
+     Look for: "ETA", "POD ETA", "DELIVERY ETA", "FINAL ETA", "DEST ETA"
+
+   ┌────────────────────────────────────────────────────────────────────────┐
+   │ MULTI-LEG VOYAGE: Only capture ORIGIN and FINAL DESTINATION dates!    │
+   └────────────────────────────────────────────────────────────────────────┘
+
+   CORRECT (capture these):
+     POL ETD: 2026-01-15 (Nhava Sheva)     ← EXTRACT THIS as etd
+     POD ETA: 2026-02-20 (New York)        ← EXTRACT THIS as eta
+
+   WRONG (ignore these - transshipment dates):
+     T/S Colombo ETA: 2026-01-20           ← IGNORE
+     T/S Colombo ETD: 2026-01-22           ← IGNORE
+     T/S Singapore ETA: 2026-01-28         ← IGNORE
+
+   ┌────────────────────────────────────────────────────────────────────────┐
+   │ CONTEXTUAL VALIDATION (Shipping Date Logic - MUST BE TRUE!)           │
+   └────────────────────────────────────────────────────────────────────────┘
+
+   These relationships MUST hold true. If your dates violate these, RE-CHECK:
+
+   1. Cutoffs < ETD     (submit documents BEFORE vessel departs)
+   2. ETD < ETA         (depart BEFORE arrive - typically 14-45 days for ocean)
+   3. ETA < LFD         (arrive first, THEN free time period starts)
+   4. ETA ≈ ETD + 14-45 days for international ocean freight
+
+   INVALID EXAMPLES (AI should NOT output these):
+   ✗ ETD: 2026-02-21, LFD: 2025-01-15 (LFD before departure = IMPOSSIBLE)
+   ✗ ETD: 2026-01-15, ETA: 2026-01-10 (arrival before departure = IMPOSSIBLE)
+   ✗ SI Cutoff: 2026-01-20, ETD: 2026-01-15 (cutoff after departure = IMPOSSIBLE)
+
+   If document shows impossible dates, likely:
+   - You misread the year (2025 vs 2026)
+   - You extracted from wrong field
+   - The source document has an error (set to null)
 
    MULTI-LEG VOYAGE STRUCTURE:
    Many shipments have multiple legs with transshipment:
@@ -454,22 +541,22 @@ export const ANALYZE_TOOL_SCHEMA: Anthropic.Tool = {
       carrier_scac: { type: 'string', nullable: true },
 
       // Dates - Estimated vs Actual
-      etd: { type: 'string', nullable: true, description: 'Estimated Time of Departure YYYY-MM-DD' },
+      etd: { type: 'string', nullable: true, description: 'Estimated Time of Departure YYYY-MM-DD. MANDATORY for booking_confirmation! Look for: ETD, DEPARTURE, SAILING DATE' },
       atd: { type: 'string', nullable: true, description: 'Actual Time of Departure YYYY-MM-DD' },
-      eta: { type: 'string', nullable: true, description: 'Estimated Time of Arrival at FINAL DESTINATION (POD) YYYY-MM-DD. Look for "POD ETA", "DEL ETA", "Delivery ETA". IGNORE transshipment port dates!' },
+      eta: { type: 'string', nullable: true, description: 'Estimated Time of Arrival at FINAL DESTINATION YYYY-MM-DD. MANDATORY for arrival_notice! Look for: ETA, ARRIVAL, POD ETA. IGNORE transshipment dates!' },
       ata: { type: 'string', nullable: true, description: 'Actual Time of Arrival YYYY-MM-DD' },
       pickup_date: { type: 'string', nullable: true, description: 'Trucking pickup date' },
       delivery_date: { type: 'string', nullable: true, description: 'Trucking delivery date' },
 
-      // Cutoffs
-      si_cutoff: { type: 'string', nullable: true, description: 'Shipping Instructions cutoff YYYY-MM-DD' },
-      vgm_cutoff: { type: 'string', nullable: true, description: 'VGM cutoff YYYY-MM-DD' },
-      cargo_cutoff: { type: 'string', nullable: true, description: 'Cargo gate-in cutoff YYYY-MM-DD' },
+      // Cutoffs - MANDATORY for booking_confirmation!
+      si_cutoff: { type: 'string', nullable: true, description: 'SI cutoff YYYY-MM-DD. MANDATORY for booking_confirmation! Look for: SI CUT OFF, SI C/O, DOC CUTOFF' },
+      vgm_cutoff: { type: 'string', nullable: true, description: 'VGM cutoff YYYY-MM-DD. MANDATORY for booking_confirmation! Look for: VGM CUT OFF, VGM C/O' },
+      cargo_cutoff: { type: 'string', nullable: true, description: 'Cargo gate-in cutoff YYYY-MM-DD. MANDATORY for booking_confirmation! Look for: GATE IN, CARGO CUTOFF, CY CUTOFF' },
       doc_cutoff: { type: 'string', nullable: true, description: 'Documentation cutoff YYYY-MM-DD' },
 
-      // Demurrage/Detention
-      last_free_day: { type: 'string', nullable: true, description: 'Last Free Day before charges YYYY-MM-DD' },
-      empty_return_date: { type: 'string', nullable: true, description: 'Empty container return deadline YYYY-MM-DD' },
+      // Demurrage/Detention - MANDATORY for arrival_notice!
+      last_free_day: { type: 'string', nullable: true, description: 'Last Free Day YYYY-MM-DD. MANDATORY for arrival_notice/delivery_order! Look for: LFD, LAST FREE DAY, FREE TIME EXPIRES, DEMURRAGE STARTS' },
+      empty_return_date: { type: 'string', nullable: true, description: 'Empty container return deadline YYYY-MM-DD. Look for: RETURN BY, EMPTY RETURN, PER DIEM STARTS' },
 
       // POD (Proof of Delivery)
       pod_delivery_date: { type: 'string', nullable: true, description: 'Actual delivery date from POD document YYYY-MM-DD' },
@@ -668,10 +755,26 @@ export function buildAnalysisPrompt(
   flowContext?: FlowContext,
   threadPosition: number = 1
 ): string {
-  // Format email date for context
-  const dateContext = emailDate
-    ? `\n=== EMAIL DATE (use for date context) ===\nThis email was received on: ${new Date(emailDate).toISOString().split('T')[0]}\nUse this date when interpreting relative dates like "tomorrow", "today", or dates without year.\n`
-    : '';
+  // Format anchor dates for context (TODAY + EMAIL DATE)
+  const todayStr = new Date().toISOString().split('T')[0];
+  const emailDateStr = emailDate
+    ? new Date(emailDate).toISOString().split('T')[0]
+    : todayStr;
+
+  const dateContext = `
+╔══════════════════════════════════════════════════════════════════════════╗
+║  ANCHOR DATES (Use these to determine correct year for dates!)           ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║  TODAY'S DATE: ${todayStr}                                              ║
+║  EMAIL DATE:   ${emailDateStr}                                              ║
+╠══════════════════════════════════════════════════════════════════════════╣
+║  RULES:                                                                  ║
+║  • If date has no year → use EMAIL DATE's year                          ║
+║  • If "Dec" date in Jan email → use PREVIOUS year (${parseInt(emailDateStr.slice(0,4)) - 1})                   ║
+║  • If "Jan" date in Dec email → use NEXT year (${parseInt(emailDateStr.slice(0,4)) + 1})                       ║
+║  • NEVER output year 2023 or 2024 for shipping documents                ║
+╚══════════════════════════════════════════════════════════════════════════╝
+`;
 
   // Build thread context section if available
   const threadSection = threadContext ? buildThreadContextSection(threadContext) : '';
@@ -717,8 +820,36 @@ ${attachmentText || '(No attachments)'}`;
 }
 
 /**
+ * Document types that should NEVER have last_free_day extracted
+ * LFD is only assigned after arrival - pre-departure docs don't have it
+ */
+const LFD_INVALID_DOC_TYPES = new Set([
+  'booking_confirmation',
+  'booking_amendment',
+  'booking_request',
+  'sea_waybill',
+  'draft_bl',
+  'final_bl',
+  'house_bl',
+  'shipping_instructions',
+  'si_confirmation',
+  'vgm_confirmation',
+  'invoice',
+  'quotation',
+  'rate_request',
+  'schedule_update',
+  'notification',
+  'general_correspondence',
+]);
+
+/**
  * Validate extracted dates for logical consistency
  * Returns corrected dates or null for invalid ones
+ *
+ * Implements 3-layer defense:
+ * 1. Year range validation (2024-2028)
+ * 2. Field-specific rules (LFD only from arrival docs)
+ * 3. Contextual validation (ETD < ETA < LFD)
  */
 export function validateExtractedDates(extracted: {
   etd?: string | null;
@@ -726,52 +857,158 @@ export function validateExtractedDates(extracted: {
   si_cutoff?: string | null;
   vgm_cutoff?: string | null;
   cargo_cutoff?: string | null;
+  doc_cutoff?: string | null;
+  last_free_day?: string | null;
   action_deadline?: string | null;
-}, emailDate?: Date | string): typeof extracted {
+}, emailDate?: Date | string, documentType?: string): typeof extracted {
   const result = { ...extracted };
   const today = new Date();
-  const emailDateObj = emailDate ? new Date(emailDate) : today;
 
-  // Helper to check if date is reasonable (not before 2024, not more than 2 years in future)
+  // ========================================================================
+  // LAYER 1: Year Range Validation
+  // ========================================================================
   const isReasonableDate = (dateStr: string | null | undefined): boolean => {
     if (!dateStr) return true;
     const date = new Date(dateStr);
-    const minDate = new Date('2024-01-01');
-    const maxDate = new Date();
-    maxDate.setFullYear(maxDate.getFullYear() + 2);
-    return date >= minDate && date <= maxDate;
+    if (isNaN(date.getTime())) return false;
+    const year = date.getFullYear();
+    // Valid range: 2024-2028 (current operations window)
+    return year >= 2024 && year <= 2028;
   };
 
-  // Validate and nullify bad dates
+  // Nullify dates outside valid range
   if (!isReasonableDate(result.etd)) result.etd = null;
   if (!isReasonableDate(result.eta)) result.eta = null;
   if (!isReasonableDate(result.si_cutoff)) result.si_cutoff = null;
   if (!isReasonableDate(result.vgm_cutoff)) result.vgm_cutoff = null;
   if (!isReasonableDate(result.cargo_cutoff)) result.cargo_cutoff = null;
+  if (!isReasonableDate(result.doc_cutoff)) result.doc_cutoff = null;
+  if (!isReasonableDate(result.last_free_day)) result.last_free_day = null;
   if (!isReasonableDate(result.action_deadline)) result.action_deadline = null;
 
-  // Validate cutoffs are before ETD
-  if (result.etd) {
-    const etdDate = new Date(result.etd);
-    if (result.si_cutoff && new Date(result.si_cutoff) > etdDate) {
-      result.si_cutoff = null; // Invalid: cutoff after departure
-    }
-    if (result.vgm_cutoff && new Date(result.vgm_cutoff) > etdDate) {
-      result.vgm_cutoff = null; // Invalid: cutoff after departure
-    }
-    if (result.cargo_cutoff && new Date(result.cargo_cutoff) > etdDate) {
-      result.cargo_cutoff = null; // Invalid: cutoff after departure
+  // ========================================================================
+  // LAYER 2: Field-Specific Rules (LFD only from arrival docs)
+  // ========================================================================
+  if (documentType && LFD_INVALID_DOC_TYPES.has(documentType)) {
+    // LFD should NOT be extracted from pre-departure documents
+    if (result.last_free_day) {
+      console.warn(
+        `[DateValidation] Removing last_free_day from ${documentType} - LFD not valid for this doc type`
+      );
+      result.last_free_day = null;
     }
   }
 
-  // Validate ETA is after ETD
+  // ========================================================================
+  // LAYER 3: Contextual Validation (Business Logic)
+  // ========================================================================
+
+  // 3a. Cutoffs must be BEFORE ETD (can't submit after departure)
+  if (result.etd) {
+    const etdDate = new Date(result.etd);
+    if (result.si_cutoff && new Date(result.si_cutoff) > etdDate) {
+      console.warn(`[DateValidation] SI cutoff ${result.si_cutoff} after ETD ${result.etd} - nullifying`);
+      result.si_cutoff = null;
+    }
+    if (result.vgm_cutoff && new Date(result.vgm_cutoff) > etdDate) {
+      console.warn(`[DateValidation] VGM cutoff ${result.vgm_cutoff} after ETD ${result.etd} - nullifying`);
+      result.vgm_cutoff = null;
+    }
+    if (result.cargo_cutoff && new Date(result.cargo_cutoff) > etdDate) {
+      console.warn(`[DateValidation] Cargo cutoff ${result.cargo_cutoff} after ETD ${result.etd} - nullifying`);
+      result.cargo_cutoff = null;
+    }
+    if (result.doc_cutoff && new Date(result.doc_cutoff) > etdDate) {
+      console.warn(`[DateValidation] Doc cutoff ${result.doc_cutoff} after ETD ${result.etd} - nullifying`);
+      result.doc_cutoff = null;
+    }
+  }
+
+  // 3b. ETA must be AFTER ETD (arrival after departure)
   if (result.etd && result.eta) {
     const etdDate = new Date(result.etd);
     const etaDate = new Date(result.eta);
     if (etaDate < etdDate) {
-      result.eta = null; // Invalid: arrival before departure
+      console.warn(`[DateValidation] ETA ${result.eta} before ETD ${result.etd} - nullifying ETA`);
+      result.eta = null;
+    }
+  }
+
+  // 3c. LFD must be AFTER ETA (free time starts after arrival)
+  if (result.eta && result.last_free_day) {
+    const etaDate = new Date(result.eta);
+    const lfdDate = new Date(result.last_free_day);
+    if (lfdDate < etaDate) {
+      console.warn(`[DateValidation] LFD ${result.last_free_day} before ETA ${result.eta} - nullifying LFD`);
+      result.last_free_day = null;
+    }
+  }
+
+  // 3d. LFD must be AFTER ETD (can't have free time before departure)
+  if (result.etd && result.last_free_day) {
+    const etdDate = new Date(result.etd);
+    const lfdDate = new Date(result.last_free_day);
+    if (lfdDate < etdDate) {
+      console.warn(`[DateValidation] LFD ${result.last_free_day} before ETD ${result.etd} - nullifying LFD`);
+      result.last_free_day = null;
     }
   }
 
   return result;
+}
+
+/**
+ * Expected dates by document type - for monitoring extraction quality
+ */
+const EXPECTED_DATES_BY_DOC_TYPE: Record<string, string[]> = {
+  booking_confirmation: ['etd', 'eta', 'si_cutoff', 'vgm_cutoff', 'cargo_cutoff'],
+  booking_amendment: ['etd', 'eta'],
+  arrival_notice: ['eta', 'last_free_day'],
+  delivery_order: ['last_free_day'],
+  container_release: ['last_free_day'],
+  schedule_update: ['etd', 'eta'],
+};
+
+/**
+ * Check if expected dates were extracted for a document type
+ * Returns list of missing expected dates for monitoring
+ */
+export function checkExpectedDates(
+  documentType: string,
+  extracted: {
+    etd?: string | null;
+    eta?: string | null;
+    si_cutoff?: string | null;
+    vgm_cutoff?: string | null;
+    cargo_cutoff?: string | null;
+    last_free_day?: string | null;
+  }
+): { missing: string[]; coverage: number } {
+  const expected = EXPECTED_DATES_BY_DOC_TYPE[documentType];
+  if (!expected || expected.length === 0) {
+    return { missing: [], coverage: 100 };
+  }
+
+  const missing: string[] = [];
+  let found = 0;
+
+  for (const field of expected) {
+    const value = extracted[field as keyof typeof extracted];
+    if (value) {
+      found++;
+    } else {
+      missing.push(field);
+    }
+  }
+
+  const coverage = Math.round((found / expected.length) * 100);
+
+  // Log warning if critical dates missing
+  if (missing.length > 0) {
+    console.warn(
+      `[DateExtraction] ${documentType} missing expected dates: ${missing.join(', ')} (${coverage}% coverage)`
+    );
+  }
+
+  return { missing, coverage };
 }

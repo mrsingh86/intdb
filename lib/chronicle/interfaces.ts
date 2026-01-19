@@ -253,6 +253,17 @@ export interface ChronicleInsertData {
   action_owner: string | null;
   action_deadline: string | null;
   action_priority: string | null;
+
+  // Precise action fields (from PreciseActionService)
+  action_type: string | null;
+  action_verb: string | null;
+  action_priority_score: number | null;
+  action_deadline_source: string | null;
+  action_auto_resolve_on: string[];
+  action_auto_resolve_keywords: string[];
+  action_confidence: number | null;
+  action_source: string | null;
+
   has_issue: boolean;
   issue_type: string | null;
   issue_description: string | null;

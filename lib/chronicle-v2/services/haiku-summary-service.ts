@@ -16,6 +16,18 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { ActionRulesEngine, TimeBasedAction, FlowPosition } from '../../chronicle/action-rules-engine';
+import {
+  ShipmentIntelligenceService,
+  createShipmentIntelligenceService,
+  ShipmentIntelligence,
+} from './shipment-intelligence-service';
+import {
+  buildPreComputedSection,
+  buildCustomerDraftSection,
+  validateAgainstPreComputed,
+  ENHANCED_SYSTEM_PROMPT_ADDITIONS,
+} from './enhanced-prompt-builder';
 
 // =============================================================================
 // TYPES
@@ -90,6 +102,12 @@ interface RecentChronicle {
   amount: string | null;
   currency: string | null;
   last_free_day: string | null;
+  // NEW: Precise action fields from PreciseActionService
+  action_type: string | null;
+  action_verb: string | null;
+  action_owner: string | null;
+  action_deadline_source: string | null;
+  action_auto_resolve_on: string[] | null;
 }
 
 interface FinancialSummary {
@@ -159,6 +177,12 @@ interface RouteProfileContext {
   bestCarrier: string | null;
 }
 
+// Rule-based actions context from ActionRulesEngine
+interface RuleBasedActionsContext {
+  timeBasedActions: TimeBasedAction[];  // Cutoff/ETA triggered actions
+  documentFlows: FlowPosition[];        // Multi-step document flow positions
+}
+
 export interface AISummary {
   // V2 format (new tight format)
   narrative: string | null; // Tight one-paragraph intelligence
@@ -191,6 +215,29 @@ export interface AISummary {
   urgentMessageCount: number | null; // Urgent/negative sentiment messages
   carrierPerformance: string | null; // "MSC: 72% on-time"
   shipperRiskSignal: string | null; // "SI late 45%, high risk"
+  // Predictive elements
+  predictedRisks: string[] | null; // Likely upcoming issues based on patterns
+  proactiveRecommendations: string[] | null; // Preventive actions to take
+  predictedEta: string | null; // AI-estimated actual arrival
+  etaConfidence: 'high' | 'medium' | 'low' | null; // Confidence in prediction
+  // P0: SLA Status (pre-computed, anti-hallucination)
+  slaStatus: 'OK' | 'AT_RISK' | 'CRITICAL' | 'BREACHED' | 'NO_CONTACT' | null;
+  hoursSinceCustomerUpdate: number | null;
+  slaSummary: string | null; // e.g., "Customer waiting 72 hours for update"
+  // P1: Escalation Level (pre-computed, anti-hallucination)
+  escalationLevel: 'L1' | 'L2' | 'L3' | null;
+  escalateTo: string | null; // "Operations Team" | "Operations Manager" | "Leadership"
+  // P2: Root Cause (pre-computed, anti-hallucination)
+  rootCauseCategory: 'CARRIER' | 'PORT' | 'CUSTOMS' | 'CUSTOMER' | 'LOGISTICS' | 'INTOGLO' | null;
+  rootCauseSubcategory: string | null; // e.g., "chassis_shortage"
+  typicalResolutionDays: number | null;
+  benchmarkReference: string | null; // "Similar issues: 4.2 days avg (36 cases)"
+  // P0: Customer Draft (AI-generated based on facts)
+  customerDraftSubject: string | null;
+  customerDraftBody: string | null;
+  // P3: Confidence (AI self-assessment)
+  recommendationConfidence: 'high' | 'medium' | 'low' | null;
+  confidenceReason: string | null; // "Based on data completeness score: 85/100"
 }
 
 export interface GenerationResult {
@@ -329,7 +376,11 @@ In milestones, entries marked with **✓CONFIRMED** mean that step is COMPLETE:
   "customerActionRequired": true/false,
   "riskLevel": "red|amber|green",
   "riskReason": "One line with numbers: 'X days overdue with $Y exposure'",
-  "daysOverdue": number or null
+  "daysOverdue": number or null,
+  "predictedRisks": ["Array of 0-3 likely upcoming issues based on patterns: 'High rollover probability - confirm cargo availability', 'Detention risk given consignee's 35% detention rate'"],
+  "proactiveRecommendations": ["Array of 0-2 preventive actions: 'Request earlier SI given shipper pattern', 'Pre-arrange chassis for pickup'"],
+  "predictedEta": "AI-estimated actual arrival based on carrier/route performance: 'Jan 25 (+3 days from scheduled)' | null",
+  "etaConfidence": "high|medium|low|null (based on data quality and carrier reliability)"
 }
 
 ## RISK LEVEL GUIDE (Stage-Aware)
@@ -374,6 +425,47 @@ When profile data is provided AND marked "RELEVANT NOW":
 - DON'T be judgmental - be helpful
 - If no profile intelligence is marked relevant, focus on chronicle data only
 
+## CRITICAL: ANTI-TEMPLATE RULES (READ CAREFULLY)
+
+You MUST generate SHIPMENT-SPECIFIC summaries. NEVER use these generic phrases:
+❌ "Missing booking, shipping instructions (SI), and verified gross mass (VGM)"
+❌ "Potential demurrage and detention fees"
+❌ "Critical pre-shipment documents are still pending"
+❌ "Multiple pending actions require attention"
+
+INSTEAD, be SPECIFIC to THIS shipment:
+✅ "Awaiting SI v3 approval from Hapag since Jan 15 (3 days)"
+✅ "Container MSKU1234567 at terminal 12 days, $1,800 detention accrued"
+✅ "Hot loading required due to cargo rollover - safety review needed"
+✅ "Invoice #INV-2025-001 for $5,804 unpaid since Jan 10"
+
+## PRIORITY DETECTION RULES
+
+When you see these keywords in chronicle, LEAD with them in your story:
+- "hot loading", "safety", "hazmat", "dangerous" → SAFETY ALERT (critical priority)
+- "escalation", "escalated" → ESCALATION (high priority)
+- "detention", "demurrage", "free time" → FINANCIAL RISK (with calculation)
+- "rollover", "rolled" → BOOKING AT RISK
+- "amendment", "revision", "update" → Track version count
+- "payment", "invoice", "outstanding" → PAYMENT STATUS
+
+## SPECIFICITY REQUIREMENTS
+
+Your story MUST include:
+1. SPECIFIC party names from chronicle (not "the carrier" but "Hapag-Lloyd")
+2. SPECIFIC dates with duration ("since Jan 15, 3 days ago")
+3. SPECIFIC amounts when available ("$5,804" not "charges pending")
+4. SPECIFIC container numbers when relevant
+5. SPECIFIC contact info if in pending actions section
+
+## WHAT CHANGED TRACKING
+
+If CHRONICLE INTELLIGENCE section shows:
+- Amendment count > 1 → Mention "SI/BL revised X times"
+- Negative sentiment > 0 → Mention escalating tone
+- Thread depth > 3 → Mention ongoing issue resolution
+- Unresolved issues → Mention duration unresolved
+
 Return ONLY valid JSON.`;
 
 // =============================================================================
@@ -383,10 +475,14 @@ Return ONLY valid JSON.`;
 export class HaikuSummaryService {
   private anthropic: Anthropic;
   private supabase: SupabaseClient;
+  private actionRulesEngine: ActionRulesEngine;
+  private intelligenceService: ShipmentIntelligenceService;
 
   constructor(supabase: SupabaseClient) {
     this.anthropic = new Anthropic();
     this.supabase = supabase;
+    this.actionRulesEngine = new ActionRulesEngine(supabase);
+    this.intelligenceService = createShipmentIntelligenceService(supabase);
   }
 
   // ===========================================================================
@@ -497,7 +593,8 @@ export class HaikuSummaryService {
         has_issue, issue_type, issue_description,
         has_action, action_description, action_priority, action_deadline, action_completed_at,
         carrier_name, sentiment, thread_id, document_type,
-        amount, currency, last_free_day
+        amount, currency, last_free_day,
+        action_type, action_verb, action_owner, action_deadline_source, action_auto_resolve_on
       `)
       .eq('shipment_id', shipmentId)
       .gte('occurred_at', sevenDaysAgo)
@@ -798,6 +895,58 @@ export class HaikuSummaryService {
   }
 
   /**
+   * Layer 4.7: Get rule-based actions from ActionRulesEngine
+   * Returns time-based actions (cutoff triggers) and document flow positions
+   */
+  private async getRuleBasedActions(
+    shipmentId: string,
+    shipment: ShipmentContext,
+    recent: RecentChronicle[]
+  ): Promise<RuleBasedActionsContext> {
+    try {
+      // Get time-based actions (cutoff/ETA triggers)
+      const timeBasedActions = await this.actionRulesEngine.getTimeBasedActions(
+        shipmentId,
+        shipment.stage || 'PENDING',
+        {
+          siCutoff: shipment.si_cutoff ? new Date(shipment.si_cutoff) : null,
+          vgmCutoff: shipment.vgm_cutoff ? new Date(shipment.vgm_cutoff) : null,
+          cargoCutoff: shipment.cargo_cutoff ? new Date(shipment.cargo_cutoff) : null,
+          etd: shipment.etd ? new Date(shipment.etd) : null,
+          eta: shipment.eta ? new Date(shipment.eta) : null,
+        },
+        {
+          siSubmitted: recent.some(r => r.document_type === 'shipping_instructions' || r.document_type === 'si_confirmation'),
+          vgmSubmitted: recent.some(r => r.document_type === 'vgm_confirmation'),
+          blIssued: recent.some(r => r.document_type === 'final_bl' || r.document_type === 'sea_waybill'),
+          isfFiled: recent.some(r => r.document_type === 'isf_filing'),
+          containerPickedUp: recent.some(r => r.document_type === 'gate_out' || r.document_type === 'delivery_order'),
+        }
+      );
+
+      // Get document flow positions for key document types
+      const flowDocTypes = ['checklist', 'draft_entry', 'draft_bl', 'duty_invoice'];
+      const documentFlows: FlowPosition[] = [];
+
+      for (const docType of flowDocTypes) {
+        // Only check flow if we have this document type in recent chronicles
+        const hasDocType = recent.some(r => r.document_type === docType);
+        if (hasDocType) {
+          const flowPosition = await this.actionRulesEngine.getFlowPosition(docType, shipmentId);
+          if (!flowPosition.isComplete && flowPosition.pendingAction) {
+            documentFlows.push(flowPosition);
+          }
+        }
+      }
+
+      return { timeBasedActions, documentFlows };
+    } catch (error) {
+      console.error('[HaikuSummary] Error getting rule-based actions:', error);
+      return { timeBasedActions: [], documentFlows: [] };
+    }
+  }
+
+  /**
    * Layer 4: Compute date-derived urgency
    */
   private computeDateUrgency(shipment: ShipmentContext): DateUrgency[] {
@@ -1093,7 +1242,9 @@ export class HaikuSummaryService {
       negativeCount: number;
       issueCount: number;
       daysSinceActivity: number | null;
-    }
+    },
+    ruleBasedActions?: RuleBasedActionsContext,
+    intelligence?: ShipmentIntelligence | null // P0-P3: Pre-computed intelligence
   ): string {
     const today = new Date().toLocaleDateString('en-US', {
       weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
@@ -1133,15 +1284,61 @@ Cargo Cutoff: ${this.formatDateWithDays(shipment.cargo_cutoff)}`;
 
     // Build milestone timeline with clear COMPLETED markers
     let milestoneSection = '';
-    if (milestones.length > 0) {
-      // Identify completion events
-      const COMPLETION_TYPES = new Set([
-        'booking_confirmation', 'si_confirmation', 'vgm_confirmation',
-        'sob_confirmation', 'bl_draft', 'bl_final', 'telex_release',
-        'container_release', 'delivery_order', 'gate_in', 'gate_out',
-        'vessel_departed', 'vessel_arrived', 'cargo_loaded'
-      ]);
 
+    // CRITICAL: Build explicit completion status for AI clarity
+    const COMPLETION_TYPES = new Set([
+      'booking_confirmation', 'si_confirmation', 'vgm_confirmation',
+      'sob_confirmation', 'bl_draft', 'bl_final', 'telex_release',
+      'container_release', 'delivery_order', 'gate_in', 'gate_out',
+      'vessel_departed', 'vessel_arrived', 'cargo_loaded',
+      'shipping_instructions', 'draft_bl', 'final_bl', 'sea_waybill'
+    ]);
+
+    // Track what milestones have been COMPLETED
+    const completedMilestones: string[] = [];
+    const pendingMilestones: string[] = [];
+
+    // Check milestones from chronicle data
+    const milestoneTypes = new Set(milestones.map(m => m.event_type));
+    const recentTypes = new Set(recent.map(r => r.document_type).filter(Boolean));
+    const allDocTypes = new Set([...milestoneTypes, ...recentTypes]);
+
+    // Determine completion status for key milestones
+    if (allDocTypes.has('booking_confirmation')) completedMilestones.push('✅ Booking Confirmed');
+    else pendingMilestones.push('⏳ Booking Confirmation');
+
+    if (allDocTypes.has('shipping_instructions') || allDocTypes.has('si_confirmation') || allDocTypes.has('si_submitted')) {
+      completedMilestones.push('✅ SI Submitted');
+    } else {
+      pendingMilestones.push('⏳ SI Submission');
+    }
+
+    if (allDocTypes.has('si_confirmation')) completedMilestones.push('✅ SI Confirmed');
+
+    if (allDocTypes.has('vgm_confirmation')) completedMilestones.push('✅ VGM Confirmed');
+    else pendingMilestones.push('⏳ VGM Submission');
+
+    if (allDocTypes.has('draft_bl') || allDocTypes.has('bl_draft')) completedMilestones.push('✅ Draft BL Received');
+
+    if (allDocTypes.has('final_bl') || allDocTypes.has('bl_final') || allDocTypes.has('sea_waybill')) {
+      completedMilestones.push('✅ Final BL/SWB Issued');
+    }
+
+    if (allDocTypes.has('telex_release')) completedMilestones.push('✅ Telex Released');
+    if (allDocTypes.has('vessel_departed')) completedMilestones.push('✅ Vessel Departed');
+    if (allDocTypes.has('vessel_arrived') || allDocTypes.has('arrival_notice')) completedMilestones.push('✅ Vessel Arrived');
+    if (allDocTypes.has('container_release') || allDocTypes.has('delivery_order')) completedMilestones.push('✅ Container Released');
+
+    // Build completion status section - CRITICAL for AI accuracy
+    let completionStatusSection = `
+## COMPLETION STATUS (What is DONE vs PENDING)
+COMPLETED: ${completedMilestones.length > 0 ? completedMilestones.join(' | ') : 'None yet'}
+STILL NEEDED: ${pendingMilestones.length > 0 ? pendingMilestones.join(' | ') : 'All complete'}
+
+IMPORTANT: Do NOT say cutoffs "passed" if the required document was submitted BEFORE the cutoff.
+If SI is submitted/confirmed, the SI cutoff was MET, not missed.`;
+
+    if (milestones.length > 0) {
       const events = milestones.map(m => {
         const date = this.formatDate(m.occurred_at);
         const party = m.carrier_name || m.from_party || 'system';
@@ -1169,17 +1366,40 @@ Cargo Cutoff: ${this.formatDateWithDays(shipment.cargo_cutoff)}`;
       recentSection = `\n## RECENT ACTIVITY (Last 7 Days)\n${entries}`;
     }
 
-    // Build pending actions from recent (last 7 days)
+    // Build pending actions from recent (last 7 days) - ENHANCED with precise action data
     const pendingActions = recent.filter(r => r.has_action && !r.action_completed_at);
     let actionsSection = '';
     if (pendingActions.length > 0) {
-      const actions = pendingActions.map(a => {
-        const deadline = a.action_deadline ? this.formatDateWithDays(a.action_deadline) : 'no deadline';
-        const priority = a.action_priority || 'medium';
-        const contact = a.from_address ? ` [Contact: ${a.from_address}]` : '';
-        return `- [${priority.toUpperCase()}] ${a.action_description} (${deadline})${contact}`;
-      }).join('\n');
-      actionsSection = `\n## PENDING ACTIONS\n${actions}`;
+      // Group actions by owner for better AI understanding
+      const byOwner: Record<string, typeof pendingActions> = {};
+      for (const a of pendingActions) {
+        const owner = a.action_owner || 'operations';
+        if (!byOwner[owner]) byOwner[owner] = [];
+        byOwner[owner].push(a);
+      }
+
+      const ownerSections: string[] = [];
+      for (const [owner, actions] of Object.entries(byOwner)) {
+        const ownerLabel = owner.toUpperCase();
+        const actionLines = actions.map(a => {
+          const priority = a.action_priority || 'MEDIUM';
+          const actionType = a.action_type || 'review';
+          const verb = a.action_verb || 'Review';
+          const deadline = a.action_deadline ? this.formatDateWithDays(a.action_deadline) : 'no deadline';
+          const deadlineReason = a.action_deadline_source ? ` (${a.action_deadline_source})` : '';
+          const contact = a.from_address ? `\n    Contact: ${a.from_address}` : '';
+          const autoResolve = a.action_auto_resolve_on && a.action_auto_resolve_on.length > 0
+            ? `\n    Auto-resolves when: ${a.action_auto_resolve_on.join(', ')}`
+            : '';
+
+          return `  - [${priority}] ${verb}: ${a.action_description}
+    Type: ${actionType} | Deadline: ${deadline}${deadlineReason}${contact}${autoResolve}`;
+        }).join('\n');
+
+        ownerSections.push(`### ${ownerLabel} TEAM (${actions.length} action${actions.length > 1 ? 's' : ''})\n${actionLines}`);
+      }
+
+      actionsSection = `\n## PENDING ACTIONS BY OWNER\n${ownerSections.join('\n\n')}`;
     }
 
     // Build financial section - CRITICAL for accurate summaries
@@ -1300,6 +1520,27 @@ Cargo Cutoff: ${this.formatDateWithDays(shipment.cargo_cutoff)}`;
         insights.push(`🔴 HIGH RISK SHIPPER (${p.riskScore}/100): ${p.riskFactors.join(', ')}`);
       }
 
+      // NEW: Preferred carriers - useful for carrier selection context
+      if (p.preferredCarriers && p.preferredCarriers.length > 0) {
+        const carrierList = p.preferredCarriers.slice(0, 3).join(', ');
+        insights.push(`🚢 PREFERRED CARRIERS: ${carrierList}`);
+      }
+
+      // NEW: Common issue types - proactive risk awareness
+      if (p.commonIssueTypes && p.commonIssueTypes.length > 0) {
+        const issueList = p.commonIssueTypes.slice(0, 3).join(', ');
+        insights.push(`⚠️ COMMON ISSUES: ${issueList}`);
+      }
+
+      // NEW: Relationship context - tenure affects trust level
+      if (p.relationshipMonths !== undefined && p.relationshipMonths > 0) {
+        if (p.relationshipMonths >= 12) {
+          insights.push(`📅 RELATIONSHIP: ${Math.floor(p.relationshipMonths / 12)}+ years (established)`);
+        } else if (p.relationshipMonths <= 3) {
+          insights.push(`📅 RELATIONSHIP: ${p.relationshipMonths} months (new customer - extra verification)`);
+        }
+      }
+
       if (insights.length > 0) {
         intelligenceSection += `\n## SHIPPER INTEL (${p.shipperName}) [Stage: ${stage}]\n${insights.join('\n')}`;
       }
@@ -1356,6 +1597,12 @@ Cargo Cutoff: ${this.formatDateWithDays(shipment.cargo_cutoff)}`;
         insights.push(`🔴 LOW PERFORMER (${p.performanceScore}/100)`);
       }
 
+      // NEW: Performance factors - specific strengths/weaknesses
+      if (p.performanceFactors && p.performanceFactors.length > 0) {
+        const factors = p.performanceFactors.slice(0, 3).join(', ');
+        insights.push(`📊 PERFORMANCE: ${factors}`);
+      }
+
       if (insights.length > 0) {
         intelligenceSection += `\n## CARRIER INTEL (${p.carrierName}) [Stage: ${stage}]\n${insights.join('\n')}`;
       }
@@ -1384,14 +1631,160 @@ Cargo Cutoff: ${this.formatDateWithDays(shipment.cargo_cutoff)}`;
       }
     }
 
-    return `${header}${schedule}${alertSection}${daysOverdueSection}${financialSection}${warningsSection}${intelligenceSection}${milestoneSection}${recentSection}${actionsSection}
+    // Build CHRONICLE INTELLIGENCE section - computed signals from email data
+    let chronicleIntelSection = '';
+    const chronicleSignals: string[] = [];
+
+    // 1. Sentiment Analysis
+    const urgentEmails = recent.filter(r => r.sentiment === 'urgent').length;
+    const negativeEmails = recent.filter(r => r.sentiment === 'negative').length;
+    if (urgentEmails > 0 || negativeEmails > 0) {
+      chronicleSignals.push(`📊 SENTIMENT: ${urgentEmails} urgent, ${negativeEmails} negative emails in last 7 days`);
+    }
+
+    // 2. Amendment/Revision Tracking
+    const amendments = recent.filter(r =>
+      r.document_type?.includes('amendment') ||
+      r.summary?.toLowerCase().includes('amendment') ||
+      r.summary?.toLowerCase().includes('revision') ||
+      r.summary?.toLowerCase().includes('updated')
+    ).length;
+    if (amendments > 1) {
+      chronicleSignals.push(`📝 AMENDMENTS: ${amendments} revisions detected - frequent changes`);
+    }
+
+    // 3. Escalation Detection
+    const escalations = recent.filter(r =>
+      r.message_type === 'escalation' ||
+      r.summary?.toLowerCase().includes('escalat') ||
+      r.summary?.toLowerCase().includes('urgent')
+    ).length;
+    if (escalations > 0) {
+      chronicleSignals.push(`🚨 ESCALATIONS: ${escalations} escalation(s) in thread - requires attention`);
+    }
+
+    // 4. Safety/Priority Keywords Detection
+    const safetyKeywords = ['hot loading', 'hazmat', 'dangerous', 'safety', 'rollover'];
+    const hasSafetyAlert = recent.some(r =>
+      safetyKeywords.some(kw => r.summary?.toLowerCase().includes(kw))
+    );
+    if (hasSafetyAlert) {
+      chronicleSignals.push(`⚠️ SAFETY ALERT: Safety-related keywords detected in chronicle - review immediately`);
+    }
+
+    // 5. Unresolved Issues
+    const unresolvedIssues = recent.filter(r => r.has_issue).length;
+    if (unresolvedIssues > 0) {
+      chronicleSignals.push(`❗ ISSUES: ${unresolvedIssues} issue(s) flagged in recent communications`);
+    }
+
+    // 6. Thread Activity Analysis
+    const uniqueThreads = new Set(recent.filter(r => r.thread_id).map(r => r.thread_id));
+    const avgEmailsPerThread = uniqueThreads.size > 0 ? recent.length / uniqueThreads.size : 0;
+    if (avgEmailsPerThread > 3) {
+      chronicleSignals.push(`💬 THREAD DEPTH: Avg ${avgEmailsPerThread.toFixed(1)} emails per thread - ongoing discussions`);
+    }
+
+    // 7. Party Communication Patterns
+    const partyEmails: Record<string, number> = {};
+    for (const r of recent) {
+      const party = r.carrier_name || r.from_party || 'unknown';
+      partyEmails[party] = (partyEmails[party] || 0) + 1;
+    }
+    const topParties = Object.entries(partyEmails)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .filter(([_, count]) => count >= 2);
+    if (topParties.length > 0) {
+      const partyList = topParties.map(([party, count]) => `${party}: ${count}`).join(', ');
+      chronicleSignals.push(`📧 COMMUNICATION: ${partyList} emails in 7 days`);
+    }
+
+    // 8. Financial Signals from Chronicle
+    const financialMentions = recent.filter(r =>
+      r.amount ||
+      r.summary?.toLowerCase().includes('invoice') ||
+      r.summary?.toLowerCase().includes('payment') ||
+      r.summary?.toLowerCase().includes('detention') ||
+      r.summary?.toLowerCase().includes('demurrage')
+    );
+    if (financialMentions.length > 0) {
+      const amounts = financialMentions.filter(r => r.amount).map(r => `${r.currency || 'USD'} ${r.amount}`);
+      if (amounts.length > 0) {
+        chronicleSignals.push(`💰 FINANCIAL: ${amounts.slice(0, 3).join(', ')} mentioned in emails`);
+      } else {
+        chronicleSignals.push(`💰 FINANCIAL: ${financialMentions.length} financial-related emails detected`);
+      }
+    }
+
+    if (chronicleSignals.length > 0) {
+      chronicleIntelSection = `\n## CHRONICLE INTELLIGENCE (Computed from ${recent.length} emails)\n${chronicleSignals.join('\n')}`;
+    }
+
+    // Build rule-based actions section (time-based triggers and document flows)
+    let ruleBasedActionsSection = '';
+    if (ruleBasedActions) {
+      const parts: string[] = [];
+
+      // Time-based actions (cutoff triggers)
+      if (ruleBasedActions.timeBasedActions.length > 0) {
+        const firingActions = ruleBasedActions.timeBasedActions.filter(a => a.isFiring);
+        const upcomingActions = ruleBasedActions.timeBasedActions.filter(a => !a.isFiring && a.hoursUntilTrigger > 0);
+
+        if (firingActions.length > 0) {
+          const firingLines = firingActions.map(a =>
+            `🔴 NOW: ${a.actionDescription} (${a.urgency.toUpperCase()}) - Owner: ${a.actionOwner}`
+          ).join('\n');
+          parts.push(`### ACTIVE TRIGGERS (Action Required NOW)\n${firingLines}`);
+        }
+
+        if (upcomingActions.length > 0) {
+          const upcomingLines = upcomingActions.slice(0, 3).map(a => {
+            const hours = Math.round(a.hoursUntilTrigger);
+            const timeStr = hours < 24 ? `${hours}h` : `${Math.round(hours / 24)}d`;
+            return `⏰ ${timeStr}: ${a.actionDescription} (${a.urgency})`;
+          }).join('\n');
+          parts.push(`### UPCOMING TRIGGERS\n${upcomingLines}`);
+        }
+      }
+
+      // Document flow positions (multi-step workflows)
+      if (ruleBasedActions.documentFlows.length > 0) {
+        const flowLines = ruleBasedActions.documentFlows.map(f => {
+          const stepInfo = f.nextStep ? `Step ${f.currentStep + 1}: ${f.nextStep.action} → ${f.nextStep.to_party}` : '';
+          return `📋 ${f.documentType}: ${f.pendingAction || 'Awaiting next step'} ${stepInfo}`;
+        }).join('\n');
+        parts.push(`### DOCUMENT FLOWS IN PROGRESS\n${flowLines}`);
+      }
+
+      if (parts.length > 0) {
+        ruleBasedActionsSection = `\n## RULE-BASED ACTIONS (Automatic triggers from workflow rules)
+${parts.join('\n\n')}
+
+IMPORTANT: These are PRE-COMPUTED actions from business rules. Use them to populate nextAction if relevant.
+Active triggers (NOW) should be your PRIORITY nextAction.`;
+      }
+    }
+
+    // P0-P3: Add pre-computed intelligence section (anti-hallucination)
+    let preComputedSection = '';
+    if (intelligence) {
+      preComputedSection = buildPreComputedSection(intelligence);
+    }
+
+    return `${header}${schedule}${alertSection}${completionStatusSection}${chronicleIntelSection}${daysOverdueSection}${financialSection}${warningsSection}${intelligenceSection}${ruleBasedActionsSection}${preComputedSection}${milestoneSection}${recentSection}${actionsSection}
 
 Analyze this shipment and return the JSON summary. Remember:
 1. Use ACTUAL documented charges from FINANCIAL CHARGES section
 2. Calculate detention: [days] × $150/day = $[total]
 3. Include days overdue in story if past ETA
 4. Distinguish BLOCKER (external dependency) vs TASK (Intoglo can do now)
-5. Set customerActionRequired=true if customer must act`;
+5. Set customerActionRequired=true if customer must act
+6. Be SPECIFIC - use party names, dates, amounts from the data above
+7. If CHRONICLE INTELLIGENCE shows escalations/safety alerts, LEAD with them
+8. If RULE-BASED ACTIONS has active triggers, prioritize them in nextAction
+9. Use PRE-COMPUTED FACTS section values EXACTLY - do not recalculate SLA hours, escalation level, or financial exposure
+10. Generate customerDraftBody email if SLA is BREACHED or CRITICAL`;
   }
 
   // ===========================================================================
@@ -1417,14 +1810,21 @@ Analyze this shipment and return the JSON summary. Remember:
       negativeCount: number;
       issueCount: number;
       daysSinceActivity: number | null;
-    }
+    },
+    ruleBasedActions?: RuleBasedActionsContext,
+    intelligence?: ShipmentIntelligence | null // P0-P3: Pre-computed intelligence
   ): Promise<GenerationResult> {
-    const userPrompt = this.buildPrompt(shipment, milestones, recent, urgencies, profiles, financial, warnings, signals);
+    const userPrompt = this.buildPrompt(shipment, milestones, recent, urgencies, profiles, financial, warnings, signals, ruleBasedActions, intelligence);
+
+    // Use enhanced system prompt with anti-hallucination rules
+    const enhancedSystemPrompt = intelligence
+      ? SYSTEM_PROMPT + ENHANCED_SYSTEM_PROMPT_ADDITIONS
+      : SYSTEM_PROMPT;
 
     const response = await this.anthropic.messages.create({
       model: 'claude-3-5-haiku-20241022',
-      max_tokens: 600,
-      system: SYSTEM_PROMPT,
+      max_tokens: 1500, // Increased for enhanced P0-P3 output
+      system: enhancedSystemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
     });
 
@@ -1433,6 +1833,9 @@ Analyze this shipment and return the JSON summary. Remember:
 
     try {
       const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.log('[HaikuSummary] No JSON in response:', text.substring(0, 200));
+      }
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
         // Ensure all fields are present (may be null)
@@ -1467,6 +1870,29 @@ Analyze this shipment and return the JSON summary. Remember:
           urgentMessageCount: (signals.urgentCount + signals.negativeCount) > 0 ? signals.urgentCount + signals.negativeCount : null,
           carrierPerformance: profiles.carrier ? `${profiles.carrier.carrierName}: ${profiles.carrier.onTimeArrivalRate ?? 'N/A'}% on-time` : null,
           shipperRiskSignal: profiles.shipper && profiles.shipper.riskScore >= 30 ? `${profiles.shipper.siLateRate ?? 0}% SI late, risk ${profiles.shipper.riskScore}` : null,
+          // Predictive elements (from AI)
+          predictedRisks: Array.isArray(parsed.predictedRisks) ? parsed.predictedRisks.slice(0, 3) : null,
+          proactiveRecommendations: Array.isArray(parsed.proactiveRecommendations) ? parsed.proactiveRecommendations.slice(0, 2) : null,
+          predictedEta: parsed.predictedEta || null,
+          etaConfidence: ['high', 'medium', 'low'].includes(parsed.etaConfidence) ? parsed.etaConfidence : null,
+          // P0: SLA Status (will be overwritten by post-validation)
+          slaStatus: parsed.slaStatus || null,
+          hoursSinceCustomerUpdate: parsed.hoursSinceCustomerUpdate || null,
+          slaSummary: parsed.slaSummary || null,
+          // P1: Escalation Level (will be overwritten by post-validation)
+          escalationLevel: parsed.escalationLevel || null,
+          escalateTo: parsed.escalateTo || null,
+          // P2: Root Cause (will be overwritten by post-validation)
+          rootCauseCategory: parsed.rootCauseCategory || null,
+          rootCauseSubcategory: parsed.rootCauseSubcategory || null,
+          typicalResolutionDays: parsed.typicalResolutionDays || null,
+          benchmarkReference: parsed.benchmarkReference || null,
+          // P0: Customer Draft (AI-generated)
+          customerDraftSubject: parsed.customerDraftSubject || null,
+          customerDraftBody: parsed.customerDraftBody || null,
+          // P3: Confidence (will be overwritten by post-validation)
+          recommendationConfidence: parsed.recommendationConfidence || null,
+          confidenceReason: parsed.confidenceReason || null,
         };
       } else {
         throw new Error('No JSON found');
@@ -1503,6 +1929,25 @@ Analyze this shipment and return the JSON summary. Remember:
         urgentMessageCount: (signals.urgentCount + signals.negativeCount) > 0 ? signals.urgentCount + signals.negativeCount : null,
         carrierPerformance: profiles.carrier ? `${profiles.carrier.carrierName}: ${profiles.carrier.onTimeArrivalRate ?? 'N/A'}% on-time` : null,
         shipperRiskSignal: profiles.shipper && profiles.shipper.riskScore >= 30 ? `${profiles.shipper.siLateRate ?? 0}% SI late, risk ${profiles.shipper.riskScore}` : null,
+        // Predictive elements (null on error)
+        predictedRisks: null,
+        proactiveRecommendations: null,
+        predictedEta: null,
+        etaConfidence: null,
+        // P0-P3 fields (null on error, will be filled by post-validation if intelligence available)
+        slaStatus: null,
+        hoursSinceCustomerUpdate: null,
+        slaSummary: null,
+        escalationLevel: null,
+        escalateTo: null,
+        rootCauseCategory: null,
+        rootCauseSubcategory: null,
+        typicalResolutionDays: null,
+        benchmarkReference: null,
+        customerDraftSubject: null,
+        customerDraftBody: null,
+        recommendationConfidence: null,
+        confidenceReason: null,
       };
     }
 
@@ -1725,6 +2170,98 @@ Analyze this shipment and return the JSON summary. Remember:
       }
     }
 
+    // =========================================================================
+    // RULE 10: Stage-Inappropriate Predicted Risks
+    // Remove predictions that are impossible given the current stage
+    // =========================================================================
+    const POST_DEPARTURE_STAGES = ['BL_ISSUED', 'DEPARTED', 'IN_TRANSIT', 'TRANSSHIPMENT', 'ARRIVED', 'CUSTOMS_CLEARED', 'DELIVERED', 'COMPLETED'];
+    const isPostDeparture = POST_DEPARTURE_STAGES.includes(stage);
+
+    if (isPostDeparture && summary.predictedRisks && summary.predictedRisks.length > 0) {
+      // Filter out pre-departure risks that are impossible post-departure
+      const preDepartureRiskPatterns = [
+        /rollover/i,           // Can't roll over cargo already on vessel
+        /missed?\s*(si|vgm|cargo)\s*cutoff/i,  // Cutoffs are pre-departure
+        /booking\s*cancel/i,   // Can't cancel shipped booking
+        /space\s*(loss|unavailable)/i,  // Space issues are pre-departure
+      ];
+
+      summary.predictedRisks = summary.predictedRisks.filter(risk => {
+        const isInappropriate = preDepartureRiskPatterns.some(pattern => pattern.test(risk));
+        if (isInappropriate) {
+          console.log(`[HaikuSummary] Filtered stage-inappropriate risk at ${stage}: "${risk}"`);
+        }
+        return !isInappropriate;
+      });
+
+      // Set to null if all risks were filtered
+      if (summary.predictedRisks.length === 0) {
+        summary.predictedRisks = null;
+      }
+    }
+
+    // Also filter blockers that mention pre-departure concepts for post-departure stages
+    if (isPostDeparture && summary.currentBlocker) {
+      const preDepartureBlockerPatterns = [
+        /rollover/i,
+        /vessel\s*space/i,
+        /booking\s*(not\s*)?confirm/i,
+        /cutoff.*(miss|pass|overdue)/i,  // Cutoffs can't be missed if BL is issued
+        /(miss|pass|overdue).*cutoff/i,
+        /(si|vgm|cargo)\s*cutoff/i,      // Pre-departure cutoff references
+      ];
+
+      const hasInappropriateBlocker = preDepartureBlockerPatterns.some(
+        pattern => pattern.test(summary.currentBlocker || '')
+      );
+
+      if (hasInappropriateBlocker) {
+        console.log(`[HaikuSummary] Filtered stage-inappropriate blocker at ${stage}: "${summary.currentBlocker}"`);
+        summary.currentBlocker = null;
+        summary.blockerOwner = null;
+        summary.blockerType = null;
+      }
+    }
+
+    // =========================================================================
+    // RULE 11: Clean Up Stage-Inappropriate Language in Narratives
+    // If BL is issued, cutoffs were MET (not missed) - fix misleading language
+    // =========================================================================
+    if (isPostDeparture) {
+      // Fix narrative
+      if (summary.narrative) {
+        summary.narrative = summary.narrative
+          .replace(/cutoffs?\s*(were\s*)?(missed|passed|overdue)/gi, 'cutoffs were met')
+          .replace(/(missed|overdue)\s*cutoffs?/gi, 'met cutoffs')
+          .replace(/pending\s*(si|vgm|cargo)\s*(submission|cutoff)/gi, 'completed $1')
+          .replace(/(si|vgm)\s*not\s*(yet\s*)?(submitted|complete)/gi, '$1 completed');
+      }
+
+      // Fix story
+      if (summary.story) {
+        summary.story = summary.story
+          .replace(/cutoffs?\s*(were\s*)?(missed|passed|overdue)/gi, 'cutoffs were met')
+          .replace(/(missed|overdue)\s*cutoffs?/gi, 'met cutoffs')
+          .replace(/pending\s*(si|vgm|cargo)\s*(submission|cutoff)/gi, 'completed $1')
+          .replace(/(si|vgm)\s*not\s*(yet\s*)?(submitted|complete)/gi, '$1 completed');
+      }
+
+      // Fix risk reason
+      if (summary.riskReason) {
+        summary.riskReason = summary.riskReason
+          .replace(/cutoffs?\s*(missed|passed|overdue)/gi, 'documentation delays')
+          .replace(/(missed|overdue)\s*cutoffs?/gi, 'prior delays')
+          .replace(/rollover\s*risk/gi, 'transit risk');
+      }
+
+      // Fix key insight
+      if (summary.keyInsight) {
+        summary.keyInsight = summary.keyInsight
+          .replace(/cutoffs?\s*(missed|passed|overdue)/gi, 'documentation completed')
+          .replace(/(missed|overdue)\s*cutoffs?/gi, 'prior delays');
+      }
+    }
+
     return { ...result, summary };
   }
 
@@ -1768,6 +2305,28 @@ Analyze this shipment and return the JSON summary. Remember:
         urgent_message_count: summary.urgentMessageCount,
         carrier_performance: summary.carrierPerformance,
         shipper_risk_signal: summary.shipperRiskSignal,
+        // Predictive elements
+        predicted_risks: summary.predictedRisks,
+        proactive_recommendations: summary.proactiveRecommendations,
+        predicted_eta: summary.predictedEta,
+        eta_confidence: summary.etaConfidence,
+        // P0: SLA Status (pre-computed, anti-hallucination)
+        sla_status: summary.slaStatus,
+        hours_since_customer_update: summary.hoursSinceCustomerUpdate,
+        sla_breach_reason: summary.slaSummary,
+        // P1: Escalation Level (pre-computed, anti-hallucination)
+        escalation_level: summary.escalationLevel,
+        escalate_to: summary.escalateTo,
+        // P2: Root Cause (pre-computed, anti-hallucination)
+        root_cause_category: summary.rootCauseCategory,
+        root_cause_subcategory: summary.rootCauseSubcategory,
+        typical_resolution_days: summary.typicalResolutionDays,
+        benchmark_source: summary.benchmarkReference,
+        // P0: Customer Draft (AI-generated based on facts)
+        customer_draft_subject: summary.customerDraftSubject,
+        customer_draft_body: summary.customerDraftBody,
+        // P3: Confidence (AI self-assessment)
+        recommendation_confidence: summary.recommendationConfidence,
         // Intelligence warnings
         intelligence_warnings: warnings.map(w => w.message),
         // Metadata
@@ -1794,6 +2353,12 @@ Analyze this shipment and return the JSON summary. Remember:
     if (!shipment) {
       console.log('[HaikuSummary] Shipment not found:', shipmentId);
       return null;
+    }
+
+    // Layer 1.5: Get PRE-COMPUTED INTELLIGENCE (anti-hallucination layer)
+    const intelligence = await this.intelligenceService.getIntelligence(shipmentId);
+    if (intelligence) {
+      console.log(`[HaikuSummary] Intelligence loaded: SLA=${intelligence.sla.slaStatus}, Escalation=${intelligence.escalation.escalationLevel}`);
     }
 
     // Layer 2: Get key milestones (all-time) - includes confirmations to show what's DONE
@@ -1839,6 +2404,9 @@ Analyze this shipment and return the JSON summary. Remember:
     // Layer 4.6: Get intelligence signals (escalations, sentiment, staleness)
     const signals = await this.getIntelligenceSignals(shipmentId);
 
+    // Layer 4.7: Get rule-based actions (time-based triggers, document flows)
+    const ruleBasedActions = await this.getRuleBasedActions(shipmentId, shipment, recent);
+
     // Layer 5-8: Cross-shipment intelligence profiles
     const [shipperProfile, consigneeProfile, carrierProfile, routeProfile] = await Promise.all([
       this.getShipperProfile(shipment.shipper_name),
@@ -1847,7 +2415,7 @@ Analyze this shipment and return the JSON summary. Remember:
       this.getRouteProfile(shipment.port_of_loading_code, shipment.port_of_discharge_code),
     ]);
 
-    // Generate AI summary with financial data, warnings, and intelligence signals
+    // Generate AI summary with financial data, warnings, intelligence signals, rule-based actions, AND pre-computed intelligence
     const rawResult = await this.generateSummary(
       shipment,
       milestones,
@@ -1861,12 +2429,22 @@ Analyze this shipment and return the JSON summary. Remember:
       },
       financial,
       warnings,
-      signals
+      signals,
+      ruleBasedActions,
+      intelligence // P0-P3: Pre-computed intelligence for anti-hallucination
     );
 
     // CRITICAL: Validate and enrich AI output with business rules
     // This catches logical errors like "DELIVERED with overdue" or "future ETA overdue"
-    const validatedResult = this.validateAndEnrich(rawResult, shipment, signals);
+    let validatedResult = this.validateAndEnrich(rawResult, shipment, signals);
+
+    // P0-P3: Additional validation against pre-computed values (anti-hallucination)
+    if (intelligence) {
+      validatedResult = {
+        ...validatedResult,
+        summary: validateAgainstPreComputed(validatedResult.summary, intelligence),
+      };
+    }
 
     // Save validated result to database
     await this.saveSummary(shipmentId, validatedResult, warnings);

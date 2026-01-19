@@ -45,6 +45,16 @@ import {
   PatternMatchResult,
   emailToPatternInput,
 } from './pattern-matcher';
+import {
+  UnifiedActionService,
+  createUnifiedActionService,
+  ActionRecommendation,
+  ShipmentContext,
+} from './unified-action-service';
+import {
+  ActionAutoResolveService,
+  createActionAutoResolveService,
+} from './action-auto-resolve-service';
 
 // ============================================================================
 // SERVICE IMPLEMENTATION
@@ -56,11 +66,15 @@ export class ChronicleService implements IChronicleService {
   private pdfExtractor: IPdfExtractor;
   private aiAnalyzer: IAiAnalyzer;
   private patternMatcher: IPatternMatcherService;
+  private unifiedActionService: UnifiedActionService;
+  private actionAutoResolveService: ActionAutoResolveService;
   private repository: IChronicleRepository;
   private logger: ChronicleLogger | null = null;
 
   // Metrics for pattern matching performance
   private patternMatchStats = { matched: 0, aiNeeded: 0 };
+  // Metrics for action determination
+  private actionStats = { ruleDefault: 0, ruleFlipped: 0, aiFallback: 0 };
 
   constructor(
     supabase: SupabaseClient,
@@ -72,6 +86,8 @@ export class ChronicleService implements IChronicleService {
     this.pdfExtractor = new PdfExtractor();
     this.aiAnalyzer = new AiAnalyzer();
     this.patternMatcher = new PatternMatcherService(supabase);
+    this.unifiedActionService = createUnifiedActionService(supabase);
+    this.actionAutoResolveService = createActionAutoResolveService(supabase);
     this.repository = new ChronicleRepository(supabase);
     this.logger = logger || null;
   }
@@ -239,6 +255,40 @@ export class ChronicleService implements IChronicleService {
       console.log(`[Chronicle] Normalized: ${originalDocType} → ${analysis.document_type}`);
     }
 
+    // Step 5b: Get action recommendation from UnifiedActionService
+    // Uses action_rules table for all action determination (replaces ActionRulesService + PreciseActionService)
+    const isReply = threadPosition > 1;
+    const shipmentContext = await this.getShipmentContextByIdentifiers(analysis);
+    const actionRecommendation = await this.unifiedActionService.getRecommendation(
+      analysis.document_type,
+      analysis.from_party || 'unknown',
+      isReply,
+      email.subject,
+      email.bodyText,
+      email.receivedAt,
+      shipmentContext || undefined
+    );
+
+    // Apply action recommendation to analysis
+    analysis.has_action = actionRecommendation.hasAction;
+    analysis.action_description = actionRecommendation.actionDescription;
+    analysis.action_owner = actionRecommendation.owner as typeof analysis.action_owner;
+    analysis.action_deadline = actionRecommendation.deadline
+      ? actionRecommendation.deadline.toISOString().split('T')[0]
+      : null;
+    analysis.action_priority = this.mapPriorityLabel(actionRecommendation.priorityLabel);
+
+    // Track action stats
+    this.trackActionStatsUnified(actionRecommendation);
+
+    // Log action determination
+    if (actionRecommendation.hasAction) {
+      console.log(`[Chronicle] Action: ${actionRecommendation.actionVerb} (${actionRecommendation.priorityLabel}, owner: ${actionRecommendation.owner}, source: ${actionRecommendation.source})`);
+    }
+    if (actionRecommendation.wasFlipped) {
+      console.log(`[Chronicle] Action flipped by keyword: "${actionRecommendation.flipKeyword}"`);
+    }
+
     // Track classification method for learning
     const predictionMethod = patternResult?.matched && !patternResult.requiresAiFallback ? 'pattern' : 'ai';
     const predictionConfidence = patternResult?.matched ? patternResult.confidence : 75; // Default AI confidence
@@ -247,7 +297,7 @@ export class ChronicleService implements IChronicleService {
     const dbStart = this.logger?.logStageStart('db_save') || 0;
     let chronicleId: string;
     try {
-      chronicleId = await this.saveToDatabase(email, analysis, attachmentsWithText);
+      chronicleId = await this.saveToDatabase(email, analysis, attachmentsWithText, actionRecommendation);
       this.logger?.logStageSuccess('db_save', dbStart);
     } catch (error) {
       this.logger?.logStageFailure('db_save', dbStart, error as Error, {
@@ -394,7 +444,7 @@ export class ChronicleService implements IChronicleService {
 
     // Build minimal analysis - document_type is the key output
     // Other fields extracted via simple regex patterns
-    return {
+    const analysis: ShippingAnalysis = {
       transport_mode: 'ocean',
       document_type: documentType,
       booking_number: knownValues.bookingNumber || this.extractBookingNumber(email.subject, email.bodyText) || null,
@@ -453,11 +503,11 @@ export class ChronicleService implements IChronicleService {
       amount: null,
       currency: null,
 
-      // Intelligence - simplified for pattern match
+      // Intelligence - defaults, will be updated by UnifiedActionService in processEmail
       message_type: this.inferMessageType(documentType),
       sentiment: 'neutral',
       summary: `${documentType.replace(/_/g, ' ')} notification`,
-      has_action: this.documentTypeHasAction(documentType),
+      has_action: false,  // Will be set by UnifiedActionService
       action_description: null,
       action_owner: null,
       action_deadline: null,
@@ -466,6 +516,26 @@ export class ChronicleService implements IChronicleService {
       issue_type: null,
       issue_description: null,
     };
+
+    // Action determination is now handled by UnifiedActionService in processEmail
+    // after both pattern matching and AI classification
+    return analysis;
+  }
+
+  /**
+   * Track action determination statistics (unified service)
+   */
+  private trackActionStatsUnified(action: ActionRecommendation): void {
+    if (action.source === 'rule') this.actionStats.ruleDefault++;
+    else if (action.source === 'rule_flipped') this.actionStats.ruleFlipped++;
+    else this.actionStats.aiFallback++;
+  }
+
+  /**
+   * Get action determination statistics for monitoring
+   */
+  getActionStats(): { ruleDefault: number; ruleFlipped: number; aiFallback: number } {
+    return { ...this.actionStats };
   }
 
   // Simple regex extractors for pattern-matched emails
@@ -521,6 +591,20 @@ export class ChronicleService implements IChronicleService {
     return 'notification';
   }
 
+  /**
+   * Map priority label to ShippingAnalysis action_priority enum
+   * URGENT → critical, HIGH → high, MEDIUM → medium, LOW → low
+   */
+  private mapPriorityLabel(label: string): ShippingAnalysis['action_priority'] {
+    switch (label.toUpperCase()) {
+      case 'URGENT': return 'critical';
+      case 'HIGH': return 'high';
+      case 'MEDIUM': return 'medium';
+      case 'LOW': return 'low';
+      default: return 'medium';
+    }
+  }
+
   private documentTypeHasAction(documentType: string): boolean {
     const actionTypes = [
       'vgm_request', 'si_request', 'payment_request',
@@ -548,6 +632,49 @@ export class ChronicleService implements IChronicleService {
     } catch (error) {
       // Log but don't fail - thread context is optional enhancement
       console.error('[Chronicle] Failed to fetch thread context:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get shipment context by identifiers for precise action deadline calculations
+   * Looks up existing shipment by booking/BL/container and fetches cutoff dates
+   */
+  private async getShipmentContextByIdentifiers(
+    analysis: ShippingAnalysis
+  ): Promise<ShipmentContext | null> {
+    try {
+      // Build identifier-based query
+      const conditions = [];
+      if (analysis.booking_number) conditions.push(`booking_number = '${analysis.booking_number}'`);
+      if (analysis.mbl_number) conditions.push(`mbl_number = '${analysis.mbl_number}'`);
+      if (analysis.container_numbers?.length) {
+        conditions.push(`container_number_primary = '${analysis.container_numbers[0]}'`);
+      }
+
+      if (conditions.length === 0) return null;
+
+      const { data: shipment } = await this.supabase
+        .from('shipments')
+        .select('id, stage, customer_name, booking_number, si_cutoff, vgm_cutoff, cargo_cutoff, eta')
+        .or(conditions.join(','))
+        .limit(1)
+        .single();
+
+      if (!shipment) return null;
+
+      return {
+        shipmentId: shipment.id,
+        stage: shipment.stage,
+        customerName: shipment.customer_name,
+        bookingNumber: shipment.booking_number,
+        siCutoff: shipment.si_cutoff ? new Date(shipment.si_cutoff) : null,
+        vgmCutoff: shipment.vgm_cutoff ? new Date(shipment.vgm_cutoff) : null,
+        cargoCutoff: shipment.cargo_cutoff ? new Date(shipment.cargo_cutoff) : null,
+        eta: shipment.eta ? new Date(shipment.eta) : null,
+      };
+    } catch (error) {
+      // Non-critical - return null if lookup fails
       return null;
     }
   }
@@ -617,11 +744,12 @@ export class ChronicleService implements IChronicleService {
   private async saveToDatabase(
     email: ProcessedEmail,
     analysis: ShippingAnalysis,
-    attachmentsWithText: ProcessedAttachment[]
+    attachmentsWithText: ProcessedAttachment[],
+    actionRecommendation?: ActionRecommendation
   ): Promise<string> {
     const trueSender = extractTrueSender(email);
     const fromParty = analysis.from_party || detectPartyType(trueSender);
-    const insertData = this.buildInsertData(email, analysis, fromParty, attachmentsWithText);
+    const insertData = this.buildInsertData(email, analysis, fromParty, attachmentsWithText, actionRecommendation);
     const { id } = await this.repository.insert(insertData);
     return id;
   }
@@ -669,9 +797,16 @@ export class ChronicleService implements IChronicleService {
         }
       }
 
-      // Resolve related actions if this is a confirmation document
+      // Auto-resolve pending actions when trigger documents arrive
+      // Uses action_auto_resolve_on field from chronicle records
       if (finalShipmentId) {
-        await this.resolveActionsIfConfirmation(finalShipmentId, analysis.document_type, email.receivedAt);
+        const autoResolveResult = await this.actionAutoResolveService.resolveActionsForDocument(
+          finalShipmentId,
+          analysis.document_type
+        );
+        if (autoResolveResult.resolvedCount > 0) {
+          console.log(`[Chronicle] Auto-resolved ${autoResolveResult.resolvedCount} action(s) for ${analysis.document_type}`);
+        }
       }
 
       // Log actions and issues
@@ -856,7 +991,8 @@ export class ChronicleService implements IChronicleService {
     email: ProcessedEmail,
     analysis: ShippingAnalysis,
     fromParty: string,
-    attachmentsWithText: ProcessedAttachment[]
+    attachmentsWithText: ProcessedAttachment[],
+    actionRecommendation?: ActionRecommendation
   ): ChronicleInsertData {
     return {
       gmail_message_id: email.gmailMessageId,
@@ -948,6 +1084,17 @@ export class ChronicleService implements IChronicleService {
       action_owner: analysis.action_owner || null,
       action_deadline: analysis.action_deadline || null,
       action_priority: analysis.action_priority || null,
+
+      // Action fields (from UnifiedActionService)
+      action_type: actionRecommendation?.actionType || null,
+      action_verb: actionRecommendation?.actionVerb || null,
+      action_priority_score: actionRecommendation?.priority || null,
+      action_deadline_source: actionRecommendation?.deadlineSource || null,
+      action_auto_resolve_on: actionRecommendation?.autoResolveOn || [],
+      action_auto_resolve_keywords: actionRecommendation?.autoResolveKeywords || [],
+      action_confidence: actionRecommendation?.confidence || null,
+      action_source: actionRecommendation?.source || null,
+
       has_issue: analysis.has_issue || false,
       issue_type: analysis.issue_type || null,
       issue_description: analysis.issue_description || null,

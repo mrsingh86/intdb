@@ -1,212 +1,90 @@
-/**
- * Test Script: Debug Carrier Detection Functions
- *
- * Tests the exact logic that determines if an email is from a carrier
- */
+import { createClient } from '@supabase/supabase-js';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
-// Simulate the orchestrator's carrier detection logic
-const FALLBACK_CARRIER_DOMAINS = [
-  'service.hlag.com', 'hapag-lloyd.com',
-  'maersk.com',
-  'msc.com',
-  'cma-cgm.com',
-  'evergreen-line.com', 'evergreen-marine.com',
-  'oocl.com',
-  'cosco.com', 'coscoshipping.com',
-  'yangming.com',
-  'one-line.com',
-  'zim.com',
-  'hmm21.com',
-  'pilship.com',
-  'wanhai.com',
-  'sitc.com',
-];
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL as string,
+  process.env.SUPABASE_SERVICE_ROLE_KEY as string
+);
 
-function isDirectCarrierEmail(trueSenderEmail: string | null, senderEmail: string): boolean {
-  const domains = FALLBACK_CARRIER_DOMAINS;
-
-  // First check true_sender_email (preferred - actual sender before forwarding)
-  if (trueSenderEmail) {
-    const domain = trueSenderEmail.toLowerCase().split('@')[1] || '';
-    if (domains.some(d => domain.includes(d))) {
-      return true;
-    }
-  }
-  // Fallback to sender_email for direct sends
-  if (senderEmail) {
-    const domain = senderEmail.toLowerCase().split('@')[1] || '';
-    return domains.some(d => domain.includes(d));
-  }
-  return false;
+// Copy of detectCarrier from orchestrator
+function detectCarrier(senderEmail: string, content: string): string {
+  const combined = `${senderEmail} ${content}`.toLowerCase();
+  if (combined.includes('hapag') || combined.includes('hlag') || combined.includes('hlcu')) return 'hapag-lloyd';
+  if (combined.includes('maersk') || combined.includes('maeu') || combined.includes('msku')) return 'maersk';
+  if (combined.includes('cma-cgm') || combined.includes('cma cgm') || combined.includes('cmau')) return 'cma-cgm';
+  if (combined.includes('msc') && !combined.includes('misc')) return 'msc';
+  if (combined.includes('cosco') || combined.includes('cosu')) return 'cosco';
+  return 'default';
 }
 
-function isKnownCarrierDisplayName(senderEmail: string): boolean {
-  const senderLower = senderEmail.toLowerCase();
-
-  // Known Maersk display name patterns
-  const maerskPatterns = [
-    'in.export',
-    'maersk line export',
-    'donotreply.*maersk',
-    'customer service.*maersk',
-  ];
-  for (const pattern of maerskPatterns) {
-    if (new RegExp(pattern, 'i').test(senderLower)) {
-      console.log(`    Maersk pattern match: ${pattern}`);
-      return true;
-    }
-  }
-
-  // Known Hapag-Lloyd patterns
-  if (/india@service\.hlag|hapag|hlcu/i.test(senderLower)) {
-    console.log('    Hapag-Lloyd pattern match');
-    return true;
-  }
-
-  // Known CMA CGM patterns (display name only, no domain)
-  if (/cma cgm website|cma cgm.*noreply/i.test(senderLower)) {
-    console.log('    CMA CGM pattern match');
-    return true;
-  }
-
-  return false;
-}
-
+// Copy of isCarrierContentBasedEmail from orchestrator
 function isCarrierContentBasedEmail(content: string, detectedCarrier: string, subject?: string): boolean {
-  // If we detected a carrier from content, and the content has booking confirmation markers
   if (detectedCarrier !== 'default') {
     const hasBookingConfirmation = /BOOKING CONFIRMATION/i.test(content);
     const hasCarrierBranding = /CMA CGM|MAERSK|HAPAG|MSC|COSCO|EVERGREEN|ONE|YANG MING/i.test(content);
+    console.log('  hasBookingConfirmation:', hasBookingConfirmation);
+    console.log('  hasCarrierBranding:', hasCarrierBranding);
     if (hasBookingConfirmation && hasCarrierBranding) {
-      console.log('    Content-based match: BC heading + carrier branding');
       return true;
     }
   }
 
-  // Subject-based detection for known carrier patterns
+  // Subject-based detection
   if (subject) {
-    // Maersk: "Booking Confirmation : 263xxxxxx" (9-digit booking number starting with 26)
-    if (/^Booking Confirmation\s*:\s*26\d{7}$/i.test(subject.trim())) {
-      console.log('    Subject pattern match: Maersk BC format');
-      return true;
-    }
-    // Hapag-Lloyd: Subject contains HLCU or HL booking patterns
-    if (/HLCU\d{7}|HL-?\d{8}/i.test(subject)) {
-      console.log('    Subject pattern match: Hapag HL format');
-      return true;
-    }
-    // CMA CGM: "CMA CGM - Booking confirmation available"
-    if (/CMA CGM.*Booking confirmation/i.test(subject)) {
-      console.log('    Subject pattern match: CMA CGM BC format');
-      return true;
-    }
+    if (/^Booking Confirmation\s*:\s*26\d{7}$/i.test(subject.trim())) return true;
+    if (/HLCU\d{7}|HL-?\d{8}/i.test(subject)) return true;
+    if (/CMA CGM.*Booking confirmation/i.test(subject)) return true;
   }
 
   return false;
 }
 
-// Test cases from the investigation
-const testCases = [
-  {
-    name: 'Maersk via ops - in.export',
-    senderEmail: '"in.export via Operations Intoglo" <ops@intoglo.com>',
-    trueSenderEmail: null,
-    subject: 'Booking Confirmation : 263805268',
-    content: 'Some PDF content with BOOKING CONFIRMATION heading from MAERSK',
-  },
-  {
-    name: 'COSCO via ops - coscon',
-    senderEmail: 'coscon via Operations Intoglo <ops@intoglo.com>',
-    trueSenderEmail: null,
-    subject: 'Booking Details Received from Carrier for COSCO SHIPPING Line',
-    content: 'COSCO booking details',
-  },
-  {
-    name: 'CMA CGM via pricing',
-    senderEmail: "'CMA CGM Website' via pricing <pricing@intoglo.com>",
-    trueSenderEmail: null,
-    subject: 'CMA CGM - Export Invoice available - INEPBC26016106',
-    content: 'CMA CGM invoice content',
-  },
-  {
-    name: 'Direct Maersk email',
-    senderEmail: 'in.export@maersk.com',
-    trueSenderEmail: null,
-    subject: 'Booking Confirmation : 263825280',
-    content: 'Direct Maersk BC',
-  },
-];
+async function test() {
+  const emailId = 'b452d434-da84-44c2-b486-fd4e4838c409';
 
-console.log('='.repeat(80));
-console.log('CARRIER DETECTION LOGIC TEST');
-console.log('='.repeat(80));
-console.log('');
+  // Get email
+  const { data: email } = await supabase
+    .from('raw_emails')
+    .select('subject, sender_email, true_sender_email, body_text')
+    .eq('id', emailId)
+    .single();
 
-for (const test of testCases) {
-  console.log(`\nTest: ${test.name}`);
-  console.log('-'.repeat(40));
-  console.log(`  sender_email: ${test.senderEmail}`);
-  console.log(`  true_sender_email: ${test.trueSenderEmail || 'NULL'}`);
-  console.log(`  subject: ${test.subject}`);
-  console.log('');
+  // Get PDF content
+  const { data: att } = await supabase
+    .from('raw_attachments')
+    .select('extracted_text')
+    .eq('email_id', emailId)
+    .not('extracted_text', 'is', null)
+    .limit(1)
+    .single();
 
-  // Test each detection method
-  const result1 = isDirectCarrierEmail(test.trueSenderEmail, test.senderEmail);
-  console.log(`  isDirectCarrierEmail(): ${result1}`);
+  const content = (email?.body_text || '') + '\n' + (att?.extracted_text || '');
 
-  const result2 = isKnownCarrierDisplayName(test.senderEmail);
-  console.log(`  isKnownCarrierDisplayName(): ${result2}`);
+  console.log('=== CARRIER DETECTION TEST ===\n');
+  console.log('Subject:', email?.subject?.substring(0, 70));
+  console.log('sender_email:', email?.sender_email);
+  console.log('true_sender_email:', email?.true_sender_email);
+  console.log('content length:', content.length);
 
-  const detectedCarrier = test.content.toLowerCase().includes('maersk') ? 'maersk'
-    : test.content.toLowerCase().includes('cosco') ? 'cosco'
-    : test.content.toLowerCase().includes('cma cgm') ? 'cma-cgm'
-    : 'default';
+  const senderForDetection = email?.true_sender_email || email?.sender_email || '';
+  console.log('\n1. detectCarrier input:', senderForDetection.substring(0, 50));
 
-  const result3 = isCarrierContentBasedEmail(test.content, detectedCarrier, test.subject);
-  console.log(`  isCarrierContentBasedEmail(): ${result3}`);
+  const carrierFromContent = detectCarrier(senderForDetection, content);
+  console.log('   detectCarrier result:', carrierFromContent);
 
-  const finalResult = result1 || result2 || result3;
-  console.log('');
-  console.log(`  >>> FINAL isCarrierEmail: ${finalResult}`);
+  console.log('\n2. isCarrierContentBasedEmail check:');
+  console.log('   detectedCarrier:', carrierFromContent);
+  console.log('   detectedCarrier !== "default":', carrierFromContent !== 'default');
 
-  if (!finalResult) {
-    console.log('  >>> PROBLEM: This carrier BC will NOT create a shipment!');
-  }
+  const isCarrierEmail = isCarrierContentBasedEmail(content, carrierFromContent, email?.subject);
+  console.log('   isCarrierContentBasedEmail result:', isCarrierEmail);
+
+  // Additional debug: check actual content
+  console.log('\n3. Content patterns:');
+  console.log('   "BOOKING CONFIRMATION" in content:', content.toUpperCase().includes('BOOKING CONFIRMATION'));
+  console.log('   "COSCO" in content:', content.toUpperCase().includes('COSCO'));
 }
 
-console.log('\n');
-console.log('='.repeat(80));
-console.log('MISSING CARRIER PATTERNS TO ADD');
-console.log('='.repeat(80));
-console.log(`
-The isKnownCarrierDisplayName() function is MISSING patterns for:
-
-1. COSCO: "coscon via ..." - need pattern: /coscon|cosco/i
-2. CMA CGM: "'CMA CGM Website' via pricing" - current pattern requires "noreply"
-3. Hapag: "NO_REPLY@HLAG.COM via ..." - need to check for hlag in display name
-
-The function checks senderEmail which includes the display name for "via" emails.
-
-For example:
-  - "in.export via Operations Intoglo" <ops@intoglo.com>
-    senderEmail.toLowerCase() = '"in.export via operations intoglo" <ops@intoglo.com>'
-    Pattern 'in.export' should match... let's see why it doesn't.
-`);
-
-// Debug the actual matching
-console.log('\nDEBUG: Why "in.export" pattern is not matching:');
-const testSender = '"in.export via Operations Intoglo" <ops@intoglo.com>';
-const testLower = testSender.toLowerCase();
-console.log(`  Input: ${testSender}`);
-console.log(`  Lowercase: ${testLower}`);
-console.log(`  Pattern: in.export`);
-const regex = new RegExp('in.export', 'i');
-console.log(`  Regex test: ${regex.test(testLower)}`);
-console.log(`  >>> The pattern SHOULD match!`);
-
-// Test without the quotes
-console.log('\nLet me test the exact string from database:');
-const dbSender = '"in.export via Operations Intoglo" <ops@intoglo.com>';
-console.log(`  Database value: ${dbSender}`);
-console.log(`  'in.export' in string: ${dbSender.includes('in.export')}`);
-console.log(`  Regex match: ${/in\.export/i.test(dbSender)}`);
+test().catch(console.error);
