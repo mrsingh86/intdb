@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Loader2, ChevronRight, AlertTriangle, Clock, DollarSign } from 'lucide-react';
+import { Loader2, ChevronRight, AlertTriangle, Clock, DollarSign, AlertCircle, ArrowUpCircle, Mail, User } from 'lucide-react';
 
 /**
  * Chronicle Shipments - v2 Style with Full AI Intelligence
@@ -23,14 +23,32 @@ interface AISummary {
   daysSinceActivity: number | null;
   currentBlocker: string | null;
   blockerOwner: string | null;
+  blockerType: string | null;
   narrative: string | null;
   keyInsight: string | null;
   nextAction: string | null;
   nextActionOwner: string | null;
+  actionPriority: 'critical' | 'high' | 'medium' | 'low' | null;
+  actionContact: string | null;
   financialImpact: {
     documentedCharges: string | null;
     estimatedDetention: string | null;
   } | null;
+  // SLA & Escalation
+  slaStatus: 'BREACHED' | 'AT_RISK' | 'NO_CONTACT' | 'OK' | null;
+  slaBreachReason: string | null;
+  hoursSinceCustomerUpdate: number | null;
+  escalationLevel: 'L1' | 'L2' | 'L3' | null;
+  escalateTo: string | null;
+  escalationReason: string | null;
+  // Root Cause
+  rootCauseCategory: string | null;
+  rootCauseSubcategory: string | null;
+  // Predictions & Drafts
+  predictedRisks: string[] | null;
+  customerDraftSubject: string | null;
+  customerDraftBody: string | null;
+  priorityScore: number | null;
 }
 
 interface ShipmentRow {
@@ -421,14 +439,25 @@ function ShipmentsContent() {
                       </div>
                     )}
 
-                    {/* Next Action (amber) */}
+                    {/* Next Action with priority color */}
                     {ai.nextAction && (
-                      <div className="text-sm" style={{ color: '#f59e0b' }}>
+                      <div
+                        className="text-sm"
+                        style={{
+                          color: ai.actionPriority === 'critical' ? '#ef4444'
+                            : ai.actionPriority === 'high' ? '#f59e0b'
+                            : '#3b82f6'
+                        }}
+                      >
                         <span className="font-medium">Next:</span> {ai.nextAction}
                         {ai.nextActionOwner && (
                           <span
                             className="ml-2 text-xs px-1.5 py-0.5 rounded"
-                            style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)' }}
+                            style={{
+                              backgroundColor: ai.actionPriority === 'critical' ? 'rgba(239, 68, 68, 0.15)'
+                                : ai.actionPriority === 'high' ? 'rgba(245, 158, 11, 0.15)'
+                                : 'rgba(59, 130, 246, 0.15)'
+                            }}
                           >
                             {ai.nextActionOwner}
                           </span>
@@ -436,8 +465,87 @@ function ShipmentsContent() {
                       </div>
                     )}
 
-                    {/* Badges: Issues, Escalations, Financial, Overdue */}
-                    {(ai.issueCount || ai.escalationCount || ai.daysOverdue || ai.financialImpact?.documentedCharges || ai.financialImpact?.estimatedDetention) && (
+                    {/* Row 1: SLA & Escalation badges */}
+                    {(ai.slaStatus || ai.escalationLevel || ai.actionPriority) && (
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        {/* SLA Status */}
+                        {ai.slaStatus && ai.slaStatus !== 'OK' && (
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded"
+                            style={{
+                              backgroundColor: ai.slaStatus === 'BREACHED' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.15)',
+                              color: ai.slaStatus === 'BREACHED' ? '#ef4444' : '#f59e0b'
+                            }}
+                          >
+                            <AlertCircle className="h-3 w-3" />
+                            SLA {ai.slaStatus === 'BREACHED' ? 'BREACHED' : ai.slaStatus === 'NO_CONTACT' ? 'No Contact' : 'At Risk'}
+                          </span>
+                        )}
+
+                        {/* Hours waiting */}
+                        {ai.hoursSinceCustomerUpdate && ai.hoursSinceCustomerUpdate > 24 && (
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
+                            <Clock className="h-3 w-3" />
+                            {ai.hoursSinceCustomerUpdate > 48
+                              ? `${Math.round(ai.hoursSinceCustomerUpdate / 24)}d waiting`
+                              : `${ai.hoursSinceCustomerUpdate}h waiting`
+                            }
+                          </span>
+                        )}
+
+                        {/* Escalation Level */}
+                        {ai.escalationLevel && ai.escalationLevel !== 'L1' && (
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded"
+                            style={{
+                              backgroundColor: ai.escalationLevel === 'L3' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.15)',
+                              color: ai.escalationLevel === 'L3' ? '#ef4444' : '#f59e0b'
+                            }}
+                          >
+                            <ArrowUpCircle className="h-3 w-3" />
+                            {ai.escalationLevel}
+                            {ai.escalateTo && <span className="font-normal">→ {ai.escalateTo}</span>}
+                          </span>
+                        )}
+
+                        {/* Action Priority */}
+                        {ai.actionPriority && ai.actionPriority !== 'low' && (
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded uppercase"
+                            style={{
+                              backgroundColor: ai.actionPriority === 'critical' ? 'rgba(239, 68, 68, 0.15)'
+                                : ai.actionPriority === 'high' ? 'rgba(245, 158, 11, 0.15)'
+                                : 'rgba(59, 130, 246, 0.15)',
+                              color: ai.actionPriority === 'critical' ? '#ef4444'
+                                : ai.actionPriority === 'high' ? '#f59e0b'
+                                : '#3b82f6'
+                            }}
+                          >
+                            {ai.actionPriority}
+                          </span>
+                        )}
+
+                        {/* Root Cause */}
+                        {ai.rootCauseCategory && (
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-terminal-elevated text-terminal-muted">
+                            <User className="h-3 w-3" />
+                            {ai.rootCauseCategory}
+                            {ai.rootCauseSubcategory && `: ${ai.rootCauseSubcategory.replace(/_/g, ' ')}`}
+                          </span>
+                        )}
+
+                        {/* Draft Email Ready */}
+                        {ai.customerDraftSubject && (
+                          <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ backgroundColor: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' }}>
+                            <Mail className="h-3 w-3" />
+                            Draft ready
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Row 2: Issues, Financial, Overdue badges */}
+                    {(ai.issueCount || ai.daysOverdue || ai.financialImpact?.documentedCharges || ai.financialImpact?.estimatedDetention) && (
                       <div className="flex flex-wrap items-center gap-2 pt-1">
                         {ai.daysOverdue && ai.daysOverdue > 0 && ai.daysOverdue <= 90 && (
                           <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
@@ -455,11 +563,6 @@ function ShipmentsContent() {
                           <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', color: '#ef4444' }}>
                             <AlertTriangle className="h-3 w-3" />
                             {ai.issueCount} issues
-                          </span>
-                        )}
-                        {ai.escalationCount && ai.escalationCount > 0 && (
-                          <span className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded" style={{ backgroundColor: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b' }}>
-                            {ai.escalationCount} escalations
                           </span>
                         )}
                         {ai.financialImpact?.documentedCharges && (

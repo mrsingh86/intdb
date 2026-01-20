@@ -277,12 +277,27 @@ export async function GET(request: NextRequest) {
         days_since_activity,
         current_blocker,
         blocker_owner,
+        blocker_type,
         narrative,
         key_insight,
         next_action,
         action_owner,
+        action_priority,
+        action_contact,
         documented_charges,
-        estimated_detention
+        estimated_detention,
+        sla_status,
+        sla_breach_reason,
+        hours_since_customer_update,
+        escalation_level,
+        escalate_to,
+        escalation_reason,
+        root_cause_category,
+        root_cause_subcategory,
+        predicted_risks,
+        customer_draft_subject,
+        customer_draft_body,
+        priority_score
       `)
       .in('shipment_id', shipmentIds);
 
@@ -337,14 +352,32 @@ export async function GET(request: NextRequest) {
           daysSinceActivity: summary.days_since_activity,
           currentBlocker: summary.current_blocker,
           blockerOwner: summary.blocker_owner,
+          blockerType: summary.blocker_type,
           narrative: summary.narrative,
           keyInsight: summary.key_insight,
           nextAction: summary.next_action,
           nextActionOwner: summary.action_owner,
+          actionPriority: summary.action_priority,
+          actionContact: summary.action_contact,
           financialImpact: {
             documentedCharges: summary.documented_charges,
             estimatedDetention: summary.estimated_detention,
           },
+          // SLA & Escalation
+          slaStatus: summary.sla_status,
+          slaBreachReason: summary.sla_breach_reason,
+          hoursSinceCustomerUpdate: summary.hours_since_customer_update,
+          escalationLevel: summary.escalation_level,
+          escalateTo: summary.escalate_to,
+          escalationReason: summary.escalation_reason,
+          // Root Cause
+          rootCauseCategory: summary.root_cause_category,
+          rootCauseSubcategory: summary.root_cause_subcategory,
+          // Predictions & Drafts
+          predictedRisks: summary.predicted_risks,
+          customerDraftSubject: summary.customer_draft_subject,
+          customerDraftBody: summary.customer_draft_body,
+          priorityScore: summary.priority_score,
         } : null,
       };
     }) || [];
