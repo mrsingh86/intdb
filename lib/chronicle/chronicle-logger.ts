@@ -122,7 +122,7 @@ export class ChronicleLogger {
     chronicle_id: string | null;
     event_type: EventType;
     event_subtype: string | null;
-    event_description: string;
+    description: string;
     previous_stage: string | null;
     new_stage: string | null;
     action_owner: string | null;
@@ -132,7 +132,7 @@ export class ChronicleLogger {
     issue_severity: string | null;
     document_type: string | null;
     from_party: string | null;
-    occurred_at: string;
+    event_date: string;
   }> = [];
 
   constructor(supabase: SupabaseClient) {
@@ -311,7 +311,7 @@ export class ChronicleLogger {
       chronicle_id: chronicleId,
       event_type: 'created',
       event_subtype: null,
-      event_description: `Shipment created from ${documentType}`,
+      description: `Shipment created from ${documentType}`,
       previous_stage: null,
       new_stage: 'PENDING',
       action_owner: null,
@@ -321,7 +321,7 @@ export class ChronicleLogger {
       issue_severity: null,
       document_type: documentType,
       from_party: null,
-      occurred_at: occurredAt.toISOString(),
+      event_date: occurredAt.toISOString(),
     });
   }
 
@@ -339,7 +339,7 @@ export class ChronicleLogger {
       chronicle_id: chronicleId,
       event_type: 'stage_change',
       event_subtype: null,
-      event_description: `Stage changed from ${previousStage} to ${newStage}`,
+      description: `Stage changed from ${previousStage} to ${newStage}`,
       previous_stage: previousStage,
       new_stage: newStage,
       action_owner: null,
@@ -349,7 +349,7 @@ export class ChronicleLogger {
       issue_severity: null,
       document_type: documentType,
       from_party: null,
-      occurred_at: occurredAt.toISOString(),
+      event_date: occurredAt.toISOString(),
     });
 
     console.log(
@@ -373,7 +373,7 @@ export class ChronicleLogger {
       chronicle_id: chronicleId,
       event_type: 'action_detected',
       event_subtype: actionOwner,
-      event_description: description,
+      description: description,
       previous_stage: null,
       new_stage: null,
       action_owner: actionOwner,
@@ -383,7 +383,7 @@ export class ChronicleLogger {
       issue_severity: null,
       document_type: documentType,
       from_party: null,
-      occurred_at: occurredAt.toISOString(),
+      event_date: occurredAt.toISOString(),
     });
   }
 
@@ -402,7 +402,7 @@ export class ChronicleLogger {
       chronicle_id: chronicleId,
       event_type: 'issue_flagged',
       event_subtype: issueType,
-      event_description: description,
+      description: description,
       previous_stage: null,
       new_stage: null,
       action_owner: null,
@@ -412,7 +412,7 @@ export class ChronicleLogger {
       issue_severity: severity,
       document_type: documentType,
       from_party: null,
-      occurred_at: occurredAt.toISOString(),
+      event_date: occurredAt.toISOString(),
     });
   }
 
