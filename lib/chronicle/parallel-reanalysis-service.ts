@@ -377,6 +377,35 @@ export class ParallelReanalysisService {
         has_issue: analysis.has_issue || false,
         issue_type: analysis.issue_type || null,
         issue_description: analysis.issue_description || null,
+
+        // Update DATE fields (only if new value is non-null to preserve existing data)
+        ...(analysis.etd && { etd: analysis.etd }),
+        ...(analysis.eta && { eta: analysis.eta }),
+        ...(analysis.atd && { atd: analysis.atd }),
+        ...(analysis.ata && { ata: analysis.ata }),
+        ...(analysis.si_cutoff && { si_cutoff: analysis.si_cutoff }),
+        ...(analysis.vgm_cutoff && { vgm_cutoff: analysis.vgm_cutoff }),
+        ...(analysis.cargo_cutoff && { cargo_cutoff: analysis.cargo_cutoff }),
+        ...(analysis.doc_cutoff && { doc_cutoff: analysis.doc_cutoff }),
+        ...(analysis.last_free_day && { last_free_day: analysis.last_free_day }),
+        ...(analysis.delivery_date && { delivery_date: analysis.delivery_date }),
+        ...(analysis.pod_delivery_date && { pod_delivery_date: analysis.pod_delivery_date }),
+
+        // Update location fields (only if new value is non-null)
+        ...(analysis.pol_location && { pol_location: analysis.pol_location }),
+        ...(analysis.pol_type && { pol_type: analysis.pol_type }),
+        ...(analysis.pod_location && { pod_location: analysis.pod_location }),
+        ...(analysis.pod_type && { pod_type: analysis.pod_type }),
+        ...(analysis.por_location && { por_location: analysis.por_location }),
+        ...(analysis.por_type && { por_type: analysis.por_type }),
+        ...(analysis.pofd_location && { pofd_location: analysis.pofd_location }),
+        ...(analysis.pofd_type && { pofd_type: analysis.pofd_type }),
+
+        // Update vessel/voyage (only if new value is non-null)
+        ...(analysis.vessel_name && { vessel_name: analysis.vessel_name }),
+        ...(analysis.voyage_number && { voyage_number: analysis.voyage_number }),
+        ...(analysis.carrier_name && { carrier_name: analysis.carrier_name }),
+
         needs_reanalysis: false,
         reanalyzed_at: new Date().toISOString(),
         thread_context_used: !!threadContext && threadContext.emailCount > 0,

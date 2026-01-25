@@ -1,52 +1,32 @@
 import { createClient } from '@supabase/supabase-js';
+import 'dotenv/config';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
-async function checkTables() {
-  // Count all relevant tables
-  const tables = [
-    'document_lifecycle',
-    'shipment_documents', 
-    'entity_extractions',
-    'document_classifications',
-    'shipments',
-    'raw_emails'
-  ];
+console.log('URL:', url.substring(0, 30) + '...');
+console.log('Key set:', key.length > 0);
 
-  console.log('=== Table Counts ===');
+const supabase = createClient(url, key);
+
+async function main() {
+  const tables = ['email_notifications', 'emails', 'chronicle', 'shipments', 'ai_shipment_summaries'];
+
   for (const table of tables) {
-    const { count } = await supabase.from(table).select('*', { count: 'exact', head: true });
-    console.log(`${table}: ${count}`);
+    const { count, error } = await supabase
+      .from(table)
+      .select('*', { count: 'exact', head: true });
+
+    console.log(table + ':', error ? error.message : count);
   }
 
-  // Check shipment_documents with their document types
-  const { data: docTypes } = await supabase
-    .from('shipment_documents')
-    .select('document_type')
-    .limit(100);
-  
-  const typeCounts: Record<string, number> = {};
-  docTypes?.forEach(d => {
-    typeCounts[d.document_type] = (typeCounts[d.document_type] || 0) + 1;
-  });
-  console.log('\n=== Document Types in shipment_documents ===');
-  console.log(typeCounts);
+  const { data: sample } = await supabase
+    .from('email_notifications')
+    .select('shipment_id')
+    .not('shipment_id', 'is', null)
+    .limit(5);
 
-  // Check entity_extractions types
-  const { data: entityTypes } = await supabase
-    .from('entity_extractions')
-    .select('entity_type')
-    .limit(200);
-  
-  const entityCounts: Record<string, number> = {};
-  entityTypes?.forEach(e => {
-    entityCounts[e.entity_type] = (entityCounts[e.entity_type] || 0) + 1;
-  });
-  console.log('\n=== Entity Types in entity_extractions ===');
-  console.log(entityCounts);
+  console.log('\nSample shipment_ids from email_notifications:', sample);
 }
 
-checkTables().catch(console.error);
+main().catch(console.error);

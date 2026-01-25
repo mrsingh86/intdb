@@ -829,51 +829,6 @@ export class ChronicleService implements IChronicleService {
   }
 
   /**
-   * Resolve related pending actions when confirmation documents arrive
-   *
-   * When VGM confirmation arrives → marks VGM-related actions as completed
-   * When SI confirmation arrives → marks SI-related actions as completed
-   */
-  private async resolveActionsIfConfirmation(
-    shipmentId: string,
-    documentType: string,
-    occurredAt: Date
-  ): Promise<void> {
-    const confirmationTypes = [
-      // Pre-shipment confirmations
-      'vgm_confirmation',
-      'si_confirmation',
-      'sob_confirmation',
-      'booking_confirmation',
-      'leo_copy',
-      // BL confirmations
-      'draft_bl',
-      'final_bl',
-      'telex_release',
-      'sea_waybill',
-      // Destination confirmations
-      'arrival_notice',
-      'container_release',
-      'delivery_order',
-      'pod_proof_of_delivery',
-    ];
-
-    if (!confirmationTypes.includes(documentType)) {
-      return; // Not a confirmation type
-    }
-
-    const resolved = await this.repository.resolveRelatedActions(
-      shipmentId,
-      documentType,
-      occurredAt.toISOString()
-    );
-
-    if (resolved > 0) {
-      console.log(`[Chronicle] Resolved ${resolved} action(s) for ${documentType}`);
-    }
-  }
-
-  /**
    * Check and update shipment stage, returns current stage for flow validation
    */
   private async checkAndUpdateShipmentStage(
