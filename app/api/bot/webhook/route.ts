@@ -33,7 +33,7 @@ import { getBotCommandHandler } from '@/lib/unified-intelligence';
 interface WebhookRequest {
   message: string;
   sender?: string;
-  channel?: 'whatsapp' | 'telegram' | 'slack' | 'discord' | 'signal';
+  channel?: 'whatsapp' | 'telegram' | 'slack' | 'discord' | 'signal' | 'web';
   sessionKey?: string;
   metadata?: Record<string, unknown>;
 }
@@ -56,7 +56,12 @@ const ALLOWED_SENDERS = process.env.BOT_ALLOWED_SENDERS?.split(',') || [];
 // AUTHENTICATION
 // =============================================================================
 
-function verifyAuth(request: NextRequest): { valid: boolean; error?: string } {
+function verifyAuth(request: NextRequest, channel?: string): { valid: boolean; error?: string } {
+  // Allow web channel requests (same-origin, no external auth needed)
+  if (channel === 'web') {
+    return { valid: true };
+  }
+
   // Skip auth in development if no token configured
   if (!WEBHOOK_TOKEN && process.env.NODE_ENV === 'development') {
     return { valid: true };
@@ -157,16 +162,7 @@ async function logRequest(
 export async function POST(request: NextRequest): Promise<NextResponse<WebhookResponse>> {
   const startTime = Date.now();
 
-  // Verify authentication
-  const auth = verifyAuth(request);
-  if (!auth.valid) {
-    return NextResponse.json(
-      { success: false, reply: '', error: auth.error },
-      { status: 401 }
-    );
-  }
-
-  // Parse request body
+  // Parse request body first (needed for channel-based auth)
   let body: WebhookRequest;
   try {
     body = await request.json();
@@ -174,6 +170,15 @@ export async function POST(request: NextRequest): Promise<NextResponse<WebhookRe
     return NextResponse.json(
       { success: false, reply: '', error: 'Invalid JSON body' },
       { status: 400 }
+    );
+  }
+
+  // Verify authentication (web channel skips token auth)
+  const auth = verifyAuth(request, body.channel);
+  if (!auth.valid) {
+    return NextResponse.json(
+      { success: false, reply: '', error: auth.error },
+      { status: 401 }
     );
   }
 
@@ -185,8 +190,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<WebhookRe
     );
   }
 
-  // Check sender allowlist (optional - for restricting to internal team)
-  if (!isAllowedSender(body.sender)) {
+  // Check sender allowlist (skip for web channel - internal use)
+  if (body.channel !== 'web' && !isAllowedSender(body.sender)) {
     return NextResponse.json(
       {
         success: false,
