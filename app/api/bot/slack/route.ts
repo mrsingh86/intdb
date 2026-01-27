@@ -272,12 +272,12 @@ async function processShipmentCommand(
   switch (command) {
     case 'status': {
       if (!args) return ':warning: Please provide a booking or container number.\nUsage: `/pulse status 263805268`';
-      const result = await intelligence.getShipmentStatus(args);
+      const result = await intelligence.getUnifiedStatus(args);
       return formatStatusResponse(result);
     }
     case 'track': {
       if (!args) return ':warning: Please provide a container number.\nUsage: `/pulse track MRKU3692349`';
-      const result = await intelligence.getContainerTracking(args);
+      const result = await intelligence.getTrackingOnly(args);
       return formatTrackingResponse(result);
     }
     case 'docs': {
@@ -286,7 +286,7 @@ async function processShipmentCommand(
       return formatDocsResponse(result);
     }
     case 'pending': {
-      const result = await intelligence.getPendingActions();
+      const result = await intelligence.getAllPendingActions();
       return formatPendingResponse(result);
     }
     case 'urgent': {
@@ -294,16 +294,16 @@ async function processShipmentCommand(
       return formatUrgentResponse(result);
     }
     case 'today': {
-      const result = await intelligence.getTodayMovements();
+      const result = await intelligence.getTodaySchedule();
       return formatTodayResponse(result);
     }
     case 'mismatch': {
-      const result = await intelligence.getDataMismatches();
+      const result = await intelligence.getMismatchedShipments();
       return formatMismatchResponse(result);
     }
     case 'customer': {
       if (!args) return ':warning: Please provide a customer name.\nUsage: `/pulse customer INTOGLO`';
-      const result = await intelligence.searchByCustomer(args);
+      const result = await intelligence.getCustomerShipments(args);
       return formatCustomerResponse(result, args);
     }
     case 'help':
@@ -311,7 +311,7 @@ async function processShipmentCommand(
     default:
       // Try as booking/container number
       if (/^[a-z0-9]{8,15}$/i.test(command)) {
-        const result = await intelligence.getShipmentStatus(command);
+        const result = await intelligence.getUnifiedStatus(command);
         return formatStatusResponse(result);
       }
       return getHelpMessage();
@@ -319,52 +319,65 @@ async function processShipmentCommand(
 }
 
 function formatStatusResponse(result: any): string {
-  if (!result.found) {
-    return `:x: *Not Found*\nNo shipment found for: ${result.query}`;
+  if (!result.success || !result.data) {
+    return `:x: *Not Found*\nNo shipment found for: ${result.error || 'unknown reference'}`;
   }
 
-  let msg = `:ship: *Shipment Status: ${result.bookingNumber}*\n`;
+  const data = result.data;
+  let msg = `:ship: *Shipment Status: ${data.bookingNumber || data.containerNumber || data.queryReference}*\n`;
   msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
 
-  if (result.intdb) {
-    const d = result.intdb;
+  if (data.intdb) {
+    const d = data.intdb;
     msg += `*Carrier:* ${d.carrier || 'N/A'}\n`;
     msg += `*Shipper:* ${d.shipper || 'N/A'}\n`;
     msg += `*Consignee:* ${d.consignee || 'N/A'}\n`;
     msg += `*POL:* ${d.pol || 'N/A'} → *POD:* ${d.pod || 'N/A'}\n`;
-    if (d.containerNumber) msg += `*Container:* ${d.containerNumber}\n`;
+    if (d.containerNumbers?.length) msg += `*Container:* ${d.containerNumbers[0]}\n`;
     if (d.vesselName) msg += `*Vessel:* ${d.vesselName}\n`;
     if (d.etd) msg += `*ETD:* ${d.etd}\n`;
     if (d.eta) msg += `*ETA:* ${d.eta}\n`;
   }
 
-  if (result.carrierApi?.tracking) {
+  if (data.carrier) {
     msg += `\n:satellite: *Live Tracking*\n`;
-    const t = result.carrierApi.tracking;
+    const t = data.carrier;
     if (t.currentStatus) msg += `*Status:* ${t.currentStatus}\n`;
     if (t.currentLocation) msg += `*Location:* ${t.currentLocation}\n`;
-    if (t.lastEvent) msg += `*Last Event:* ${t.lastEvent}\n`;
+    if (t.events?.length) {
+      const lastEvent = t.events[0];
+      msg += `*Last Event:* ${lastEvent.description} @ ${lastEvent.location}\n`;
+    }
+  }
+
+  if (data.validation?.alerts?.length) {
+    msg += `\n:warning: *Alerts*\n`;
+    data.validation.alerts.forEach((alert: any) => {
+      msg += `• ${alert.message}\n`;
+    });
   }
 
   return msg;
 }
 
 function formatTrackingResponse(result: any): string {
-  if (!result.found || !result.tracking) {
-    return `:x: *Not Found*\nNo tracking data for container: ${result.query}`;
+  if (!result.success || !result.data) {
+    return `:x: *Not Found*\nNo tracking data for container: ${result.error || 'unknown'}`;
   }
 
-  let msg = `:satellite: *Container Tracking: ${result.containerNumber}*\n`;
+  const t = result.data;
+  let msg = `:satellite: *Container Tracking: ${t.containerNumber}*\n`;
   msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
 
-  const t = result.tracking;
+  msg += `*Carrier:* ${t.carrier || 'N/A'}\n`;
   msg += `*Status:* ${t.currentStatus || 'N/A'}\n`;
   msg += `*Location:* ${t.currentLocation || 'N/A'}\n`;
 
   if (t.events && t.events.length > 0) {
     msg += `\n*Recent Events:*\n`;
     t.events.slice(0, 5).forEach((e: any) => {
-      msg += `• ${e.timestamp}: ${e.description} @ ${e.location}\n`;
+      const time = e.timestamp ? new Date(e.timestamp).toLocaleString() : 'N/A';
+      msg += `• ${time}: ${e.description} @ ${e.location}\n`;
     });
   }
 
@@ -372,28 +385,41 @@ function formatTrackingResponse(result: any): string {
 }
 
 function formatDocsResponse(result: any): string {
-  if (!result.found) {
-    return `:x: *Not Found*\nNo documents found for: ${result.query}`;
+  if (!result.success || !result.data) {
+    return `:x: *Not Found*\nNo documents found for: ${result.error || 'unknown'}`;
   }
 
-  let msg = `:page_facing_up: *Document Status: ${result.bookingNumber}*\n`;
+  const data = result.data;
+  let msg = `:page_facing_up: *Document Status: ${data.bookingNumber || 'N/A'}*\n`;
   msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
 
-  const docs = result.documents || {};
-  msg += `${docs.bookingConfirmation ? ':white_check_mark:' : ':x:'} Booking Confirmation\n`;
-  msg += `${docs.shippingInstructions ? ':white_check_mark:' : ':x:'} Shipping Instructions\n`;
-  msg += `${docs.vgm ? ':white_check_mark:' : ':x:'} VGM\n`;
-  msg += `${docs.draftBL ? ':white_check_mark:' : ':x:'} Draft BL\n`;
-  msg += `${docs.finalBL ? ':white_check_mark:' : ':x:'} Final BL\n`;
+  const received = data.documentsReceived || [];
+  const pending = data.documentsPending || [];
 
-  const completion = result.completionPercentage || 0;
-  msg += `\n*Completion:* ${completion}%`;
+  msg += `*Received (${received.length}):*\n`;
+  received.forEach((doc: string) => {
+    msg += `:white_check_mark: ${doc}\n`;
+  });
+
+  if (pending.length > 0) {
+    msg += `\n*Pending (${pending.length}):*\n`;
+    pending.forEach((doc: string) => {
+      msg += `:x: ${doc}\n`;
+    });
+  }
+
+  const completion = data.documentCompletionRate || 0;
+  msg += `\n*Completion:* ${Math.round(completion)}%`;
 
   return msg;
 }
 
 function formatPendingResponse(result: any): string {
-  const items = result.items || [];
+  if (!result.success) {
+    return `:x: Error fetching pending actions: ${result.error}`;
+  }
+
+  const items = result.data || [];
   if (items.length === 0) {
     return `:white_check_mark: *No Pending Actions*\nAll caught up!`;
   }
@@ -402,8 +428,9 @@ function formatPendingResponse(result: any): string {
   msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
 
   items.slice(0, 10).forEach((item: any) => {
-    msg += `• *${item.bookingNumber}*: ${item.action}\n`;
+    msg += `• *${item.bookingNumber || item.reference}*: ${item.actionType || item.action}\n`;
     if (item.deadline) msg += `  :clock3: Due: ${item.deadline}\n`;
+    if (item.isOverdue) msg += `  :warning: OVERDUE\n`;
   });
 
   if (items.length > 10) {
@@ -414,25 +441,46 @@ function formatPendingResponse(result: any): string {
 }
 
 function formatUrgentResponse(result: any): string {
-  const items = result.items || [];
-  if (items.length === 0) {
+  if (!result.success || !result.data) {
+    return `:x: Error fetching urgent items: ${result.error}`;
+  }
+
+  const data = result.data;
+  const overdueCount = data.overdueCount || 0;
+  const dueTodayCount = data.dueTodayCount || 0;
+
+  if (overdueCount === 0 && dueTodayCount === 0) {
     return `:white_check_mark: *No Urgent Items*\nNothing critical right now!`;
   }
 
-  let msg = `:rotating_light: *Urgent Items (${items.length})*\n`;
+  let msg = `:rotating_light: *Urgent Items*\n`;
   msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
+  msg += `*Overdue:* ${overdueCount} | *Due Today:* ${dueTodayCount}\n\n`;
 
-  items.forEach((item: any) => {
-    msg += `• *${item.bookingNumber}*: ${item.reason}\n`;
-    if (item.daysOverdue) msg += `  :warning: ${item.daysOverdue} days overdue\n`;
-  });
+  if (data.overdueActions?.length > 0) {
+    msg += `*Overdue:*\n`;
+    data.overdueActions.forEach((item: any) => {
+      msg += `• *${item.bookingNumber || item.reference}*: ${item.actionType || item.action}\n`;
+    });
+  }
+
+  if (data.dueTodayActions?.length > 0) {
+    msg += `\n*Due Today:*\n`;
+    data.dueTodayActions.forEach((item: any) => {
+      msg += `• *${item.bookingNumber || item.reference}*: ${item.actionType || item.action}\n`;
+    });
+  }
 
   return msg;
 }
 
 function formatTodayResponse(result: any): string {
-  const arrivals = result.arrivals || [];
-  const departures = result.departures || [];
+  if (!result.success || !result.data) {
+    return `:x: Error fetching today's schedule: ${result.error}`;
+  }
+
+  const arrivals = result.data.arrivals || [];
+  const departures = result.data.departures || [];
 
   if (arrivals.length === 0 && departures.length === 0) {
     return `:calendar: *Today's Movements*\nNo arrivals or departures scheduled for today.`;
@@ -444,14 +492,14 @@ function formatTodayResponse(result: any): string {
   if (departures.length > 0) {
     msg += `\n:ship: *Departures (${departures.length})*\n`;
     departures.forEach((d: any) => {
-      msg += `• ${d.bookingNumber} - ${d.vessel} @ ${d.port}\n`;
+      msg += `• ${d.bookingNumber || d.booking_number} - ${d.vessel || d.vessel_name || 'N/A'} @ ${d.port || d.pol || 'N/A'}\n`;
     });
   }
 
   if (arrivals.length > 0) {
     msg += `\n:anchor: *Arrivals (${arrivals.length})*\n`;
     arrivals.forEach((a: any) => {
-      msg += `• ${a.bookingNumber} - ${a.vessel} @ ${a.port}\n`;
+      msg += `• ${a.bookingNumber || a.booking_number} - ${a.vessel || a.vessel_name || 'N/A'} @ ${a.port || a.pod || 'N/A'}\n`;
     });
   }
 
@@ -459,7 +507,11 @@ function formatTodayResponse(result: any): string {
 }
 
 function formatMismatchResponse(result: any): string {
-  const mismatches = result.mismatches || [];
+  if (!result.success) {
+    return `:x: Error checking mismatches: ${result.error}`;
+  }
+
+  const mismatches = result.data || [];
   if (mismatches.length === 0) {
     return `:white_check_mark: *No Data Mismatches*\nAll data is consistent!`;
   }
@@ -467,17 +519,28 @@ function formatMismatchResponse(result: any): string {
   let msg = `:warning: *Data Mismatches (${mismatches.length})*\n`;
   msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
 
-  mismatches.forEach((m: any) => {
-    msg += `• *${m.bookingNumber}*\n`;
-    msg += `  Field: ${m.field}\n`;
-    msg += `  INTDB: ${m.intdbValue} vs Carrier: ${m.carrierValue}\n`;
+  mismatches.slice(0, 10).forEach((m: any) => {
+    msg += `• *${m.bookingNumber || m.containerNumber || 'Unknown'}*\n`;
+    if (m.validation?.alerts) {
+      m.validation.alerts.forEach((alert: any) => {
+        msg += `  :exclamation: ${alert.message}\n`;
+      });
+    }
   });
+
+  if (mismatches.length > 10) {
+    msg += `\n_...and ${mismatches.length - 10} more_`;
+  }
 
   return msg;
 }
 
 function formatCustomerResponse(result: any, customerName: string): string {
-  const shipments = result.shipments || [];
+  if (!result.success) {
+    return `:x: Error searching customer: ${result.error}`;
+  }
+
+  const shipments = result.data || [];
   if (shipments.length === 0) {
     return `:x: *No Shipments Found*\nNo active shipments for customer: ${customerName}`;
   }
@@ -486,8 +549,8 @@ function formatCustomerResponse(result: any, customerName: string): string {
   msg += `━━━━━━━━━━━━━━━━━━━━━━\n`;
 
   shipments.slice(0, 10).forEach((s: any) => {
-    msg += `• *${s.bookingNumber}* - ${s.status}\n`;
-    msg += `  ${s.pol} → ${s.pod}\n`;
+    msg += `• *${s.booking_number || s.bookingNumber}* - ${s.status || 'N/A'}\n`;
+    msg += `  ${s.pol || 'N/A'} → ${s.pod || 'N/A'}\n`;
   });
 
   if (shipments.length > 10) {

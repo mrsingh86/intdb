@@ -24,8 +24,6 @@ export type {
   // Core Types
   CarrierCode,
   ShipmentStatus,
-  AlertSeverity,
-  DataSource,
 
   // API Response
   ApiResponse,
@@ -34,7 +32,7 @@ export type {
   CarrierTrackingData,
   CarrierEvent,
   CarrierDeadlines,
-  DeadlineItem,
+  Deadline,
   CarrierCharges,
 
   // INTDB Types

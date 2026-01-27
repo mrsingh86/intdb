@@ -127,13 +127,14 @@ function getSupabaseClient() {
 // =============================================================================
 
 async function logRequest(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   request: WebhookRequest,
   response: WebhookResponse,
   processingTimeMs: number
 ) {
   try {
-    await supabase.from('bot_request_logs').insert({
+    // Using type assertion since bot_request_logs may not be in generated types yet
+    await (supabase as any).from('bot_request_logs').insert({
       message: request.message,
       sender: request.sender || null,
       channel: request.channel || 'unknown',

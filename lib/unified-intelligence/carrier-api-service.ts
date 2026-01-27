@@ -150,7 +150,7 @@ async function getMaerskTrackingEvents(containerNumber: string): Promise<ApiResp
     return { success: true, data: response.data.events || [] };
   }
 
-  return response as ApiResponse<any[]>;
+  return response as unknown as ApiResponse<any[]>;
 }
 
 // =============================================================================
