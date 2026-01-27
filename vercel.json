@@ -8,6 +8,14 @@
     {
       "path": "/api/cron/generate-ai-summaries",
       "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/bot-daily-summary",
+      "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/cron/llm-review-judge",
+      "schedule": "0 3 * * 0"
     }
   ]
 }
