@@ -55,6 +55,12 @@ import {
   ActionAutoResolveService,
   createActionAutoResolveService,
 } from './action-auto-resolve-service';
+import {
+  ObjectiveConfidenceService,
+  createObjectiveConfidenceService,
+  ConfidenceResult,
+  ConfidenceInput,
+} from './objective-confidence-service';
 
 // ============================================================================
 // SERVICE IMPLEMENTATION
@@ -68,6 +74,7 @@ export class ChronicleService implements IChronicleService {
   private patternMatcher: IPatternMatcherService;
   private unifiedActionService: UnifiedActionService;
   private actionAutoResolveService: ActionAutoResolveService;
+  private confidenceService: ObjectiveConfidenceService;
   private repository: IChronicleRepository;
   private logger: ChronicleLogger | null = null;
 
@@ -75,6 +82,8 @@ export class ChronicleService implements IChronicleService {
   private patternMatchStats = { matched: 0, aiNeeded: 0 };
   // Metrics for action determination
   private actionStats = { ruleDefault: 0, ruleFlipped: 0, aiFallback: 0 };
+  // Metrics for confidence-based escalation
+  private confidenceStats = { accepted: 0, flagged: 0, escalatedSonnet: 0, escalatedOpus: 0 };
 
   constructor(
     supabase: SupabaseClient,
@@ -88,6 +97,7 @@ export class ChronicleService implements IChronicleService {
     this.patternMatcher = new PatternMatcherService(supabase);
     this.unifiedActionService = createUnifiedActionService(supabase);
     this.actionAutoResolveService = createActionAutoResolveService(supabase);
+    this.confidenceService = createObjectiveConfidenceService(supabase);
     this.repository = new ChronicleRepository(supabase);
     this.logger = logger || null;
   }
@@ -109,6 +119,24 @@ export class ChronicleService implements IChronicleService {
       ? `${Math.round((this.patternMatchStats.matched / total) * 100)}%`
       : '0%';
     return { ...this.patternMatchStats, matchRate: rate };
+  }
+
+  /**
+   * Get confidence-based escalation statistics
+   * Shows cost optimization effectiveness
+   */
+  getConfidenceStats(): {
+    accepted: number;
+    flagged: number;
+    escalatedSonnet: number;
+    escalatedOpus: number;
+    escalationRate: string;
+  } {
+    const total = this.confidenceStats.accepted + this.confidenceStats.flagged +
+      this.confidenceStats.escalatedSonnet + this.confidenceStats.escalatedOpus;
+    const escalated = this.confidenceStats.escalatedSonnet + this.confidenceStats.escalatedOpus;
+    const rate = total > 0 ? `${Math.round((escalated / total) * 100)}%` : '0%';
+    return { ...this.confidenceStats, escalationRate: rate };
   }
 
   /**
@@ -291,13 +319,65 @@ export class ChronicleService implements IChronicleService {
 
     // Track classification method for learning
     const predictionMethod = patternResult?.matched && !patternResult.requiresAiFallback ? 'pattern' : 'ai';
-    const predictionConfidence = patternResult?.matched ? patternResult.confidence : 75; // Default AI confidence
+    let predictionConfidence = patternResult?.matched ? patternResult.confidence : 75; // Default AI confidence
+
+    // Step 5c: Calculate objective confidence and escalate if needed
+    // Only for AI-analyzed emails (pattern matches are already high confidence)
+    let confidenceResult: ConfidenceResult | null = null;
+    let confidenceSource: 'pattern' | 'haiku' | 'sonnet' | 'opus' = usePatternMatch ? 'pattern' : 'haiku';
+    let escalatedTo: string | null = null;
+    let escalationReason: string | null = null;
+
+    if (!usePatternMatch) {
+      confidenceResult = await this.calculateConfidenceAndEscalate(
+        email,
+        analysis,
+        attachmentText,
+        threadContext,
+        threadPosition,
+        patternResult
+      );
+
+      // If escalation occurred, analysis was updated in place
+      if (confidenceResult.recommendation === 'escalate_sonnet') {
+        confidenceSource = 'sonnet';
+        escalatedTo = 'sonnet';
+        escalationReason = confidenceResult.reasoning.join('; ');
+        this.confidenceStats.escalatedSonnet++;
+      } else if (confidenceResult.recommendation === 'escalate_opus') {
+        confidenceSource = 'opus';
+        escalatedTo = 'opus';
+        escalationReason = confidenceResult.reasoning.join('; ');
+        this.confidenceStats.escalatedOpus++;
+      } else if (confidenceResult.recommendation === 'flag_review') {
+        this.confidenceStats.flagged++;
+      } else {
+        this.confidenceStats.accepted++;
+      }
+
+      predictionConfidence = confidenceResult.overallScore;
+      console.log(`[Chronicle] Confidence: ${confidenceResult.overallScore}% → ${confidenceResult.recommendation}`);
+    } else {
+      // Pattern match - high confidence, no escalation needed
+      this.confidenceStats.accepted++;
+    }
 
     // Step 6: Save to database (with logging)
     const dbStart = this.logger?.logStageStart('db_save') || 0;
     let chronicleId: string;
     try {
-      chronicleId = await this.saveToDatabase(email, analysis, attachmentsWithText, actionRecommendation);
+      chronicleId = await this.saveToDatabase(
+        email,
+        analysis,
+        attachmentsWithText,
+        actionRecommendation,
+        {
+          confidenceSource,
+          confidenceSignals: confidenceResult?.signals || null,
+          escalatedTo,
+          escalationReason,
+        }
+      );
       this.logger?.logStageSuccess('db_save', dbStart);
     } catch (error) {
       this.logger?.logStageFailure('db_save', dbStart, error as Error, {
@@ -415,6 +495,81 @@ export class ChronicleService implements IChronicleService {
       this.logger?.logEmailProcessed(false);
       throw error;
     }
+  }
+
+  /**
+   * Calculate objective confidence and escalate to stronger model if needed
+   * Returns confidence result (analysis may be updated in place if escalated)
+   */
+  private async calculateConfidenceAndEscalate(
+    email: ProcessedEmail,
+    analysis: ShippingAnalysis,
+    attachmentText: string,
+    threadContext: ThreadContext | null,
+    threadPosition: number,
+    patternResult: PatternMatchResult | null
+  ): Promise<ConfidenceResult> {
+    // Build confidence input from current analysis
+    const confidenceInput: ConfidenceInput = {
+      chronicleId: '', // Will be set after save
+      documentType: analysis.document_type,
+      extractedFields: this.buildExtractedFields(analysis),
+      senderEmail: email.senderEmail,
+      patternId: patternResult?.patternId || undefined,
+      patternConfidence: patternResult?.confidence,
+      shipmentId: undefined, // Not linked yet
+    };
+
+    const confidence = await this.confidenceService.calculateConfidence(confidenceInput);
+
+    // Escalate if confidence is too low
+    if (confidence.recommendation === 'escalate_sonnet') {
+      console.log(`[Chronicle] Escalating to Sonnet (confidence: ${confidence.overallScore}%)`);
+      const reanalysis = await this.aiAnalyzer.analyze(
+        email,
+        attachmentText,
+        threadContext || undefined,
+        threadPosition,
+        'claude-sonnet-4-20250514' // Sonnet model
+      );
+      Object.assign(analysis, reanalysis);
+    } else if (confidence.recommendation === 'escalate_opus') {
+      console.log(`[Chronicle] Escalating to Opus (confidence: ${confidence.overallScore}%)`);
+      const reanalysis = await this.aiAnalyzer.analyze(
+        email,
+        attachmentText,
+        threadContext || undefined,
+        threadPosition,
+        'claude-opus-4-20250514' // Opus model
+      );
+      Object.assign(analysis, reanalysis);
+    }
+
+    return confidence;
+  }
+
+  /**
+   * Build extracted fields object for confidence calculation
+   */
+  private buildExtractedFields(analysis: ShippingAnalysis): Record<string, unknown> {
+    return {
+      booking_number: analysis.booking_number,
+      mbl_number: analysis.mbl_number,
+      hbl_number: analysis.hbl_number,
+      vessel_name: analysis.vessel_name,
+      etd: analysis.etd,
+      eta: analysis.eta,
+      pol_location: analysis.pol_location,
+      pod_location: analysis.pod_location,
+      carrier_name: analysis.carrier_name,
+      container_numbers: analysis.container_numbers,
+      shipper_name: analysis.shipper_name,
+      consignee_name: analysis.consignee_name,
+      si_cutoff: analysis.si_cutoff,
+      vgm_cutoff: analysis.vgm_cutoff,
+      cargo_cutoff: analysis.cargo_cutoff,
+      doc_cutoff: analysis.doc_cutoff,
+    };
   }
 
   /**
@@ -745,11 +900,17 @@ export class ChronicleService implements IChronicleService {
     email: ProcessedEmail,
     analysis: ShippingAnalysis,
     attachmentsWithText: ProcessedAttachment[],
-    actionRecommendation?: ActionRecommendation
+    actionRecommendation?: ActionRecommendation,
+    confidenceData?: {
+      confidenceSource: string;
+      confidenceSignals: ConfidenceResult['signals'] | null;
+      escalatedTo: string | null;
+      escalationReason: string | null;
+    }
   ): Promise<string> {
     const trueSender = extractTrueSender(email);
     const fromParty = analysis.from_party || detectPartyType(trueSender);
-    const insertData = this.buildInsertData(email, analysis, fromParty, attachmentsWithText, actionRecommendation);
+    const insertData = this.buildInsertData(email, analysis, fromParty, attachmentsWithText, actionRecommendation, confidenceData);
     const { id } = await this.repository.insert(insertData);
     return id;
   }
@@ -947,7 +1108,13 @@ export class ChronicleService implements IChronicleService {
     analysis: ShippingAnalysis,
     fromParty: string,
     attachmentsWithText: ProcessedAttachment[],
-    actionRecommendation?: ActionRecommendation
+    actionRecommendation?: ActionRecommendation,
+    confidenceData?: {
+      confidenceSource: string;
+      confidenceSignals: ConfidenceResult['signals'] | null;
+      escalatedTo: string | null;
+      escalationReason: string | null;
+    }
   ): ChronicleInsertData {
     return {
       gmail_message_id: email.gmailMessageId,
@@ -1062,6 +1229,12 @@ export class ChronicleService implements IChronicleService {
       ai_response: analysis,
       ai_model: AI_CONFIG.model,
       occurred_at: email.receivedAt.toISOString(),
+
+      // Confidence tracking (from ObjectiveConfidenceService)
+      confidence_source: confidenceData?.confidenceSource || null,
+      confidence_signals: confidenceData?.confidenceSignals || null,
+      escalated_to: confidenceData?.escalatedTo || null,
+      escalation_reason: confidenceData?.escalationReason || null,
     };
   }
 

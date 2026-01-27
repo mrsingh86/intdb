@@ -241,3 +241,18 @@ export type {
   TestResult,
   BatchTestReport,
 } from './reclassification-tester';
+
+// ============================================================================
+// OBJECTIVE CONFIDENCE SYSTEM
+// ============================================================================
+
+export {
+  ObjectiveConfidenceService,
+  createObjectiveConfidenceService,
+} from './objective-confidence-service';
+
+export type {
+  ConfidenceSignal,
+  ConfidenceResult,
+  ConfidenceInput,
+} from './objective-confidence-service';

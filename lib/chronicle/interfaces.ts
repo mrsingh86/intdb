@@ -91,12 +91,14 @@ export interface IAiAnalyzer {
    * @param threadContext - Optional context from previous emails in thread
    * @param threadPosition - Position in thread (1 = first, 2+ = reply/forward)
    *                         Position 2+ ignores subject (stale from forwarding)
+   * @param modelOverride - Optional model override for confidence-based escalation
    */
   analyze(
     email: ProcessedEmail,
     attachmentText: string,
     threadContext?: ThreadContext,
-    threadPosition?: number
+    threadPosition?: number,
+    modelOverride?: string
   ): Promise<ShippingAnalysis>;
 }
 
@@ -276,6 +278,12 @@ export interface ChronicleInsertData {
   ai_response: ShippingAnalysis;
   ai_model: string;
   occurred_at: string;
+
+  // Confidence tracking (from ObjectiveConfidenceService)
+  confidence_source: string | null;
+  confidence_signals: Record<string, unknown> | null;
+  escalated_to: string | null;
+  escalation_reason: string | null;
 }
 
 // ============================================================================

@@ -149,16 +149,18 @@ export class AiAnalyzer implements IAiAnalyzer {
    * @param threadContext - Optional context from previous emails in thread
    * @param threadPosition - Position in thread (1 = first, 2+ = reply/forward)
    *                         Position 2+ ignores subject (stale from forwarding)
+   * @param modelOverride - Optional model override for escalation (e.g., 'claude-sonnet-4-20250514')
    */
   async analyze(
     email: ProcessedEmail,
     attachmentText: string,
     threadContext?: ThreadContext,
-    threadPosition: number = 1
+    threadPosition: number = 1,
+    modelOverride?: string
   ): Promise<ShippingAnalysis> {
     const includeSubject = threadPosition === 1;
     const prompt = this.buildPrompt(email, attachmentText, threadContext, includeSubject);
-    const response = await this.callAnthropic(prompt);
+    const response = await this.callAnthropic(prompt, modelOverride);
     return this.parseResponse(response, email.receivedAt);
   }
 
@@ -183,9 +185,13 @@ export class AiAnalyzer implements IAiAnalyzer {
     );
   }
 
-  private async callAnthropic(prompt: string): Promise<Anthropic.Message> {
+  private async callAnthropic(prompt: string, modelOverride?: string): Promise<Anthropic.Message> {
+    const model = modelOverride || AI_CONFIG.model;
+    if (modelOverride) {
+      console.log(`[AiAnalyzer] Using escalated model: ${model}`);
+    }
     return await this.anthropic.messages.create({
-      model: AI_CONFIG.model,
+      model,
       max_tokens: AI_CONFIG.maxTokens,
       tools: [ANALYZE_TOOL_SCHEMA],
       tool_choice: { type: 'tool', name: 'analyze_freight_communication' },
