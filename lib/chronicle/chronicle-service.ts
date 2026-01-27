@@ -328,7 +328,10 @@ export class ChronicleService implements IChronicleService {
     let escalatedTo: string | null = null;
     let escalationReason: string | null = null;
 
-    if (!usePatternMatch) {
+    // Skip confidence calculation for very short emails (< 50 chars) - nothing to re-extract
+    const hasSubstantialContent = (email.bodyText?.length || 0) + (attachmentText?.length || 0) > 50;
+
+    if (!usePatternMatch && hasSubstantialContent) {
       confidenceResult = await this.calculateConfidenceAndEscalate(
         email,
         analysis,
@@ -357,6 +360,10 @@ export class ChronicleService implements IChronicleService {
 
       predictionConfidence = confidenceResult.overallScore;
       console.log(`[Chronicle] Confidence: ${confidenceResult.overallScore}% → ${confidenceResult.recommendation}`);
+    } else if (!usePatternMatch) {
+      // Short email - accept Haiku result, no escalation (nothing to re-extract)
+      console.log(`[Chronicle] Skipping confidence (short email: ${email.bodyText?.length || 0} chars)`);
+      this.confidenceStats.accepted++;
     } else {
       // Pattern match - high confidence, no escalation needed
       this.confidenceStats.accepted++;
@@ -553,22 +560,35 @@ export class ChronicleService implements IChronicleService {
    */
   private buildExtractedFields(analysis: ShippingAnalysis): Record<string, unknown> {
     return {
+      // Core shipping identifiers
       booking_number: analysis.booking_number,
       mbl_number: analysis.mbl_number,
       hbl_number: analysis.hbl_number,
       vessel_name: analysis.vessel_name,
+      voyage_number: analysis.voyage_number,
+      // Dates
       etd: analysis.etd,
       eta: analysis.eta,
+      // Routing
       pol_location: analysis.pol_location,
       pod_location: analysis.pod_location,
       carrier_name: analysis.carrier_name,
+      // Cargo
       container_numbers: analysis.container_numbers,
+      // Parties
       shipper_name: analysis.shipper_name,
       consignee_name: analysis.consignee_name,
+      // Cutoffs
       si_cutoff: analysis.si_cutoff,
       vgm_cutoff: analysis.vgm_cutoff,
       cargo_cutoff: analysis.cargo_cutoff,
       doc_cutoff: analysis.doc_cutoff,
+      // Non-shipping fields (for general_correspondence, invoice, etc.)
+      summary: analysis.summary,
+      invoice_number: analysis.invoice_number,
+      work_order_number: analysis.work_order_number,
+      pod_delivery_date: analysis.pod_delivery_date,
+      pod_signed_by: analysis.pod_signed_by,
     };
   }
 

@@ -90,7 +90,7 @@ export class ObjectiveConfidenceService {
 
     const signals = await this.calculateAllSignals(input);
     const overallScore = this.calculateWeightedScore(signals);
-    const recommendation = this.determineRecommendation(overallScore);
+    const recommendation = this.determineRecommendation(overallScore, input.documentType);
     const reasoning = this.generateReasoning(signals, overallScore);
 
     // Record calculation for audit
@@ -172,11 +172,14 @@ export class ObjectiveConfidenceService {
     const weight = rule?.enabled ? rule.weight : 0;
 
     if (!patternId) {
+      // CRITICAL: Use neutral score (50) for AI-only emails, not 0
+      // With score=0, AI-only emails max out at 70% (can never be accepted)
+      // With score=50, AI-only emails can reach 85% if other signals are strong
       return {
         name: 'pattern_match',
-        score: 0,
+        score: 50,
         weight,
-        details: { reason: 'No pattern matched - AI classification only' },
+        details: { reason: 'No pattern matched - using neutral base score for AI classification' },
       };
     }
 
@@ -394,9 +397,31 @@ export class ObjectiveConfidenceService {
     return Math.round(weightedSum / totalWeight);
   }
 
+  // Document types that should NEVER escalate (no shipping data to improve)
+  private static readonly SKIP_ESCALATION_TYPES = new Set([
+    'general_correspondence',
+    'rate_request',
+    'request',
+    'spam',
+    'unknown',
+    'internal_notification',
+    'statement',
+    'marketing',
+    'newsletter',
+  ]);
+
   private determineRecommendation(
-    score: number
+    score: number,
+    documentType?: string
   ): ConfidenceResult['recommendation'] {
+    // Skip escalation for non-shipping document types
+    // These don't have shipping data to extract - escalation is wasteful
+    if (documentType && ObjectiveConfidenceService.SKIP_ESCALATION_TYPES.has(documentType)) {
+      // For non-shipping docs: accept if decent score, otherwise just flag (never escalate)
+      if (score >= 70) return 'accept';
+      return 'flag_review';
+    }
+
     for (const threshold of this.thresholdsCache) {
       if (score >= threshold.min_score && score <= threshold.max_score) {
         return threshold.action as ConfidenceResult['recommendation'];
