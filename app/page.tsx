@@ -1,9 +1,14 @@
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
+import { LogoutButton } from '@/components/auth/logout-button';
 
 /**
  * Root page - Landing page for Intoglo Intelligence Platform
  */
-export default function HomePage() {
+export default async function HomePage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center p-4">
       <div className="max-w-md w-full space-y-8">
@@ -19,6 +24,22 @@ export default function HomePage() {
           </div>
           <p className="text-gray-400">Freight Intelligence Platform</p>
         </div>
+
+        {/* User Info */}
+        {user && (
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-pink-600/20 flex items-center justify-center text-pink-400 font-bold">
+                {user.email?.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <p className="text-white text-sm font-medium">{user.email}</p>
+                <p className="text-gray-500 text-xs">Logged in</p>
+              </div>
+            </div>
+            <LogoutButton />
+          </div>
+        )}
 
         {/* App Cards */}
         <div className="space-y-4">
@@ -64,6 +85,15 @@ export default function HomePage() {
             </div>
           </Link>
         </div>
+
+        {/* Login Link (if not logged in) */}
+        {!user && (
+          <div className="text-center">
+            <Link href="/login" className="text-pink-400 hover:text-pink-300 text-sm">
+              Sign in to access all features →
+            </Link>
+          </div>
+        )}
 
         {/* Footer */}
         <p className="text-center text-gray-600 text-xs">

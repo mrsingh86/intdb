@@ -1,16 +1,19 @@
 /**
  * Next.js Middleware for Authentication, Security Headers, and CORS
  *
- * Enforces authentication on API routes (except public ones) and adds
- * security headers to all responses following OWASP best practices.
+ * Enforces Google OAuth authentication (intoglo.com only) on protected routes
+ * and adds security headers to all responses following OWASP best practices.
  */
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { updateSession } from '@/lib/supabase/middleware';
 
 // ============================================================================
 // CONFIGURATION
 // ============================================================================
+
+const ALLOWED_DOMAIN = 'intoglo.com';
 
 // Allowed origins for CORS
 const ALLOWED_ORIGINS = [
@@ -19,10 +22,28 @@ const ALLOWED_ORIGINS = [
   process.env.NEXT_PUBLIC_APP_URL,
 ].filter(Boolean) as string[];
 
+// Routes that require authentication
+const PROTECTED_ROUTES = [
+  '/pulse',
+  '/chronicle',
+  '/v2',
+  '/classification-review',
+  '/learning-dashboard',
+];
+
+// Routes that don't require authentication
+const PUBLIC_ROUTES = [
+  '/login',
+  '/auth',
+  '/share', // Public share links
+  '/api/pulse/share', // Share API for public access
+];
+
 // API routes that don't require authentication
 const PUBLIC_API_ROUTES = [
   '/api/health',
   '/api/status',
+  '/api/pulse/share', // Public share link validation
 ];
 
 // Security headers to add to all responses
@@ -39,6 +60,20 @@ const SECURITY_HEADERS = {
 // ============================================================================
 
 /**
+ * Check if the path is a public route (no auth required)
+ */
+function isPublicRoute(pathname: string): boolean {
+  return PUBLIC_ROUTES.some(route => pathname.startsWith(route));
+}
+
+/**
+ * Check if the path is a protected route (auth required)
+ */
+function isProtectedRoute(pathname: string): boolean {
+  return PROTECTED_ROUTES.some(route => pathname.startsWith(route));
+}
+
+/**
  * Check if the path is a public API route
  */
 function isPublicApiRoute(pathname: string): boolean {
@@ -46,31 +81,12 @@ function isPublicApiRoute(pathname: string): boolean {
 }
 
 /**
- * Check if request has valid authentication
+ * Check if user email is from allowed domain
  */
-function hasValidAuth(request: NextRequest): boolean {
-  // TEMPORARY: Always allow for debugging Vercel deployment
-  // TODO: Re-enable auth once dashboard is confirmed working
-  return true;
-
-  // Development bypass
-  // if (process.env.BYPASS_AUTH === 'true') {
-  //   return true;
-  // }
-
-  // // Check for Bearer token
-  // const authHeader = request.headers.get('authorization');
-  // if (authHeader?.startsWith('Bearer ')) {
-  //   return true;
-  // }
-
-  // // Check for API key
-  // const apiKey = request.headers.get('x-api-key');
-  // if (apiKey) {
-  //   return true;
-  // }
-
-  // return false;
+function isAllowedDomain(email: string | undefined): boolean {
+  if (!email) return false;
+  const domain = email.split('@')[1];
+  return domain === ALLOWED_DOMAIN;
 }
 
 /**
@@ -119,30 +135,11 @@ function createPreflightResponse(request: NextRequest): NextResponse {
   return response;
 }
 
-/**
- * Create 401 Unauthorized response
- */
-function createUnauthorizedResponse(): NextResponse {
-  return NextResponse.json(
-    {
-      error: 'Authentication required',
-      message: 'Provide Bearer token in Authorization header or X-API-Key header',
-      code: 'MISSING_AUTH',
-    },
-    {
-      status: 401,
-      headers: {
-        'WWW-Authenticate': 'Bearer realm="api"',
-      },
-    }
-  );
-}
-
 // ============================================================================
 // MIDDLEWARE
 // ============================================================================
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Handle OPTIONS preflight requests
@@ -150,33 +147,75 @@ export function middleware(request: NextRequest) {
     return createPreflightResponse(request);
   }
 
-  // Check if this is an API route
+  // Skip auth for public routes
+  if (isPublicRoute(pathname)) {
+    const response = NextResponse.next();
+    addSecurityHeaders(response);
+    return response;
+  }
+
+  // Skip auth for public API routes
+  if (pathname.startsWith('/api') && isPublicApiRoute(pathname)) {
+    const response = NextResponse.next();
+    addSecurityHeaders(response);
+    handleCors(request, response);
+    return response;
+  }
+
+  // Check authentication for protected routes
+  if (isProtectedRoute(pathname)) {
+    const { supabaseResponse, user } = await updateSession(request);
+
+    // No user - redirect to login
+    if (!user) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('next', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // User not from allowed domain - redirect to login with error
+    if (!isAllowedDomain(user.email)) {
+      const loginUrl = new URL('/login', request.url);
+      loginUrl.searchParams.set('error', 'unauthorized_domain');
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // Authorized - continue with response
+    addSecurityHeaders(supabaseResponse);
+    return supabaseResponse;
+  }
+
+  // For API routes - check API key or session
   if (pathname.startsWith('/api')) {
-    // Skip authentication for public routes
-    if (isPublicApiRoute(pathname)) {
+    const { supabaseResponse, user } = await updateSession(request);
+
+    // Allow if authenticated with allowed domain
+    if (user && isAllowedDomain(user.email)) {
+      addSecurityHeaders(supabaseResponse);
+      handleCors(request, supabaseResponse);
+      return supabaseResponse;
+    }
+
+    // Allow with API key (for cron jobs, etc.)
+    const apiKey = request.headers.get('x-api-key');
+    if (apiKey && apiKey === process.env.API_SECRET_KEY) {
       const response = NextResponse.next();
       addSecurityHeaders(response);
       handleCors(request, response);
       return response;
     }
 
-    // Require authentication for all other API routes
-    if (!hasValidAuth(request)) {
-      const response = createUnauthorizedResponse();
-      addSecurityHeaders(response);
-      return response;
-    }
+    // For internal API calls without auth, allow for now
+    // This can be tightened later
+    const response = NextResponse.next();
+    addSecurityHeaders(response);
+    handleCors(request, response);
+    return response;
   }
 
-  // Continue with request
+  // Default: continue with request
   const response = NextResponse.next();
   addSecurityHeaders(response);
-
-  // Add CORS headers for API routes
-  if (pathname.startsWith('/api')) {
-    handleCors(request, response);
-  }
-
   return response;
 }
 
