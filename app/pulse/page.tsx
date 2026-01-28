@@ -590,7 +590,7 @@ function PulseContent() {
                     <p className="text-gray-600 text-xs mt-1">Try a different keyword</p>
                   </div>
                 ) : (
-                  <div className="space-y-1 max-h-96 overflow-y-auto">
+                  <div className="space-y-1 max-h-96 overflow-y-auto overflow-x-hidden">
                     {dossierSearchResults.slice(0, 20).map((result) => (
                       <SearchResultRow key={result.id} result={result} keyword={dossierKeyword} />
                     ))}
@@ -1387,10 +1387,10 @@ function SearchResultRow({ result, keyword }: { result: DossierSearchResult; key
       href={result.emailViewUrl || result.gmailLink}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors group"
+      className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors group overflow-hidden"
     >
       <span className="text-lg shrink-0 mt-0.5">{icon}</span>
-      <div className="flex-1 min-w-0 overflow-hidden">
+      <div className="flex-1 min-w-0 overflow-hidden max-w-full">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium text-gray-200 group-hover:text-white truncate max-w-full">
             {docTypeDisplay}
@@ -1405,10 +1405,11 @@ function SearchResultRow({ result, keyword }: { result: DossierSearchResult; key
           <span>•</span>
           <span className="truncate">{result.sender}</span>
         </div>
-        <div className="mt-2 p-2 bg-gray-800/50 rounded text-xs text-gray-400 overflow-hidden">
+        <div className="mt-2 p-2 bg-gray-800/50 rounded text-xs text-gray-400 overflow-hidden max-w-full">
           <span className="text-gray-500 text-[10px] uppercase tracking-wide">Match in {result.matchedText}:</span>
-          <p className="mt-1 break-words whitespace-pre-wrap">
-            <HighlightedSnippet text={result.snippet} keyword={keyword} />
+          <p className="mt-1 break-all overflow-hidden text-ellipsis" style={{ wordBreak: 'break-word' }}>
+            <HighlightedSnippet text={result.snippet.slice(0, 200)} keyword={keyword} />
+            {result.snippet.length > 200 && '...'}
           </p>
         </div>
       </div>
