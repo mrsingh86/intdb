@@ -260,18 +260,25 @@ export default function SharePage() {
             </Section>
           )}
 
-          {/* Documents */}
+          {/* Documents Timeline */}
           {d.documents.length > 0 && (
-            <Section title={`Documents (${d.documents.length})`}>
+            <Section title={`Document Timeline (${d.documents.length})`}>
+              <p className="text-xs text-gray-600 mb-3 -mt-1">Newest first</p>
               <div className="space-y-2">
-                {d.documents.slice(0, 10).map((doc) => (
-                  <div key={doc.id} className="flex items-center gap-3 p-2 bg-gray-800 rounded-lg text-sm">
-                    <span className="text-gray-300">{doc.displayName}</span>
-                    <span className="text-xs text-gray-500 ml-auto">{formatDate(doc.receivedAt)}</span>
+                {[...d.documents]
+                  .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime())
+                  .slice(0, 15)
+                  .map((doc) => (
+                  <div key={doc.id} className="flex items-start gap-3 p-2 bg-gray-800 rounded-lg text-sm">
+                    <span className="text-base shrink-0">{getDocIcon(doc.displayName)}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-gray-300 truncate">{doc.displayName}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{formatDateTime(doc.receivedAt)} • {doc.fromParty}</p>
+                    </div>
                   </div>
                 ))}
-                {d.documents.length > 10 && (
-                  <p className="text-xs text-gray-500 text-center">+{d.documents.length - 10} more documents</p>
+                {d.documents.length > 15 && (
+                  <p className="text-xs text-gray-500 text-center pt-1">+{d.documents.length - 15} more documents</p>
                 )}
               </div>
             </Section>
@@ -316,4 +323,29 @@ function StatBox({ label, value }: { label: string; value: number | string }) {
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function formatDateTime(dateStr: string): string {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function getDocIcon(displayName: string): string {
+  const name = displayName.toLowerCase();
+  if (name.includes('booking') && name.includes('confirm')) return '📋';
+  if (name.includes('amendment')) return '📝';
+  if (name.includes('shipping instruction') || name.includes('si ')) return '📄';
+  if (name.includes('vgm')) return '⚖️';
+  if (name.includes('draft') && name.includes('bl')) return '📜';
+  if (name.includes('final') && name.includes('bl')) return '📜';
+  if (name.includes('house bl') || name.includes('hbl')) return '📜';
+  if (name.includes('telex')) return '📨';
+  if (name.includes('arrival')) return '🚢';
+  if (name.includes('delivery order')) return '🚚';
+  if (name.includes('invoice')) return '💵';
+  if (name.includes('customs') || name.includes('isf')) return '🛃';
+  if (name.includes('rate')) return '💰';
+  if (name.includes('tracking')) return '📍';
+  if (name.includes('escalation')) return '🚨';
+  return '📧';
 }
