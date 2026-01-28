@@ -398,10 +398,15 @@ function PulseContent() {
             <h2 className="text-xl font-semibold text-white mb-2">Shipment Intelligence</h2>
             <p className="text-gray-400 mb-4">Search by booking, MBL, container, port, or company</p>
             <div className="flex flex-wrap justify-center gap-2 text-xs">
-              <span className="px-2 py-1 bg-gray-800 rounded text-gray-400 hover:bg-pink-900/30 hover:text-pink-300 cursor-pointer transition-colors">262822342</span>
-              <span className="px-2 py-1 bg-gray-800 rounded text-gray-400 hover:bg-pink-900/30 hover:text-pink-300 cursor-pointer transition-colors">INNSA</span>
-              <span className="px-2 py-1 bg-gray-800 rounded text-gray-400 hover:bg-pink-900/30 hover:text-pink-300 cursor-pointer transition-colors">Pearl Global</span>
-              <span className="px-2 py-1 bg-gray-800 rounded text-gray-400 hover:bg-pink-900/30 hover:text-pink-300 cursor-pointer transition-colors">MRSU7283866</span>
+              {['262822342', 'INNSA', 'Pearl Global', 'MRSU7283866'].map((term) => (
+                <button
+                  key={term}
+                  onClick={() => search(term)}
+                  className="px-2 py-1 bg-gray-800 rounded text-gray-400 hover:bg-pink-900/30 hover:text-pink-300 cursor-pointer transition-colors"
+                >
+                  {term}
+                </button>
+              ))}
             </div>
           </div>
         )}
