@@ -570,49 +570,38 @@ function PulseContent() {
 
             {/* === DOSSIER SEARCH RESULTS === */}
             {dossierSearchResults !== null && (
-              <div className="bg-gray-900 rounded-xl border border-pink-800/50 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium text-pink-400">
-                    {dossierSearchResults.length} result{dossierSearchResults.length !== 1 ? 's' : ''} for "{dossierKeyword}"
-                  </h3>
+              <Section title={`Search Results (${dossierSearchResults.length})`} icon="🔍">
+                <div className="flex items-center justify-between mb-3 -mt-1">
+                  <p className="text-xs text-gray-500">
+                    {dossierSearchResults.length > 0
+                      ? `Showing matches for "${dossierKeyword}"`
+                      : `No matches for "${dossierKeyword}"`}
+                  </p>
                   <button
                     onClick={clearDossierSearch}
-                    className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-800"
+                    className="text-xs text-pink-400 hover:text-pink-300 px-2 py-1 rounded hover:bg-pink-900/20 transition-colors"
                   >
-                    Clear
+                    Clear search
                   </button>
                 </div>
                 {dossierSearchResults.length === 0 ? (
-                  <p className="text-sm text-gray-500 py-4 text-center">No matches found in emails or documents</p>
+                  <div className="text-center py-6">
+                    <p className="text-gray-500 text-sm">No matches found in emails or documents</p>
+                    <p className="text-gray-600 text-xs mt-1">Try a different keyword</p>
+                  </div>
                 ) : (
-                  <div className="space-y-2">
-                    {dossierSearchResults.map((result) => (
-                      <a
-                        key={result.id}
-                        href={result.emailViewUrl || result.gmailLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block p-3 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
-                      >
-                        <div className="flex items-start gap-3">
-                          <span className="text-lg shrink-0">{result.type === 'document' ? '📎' : '📧'}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-white truncate">{result.subject}</p>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              {formatDate(result.date)} • {result.sender}
-                              {result.documentType && <span className="ml-2 text-blue-400">{result.documentType}</span>}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-2 line-clamp-2 bg-gray-900/50 p-2 rounded">
-                              <span className="text-gray-600">Match in {result.matchedText}:</span>{' '}
-                              <HighlightedSnippet text={result.snippet} keyword={dossierKeyword} />
-                            </p>
-                          </div>
-                        </div>
-                      </a>
+                  <div className="space-y-1 max-h-96 overflow-y-auto">
+                    {dossierSearchResults.slice(0, 20).map((result) => (
+                      <SearchResultRow key={result.id} result={result} keyword={dossierKeyword} />
                     ))}
+                    {dossierSearchResults.length > 20 && (
+                      <p className="text-xs text-gray-500 text-center pt-2">
+                        Showing 20 of {dossierSearchResults.length} results
+                      </p>
+                    )}
                   </div>
                 )}
-              </div>
+              </Section>
             )}
 
             {/* === PARTIES === */}
@@ -1371,24 +1360,99 @@ function ViewIcon() {
   );
 }
 
+function SearchResultRow({ result, keyword }: { result: DossierSearchResult; keyword: string }) {
+  const docIcons: Record<string, string> = {
+    'booking_confirmation': '📋',
+    'booking_amendment': '📝',
+    'shipping_instructions': '📄',
+    'si_confirmation': '✅',
+    'vgm_confirmation': '⚖️',
+    'draft_bl': '📜',
+    'final_bl': '📜',
+    'telex_release': '📨',
+    'arrival_notice': '🚢',
+    'delivery_order': '🚚',
+    'invoice': '💵',
+    'customs_entry': '🛃',
+    'rate_request': '💰',
+    'rate_confirmation': '✅',
+    'tracking_update': '📍',
+  };
+
+  const icon = docIcons[result.documentType || ''] || (result.type === 'document' ? '📎' : '📧');
+  const docTypeDisplay = result.documentType?.replace(/_/g, ' ') || 'email';
+
+  return (
+    <a
+      href={result.emailViewUrl || result.gmailLink}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors group"
+    >
+      <span className="text-lg shrink-0 mt-0.5">{icon}</span>
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-medium text-gray-200 group-hover:text-white truncate max-w-full">
+            {docTypeDisplay}
+          </span>
+          {result.type === 'document' && <span className="text-xs text-blue-400">📎</span>}
+        </div>
+        <p className="text-xs text-gray-400 mt-0.5 truncate" title={result.subject}>
+          {result.subject}
+        </p>
+        <div className="flex items-center gap-2 text-xs text-gray-600 mt-1">
+          <span>{formatDateTime(result.date)}</span>
+          <span>•</span>
+          <span className="truncate">{result.sender}</span>
+        </div>
+        <div className="mt-2 p-2 bg-gray-800/50 rounded text-xs text-gray-400 overflow-hidden">
+          <span className="text-gray-500 text-[10px] uppercase tracking-wide">Match in {result.matchedText}:</span>
+          <p className="mt-1 break-words whitespace-pre-wrap">
+            <HighlightedSnippet text={result.snippet} keyword={keyword} />
+          </p>
+        </div>
+      </div>
+    </a>
+  );
+}
+
 function HighlightedSnippet({ text, keyword }: { text: string; keyword: string }) {
   if (!keyword) return <>{text}</>;
 
   const lowerText = text.toLowerCase();
-  const lowerKeyword = keyword.toLowerCase();
-  const idx = lowerText.indexOf(lowerKeyword);
+  const lowerKeyword = keyword.toLowerCase().trim();
 
-  if (idx === -1) return <>{text}</>;
+  // Find all matches and highlight them
+  const parts: { text: string; highlight: boolean }[] = [];
+  let lastIndex = 0;
+  let idx = lowerText.indexOf(lowerKeyword);
 
-  const before = text.slice(0, idx);
-  const match = text.slice(idx, idx + keyword.length);
-  const after = text.slice(idx + keyword.length);
+  while (idx !== -1) {
+    if (idx > lastIndex) {
+      parts.push({ text: text.slice(lastIndex, idx), highlight: false });
+    }
+    parts.push({ text: text.slice(idx, idx + lowerKeyword.length), highlight: true });
+    lastIndex = idx + lowerKeyword.length;
+    idx = lowerText.indexOf(lowerKeyword, lastIndex);
+  }
+
+  if (lastIndex < text.length) {
+    parts.push({ text: text.slice(lastIndex), highlight: false });
+  }
+
+  if (parts.length === 0) return <>{text}</>;
 
   return (
     <>
-      {before}
-      <span className="bg-yellow-500/30 text-yellow-300 font-medium px-0.5 rounded">{match}</span>
-      {after}
+      {parts.map((part, i) =>
+        part.highlight ? (
+          <mark key={i} className="bg-yellow-500/40 text-yellow-200 font-medium px-0.5 rounded-sm">
+            {part.text}
+          </mark>
+        ) : (
+          <span key={i}>{part.text}</span>
+        )
+      )}
     </>
   );
 }
