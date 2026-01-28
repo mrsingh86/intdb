@@ -58,6 +58,29 @@ export { UnifiedIntelligenceService, getUnifiedIntelligenceService } from './uni
 export { IntdbQueryService, getIntdbQueryService } from './intdb-query-service';
 export { CarrierApiService, getCarrierApiService, detectCarrier } from './carrier-api-service';
 export { CrossValidationService, getCrossValidationService } from './cross-validation-service';
+export {
+  OpsIntelligenceService,
+  getOpsIntelligenceService,
+  type ShipmentHealth,
+  type HealthIssue,
+  type DataMismatch,
+  type Blocker,
+  type CutoffAlert,
+  type DashboardMetrics,
+} from './ops-intelligence-service';
+
+export {
+  ShipmentDossierService,
+  getShipmentDossierService,
+  type ShipmentDossier,
+  type DocumentRecord,
+  type TimelineEvent,
+  type CutoffDate,
+  type LiveTrackingData,
+  type Discrepancy,
+  type Escalation,
+  type PendingActionInfo,
+} from './shipment-dossier-service';
 
 // Bot Handler
 export { BotCommandHandler, getBotCommandHandler } from './bot-command-handlers';

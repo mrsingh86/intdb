@@ -151,9 +151,10 @@ export class UnifiedIntelligenceService {
 
   /**
    * Get demurrage & detention charges (Maersk API)
+   * Requires MBL number, container is optional
    */
-  async getCharges(containerNumber: string): Promise<ApiResponse<CarrierCharges>> {
-    return this.carrierService.getCharges(containerNumber);
+  async getCharges(mblNumber: string, containerNumber?: string): Promise<ApiResponse<CarrierCharges>> {
+    return this.carrierService.getCharges(mblNumber, containerNumber);
   }
 
   /**

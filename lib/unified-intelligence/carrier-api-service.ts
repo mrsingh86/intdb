@@ -276,22 +276,53 @@ export class CarrierApiService {
 
   /**
    * Get demurrage & detention charges (Maersk only)
+   * Requires MBL number and customer code
    */
-  async getCharges(containerNumber: string): Promise<ApiResponse<CarrierCharges>> {
-    const response = await maerskRequest<any>(
-      '/demurrage-and-detention',
-      { equipmentReference: containerNumber }
-    );
+  async getCharges(mblNumber: string, containerNumber?: string): Promise<ApiResponse<CarrierCharges>> {
+    const customerCode = process.env.MAERSK_CUSTOMER_CODE;
 
-    if (!response.success || !response.data) {
+    if (!customerCode) {
       return {
         success: false,
-        error: response.error || 'Failed to retrieve charges',
+        error: 'Maersk customer code not configured (MAERSK_CUSTOMER_CODE)',
       };
     }
 
-    // Transform to our format
-    const charges = this.transformCharges(response.data, containerNumber);
+    // Try demurrage first (DMR)
+    const dmrResponse = await maerskRequest<any>(
+      '/shipping-charges/import/DMR',
+      {
+        billOfLadingNumber: mblNumber,
+        carrierCustomerCode: customerCode,
+        carrierCode: 'MAEU',
+      }
+    );
+
+    // Also try detention (DET)
+    const detResponse = await maerskRequest<any>(
+      '/shipping-charges/import/DET',
+      {
+        billOfLadingNumber: mblNumber,
+        carrierCustomerCode: customerCode,
+        carrierCode: 'MAEU',
+      }
+    );
+
+    // If both fail, return error
+    if (!dmrResponse.success && !detResponse.success) {
+      return {
+        success: false,
+        error: dmrResponse.error || detResponse.error || 'Failed to retrieve D&D charges',
+      };
+    }
+
+    // Transform to our format, combining both responses
+    const charges = this.transformChargesCombined(
+      dmrResponse.data,
+      detResponse.data,
+      mblNumber,
+      containerNumber
+    );
 
     return {
       success: true,
@@ -573,6 +604,125 @@ export class CarrierApiService {
       rateSchedule: data.rateSchedule || [],
       isFinalCharge: data.isFinalCharge || false,
       lastSyncAt: new Date().toISOString(),
+    };
+  }
+
+  /**
+   * Transform combined Maersk D&D responses (DMR + DET) to our format
+   * Based on intcontra/lib/maersk/demurrage-detention.ts structure
+   */
+  private transformChargesCombined(
+    dmrData: any,
+    detData: any,
+    mblNumber: string,
+    containerNumber?: string
+  ): CarrierCharges {
+    const now = new Date().toISOString();
+
+    // Extract location info from either response
+    const location = dmrData?.location || detData?.location || {};
+    const currency = dmrData?.currencyCode || detData?.currencyCode || 'USD';
+
+    // Calculate demurrage charges from DMR response
+    let demurrageCharges = 0;
+    let demurrageFreeDays = 0;
+    let demurrageLastFreeDay: string | null = null;
+    let demurrageChargeableDays = 0;
+    let isFinalDemurrage = false;
+
+    if (dmrData?.equipmentCharges && dmrData.equipmentCharges.length > 0) {
+      const equipment = containerNumber
+        ? dmrData.equipmentCharges.find((e: any) => e.equipmentReference === containerNumber)
+        : dmrData.equipmentCharges[0];
+
+      if (equipment) {
+        isFinalDemurrage = equipment.isFinalCharge || false;
+
+        if (equipment.freePeriod) {
+          demurrageFreeDays = equipment.freePeriod.freeDays || 0;
+          demurrageLastFreeDay =
+            equipment.freePeriod.actualLastFreeDate ||
+            equipment.freePeriod.estimatedLastFreeDate ||
+            null;
+        }
+
+        if (equipment.chargeablePeriod?.chargesByDates) {
+          demurrageCharges = equipment.chargeablePeriod.chargesByDates.reduce(
+            (sum: number, c: any) => sum + (c.amount || 0),
+            0
+          );
+          demurrageChargeableDays = equipment.chargeablePeriod.chargesByDates.length;
+        }
+      }
+    }
+
+    // Calculate detention charges from DET response
+    let detentionCharges = 0;
+    let detentionFreeDays = 0;
+    let detentionLastFreeDay: string | null = null;
+    let detentionChargeableDays = 0;
+    let isFinalDetention = false;
+
+    if (detData?.equipmentCharges && detData.equipmentCharges.length > 0) {
+      const equipment = containerNumber
+        ? detData.equipmentCharges.find((e: any) => e.equipmentReference === containerNumber)
+        : detData.equipmentCharges[0];
+
+      if (equipment) {
+        isFinalDetention = equipment.isFinalCharge || false;
+
+        if (equipment.freePeriod) {
+          detentionFreeDays = equipment.freePeriod.freeDays || 0;
+          detentionLastFreeDay =
+            equipment.freePeriod.actualLastFreeDate ||
+            equipment.freePeriod.estimatedLastFreeDate ||
+            null;
+        }
+
+        if (equipment.chargeablePeriod?.chargesByDates) {
+          detentionCharges = equipment.chargeablePeriod.chargesByDates.reduce(
+            (sum: number, c: any) => sum + (c.amount || 0),
+            0
+          );
+          detentionChargeableDays = equipment.chargeablePeriod.chargesByDates.length;
+        }
+      }
+    }
+
+    // Find container number from either response
+    const resolvedContainer =
+      containerNumber ||
+      dmrData?.equipmentCharges?.[0]?.equipmentReference ||
+      detData?.equipmentCharges?.[0]?.equipmentReference ||
+      'UNKNOWN';
+
+    // Use the earlier last free day
+    let lastFreeDay: string | null = null;
+    if (demurrageLastFreeDay && detentionLastFreeDay) {
+      lastFreeDay =
+        new Date(demurrageLastFreeDay) < new Date(detentionLastFreeDay)
+          ? demurrageLastFreeDay
+          : detentionLastFreeDay;
+    } else {
+      lastFreeDay = demurrageLastFreeDay || detentionLastFreeDay;
+    }
+
+    return {
+      containerNumber: resolvedContainer,
+      carrier: 'maersk',
+      port: location.locationName || location.cityName || '',
+      portCode: location.UNLocationCode || '',
+      portFreeDays: demurrageFreeDays,
+      detentionFreeDays: detentionFreeDays,
+      lastFreeDay,
+      demurrageCharges,
+      detentionCharges,
+      totalCharges: demurrageCharges + detentionCharges,
+      currency,
+      chargeableDays: Math.max(demurrageChargeableDays, detentionChargeableDays),
+      rateSchedule: [],
+      isFinalCharge: isFinalDemurrage && isFinalDetention,
+      lastSyncAt: now,
     };
   }
 }

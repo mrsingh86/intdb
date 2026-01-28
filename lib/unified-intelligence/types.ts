@@ -274,6 +274,7 @@ export interface ValidationAlert {
 export type BotCommand =
   | 'status'
   | 'track'
+  | 'timeline'
   | 'docs'
   | 'pending'
   | 'deadlines'
@@ -282,6 +283,10 @@ export type BotCommand =
   | 'customer'
   | 'urgent'
   | 'today'
+  | 'dashboard'
+  | 'risk'
+  | 'blockers'
+  | 'cutoffs'
   | 'help';
 
 export interface CommandResult {
