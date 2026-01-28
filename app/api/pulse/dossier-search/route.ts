@@ -26,8 +26,11 @@ interface SearchResult {
 }
 
 export async function POST(request: NextRequest) {
+  console.log('[Dossier Search API] Request received');
   try {
-    const { bookingNumber, keyword } = await request.json();
+    const body = await request.json();
+    console.log('[Dossier Search API] Body:', body);
+    const { bookingNumber, keyword } = body;
 
     if (!bookingNumber || !keyword) {
       return NextResponse.json(
@@ -51,66 +54,81 @@ export async function POST(request: NextRequest) {
         id,
         gmail_message_id,
         subject,
-        sender_email,
-        sender_name,
-        body_text,
-        body_html,
+        from_address,
+        from_party,
+        body_preview,
+        snippet,
+        summary,
         occurred_at,
         document_type,
-        has_attachment
+        attachments
       `)
       .eq('booking_number', bookingNumber)
       .order('occurred_at', { ascending: false });
 
     if (error) {
-      console.error('[Dossier Search] Query error:', error);
+      console.error('[Dossier Search API] Query error:', error);
       return NextResponse.json(
-        { success: false, error: 'Search failed' },
+        { success: false, error: 'Search failed', details: error.message },
         { status: 500 }
       );
     }
+
+    console.log('[Dossier Search API] Found', emails?.length || 0, 'emails for booking', bookingNumber);
 
     // Filter and score results
     const results: SearchResult[] = [];
 
     for (const email of emails || []) {
       const subject = (email.subject || '').toLowerCase();
-      const sender = (email.sender_name || email.sender_email || '').toLowerCase();
-      const bodyText = (email.body_text || '').toLowerCase();
+      const sender = (email.from_party || email.from_address || '').toLowerCase();
+      const bodyPreview = (email.body_preview || '').toLowerCase();
+      const summary = (email.summary || '').toLowerCase();
+      const docType = (email.document_type || '').toLowerCase().replace(/_/g, ' ');
 
-      // Check if keyword matches
+      // Check if keyword matches in any field
       const subjectMatch = subject.includes(searchTerm);
       const senderMatch = sender.includes(searchTerm);
-      const bodyMatch = bodyText.includes(searchTerm);
+      const bodyMatch = bodyPreview.includes(searchTerm);
+      const summaryMatch = summary.includes(searchTerm);
+      const docTypeMatch = docType.includes(searchTerm);
 
-      if (subjectMatch || senderMatch || bodyMatch) {
+      if (subjectMatch || senderMatch || bodyMatch || summaryMatch || docTypeMatch) {
         // Extract snippet around the match
         let matchedText = '';
-        let snippet = '';
+        let snippetText = '';
 
         if (bodyMatch) {
-          const idx = bodyText.indexOf(searchTerm);
+          const idx = bodyPreview.indexOf(searchTerm);
           const start = Math.max(0, idx - 50);
-          const end = Math.min(bodyText.length, idx + searchTerm.length + 100);
-          snippet = (email.body_text || '').substring(start, end);
-          if (start > 0) snippet = '...' + snippet;
-          if (end < bodyText.length) snippet = snippet + '...';
+          const end = Math.min(bodyPreview.length, idx + searchTerm.length + 100);
+          snippetText = (email.body_preview || '').substring(start, end);
+          if (start > 0) snippetText = '...' + snippetText;
+          if (end < bodyPreview.length) snippetText = snippetText + '...';
           matchedText = 'body';
+        } else if (summaryMatch) {
+          snippetText = email.summary || '';
+          matchedText = 'summary';
         } else if (subjectMatch) {
-          snippet = email.subject || '';
+          snippetText = email.subject || '';
           matchedText = 'subject';
         } else if (senderMatch) {
-          snippet = `From: ${email.sender_name || email.sender_email}`;
+          snippetText = `From: ${email.from_party || email.from_address}`;
           matchedText = 'sender';
+        } else if (docTypeMatch) {
+          snippetText = `Document type: ${email.document_type?.replace(/_/g, ' ')}`;
+          matchedText = 'document type';
         }
+
+        const hasAttachment = email.attachments && Array.isArray(email.attachments) && email.attachments.length > 0;
 
         results.push({
           id: email.id,
-          type: email.has_attachment ? 'document' : 'email',
+          type: hasAttachment ? 'document' : 'email',
           subject: email.subject || '(No subject)',
-          sender: email.sender_name || email.sender_email || 'Unknown',
+          sender: email.from_party || email.from_address || 'Unknown',
           date: email.occurred_at,
-          snippet,
+          snippet: snippetText,
           matchedText,
           gmailLink: email.gmail_message_id ? `https://mail.google.com/mail/u/0/#inbox/${email.gmail_message_id}` : undefined,
           emailViewUrl: `/api/chronicle-v2/email-view/${email.id}`,

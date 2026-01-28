@@ -44,6 +44,7 @@ const PUBLIC_API_ROUTES = [
   '/api/health',
   '/api/status',
   '/api/pulse/share', // Public share link validation
+  '/api/pulse/dossier-search', // Dossier search within shipment
 ];
 
 // Security headers to add to all responses

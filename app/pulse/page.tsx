@@ -312,6 +312,7 @@ function PulseContent() {
   const searchDossier = async (keyword: string) => {
     if (!dossier || !keyword.trim() || keyword.trim().length < 2) return;
 
+    console.log('[Dossier Search] Searching:', { bookingNumber: dossier.bookingNumber, keyword: keyword.trim() });
     setDossierSearchLoading(true);
     try {
       const res = await fetch('/api/pulse/dossier-search', {
@@ -320,13 +321,16 @@ function PulseContent() {
         body: JSON.stringify({ bookingNumber: dossier.bookingNumber, keyword: keyword.trim() }),
       });
       const data = await res.json();
+      console.log('[Dossier Search] Response:', data);
 
       if (res.ok && data.success) {
         setDossierSearchResults(data.results);
       } else {
+        console.error('[Dossier Search] Error:', data.error);
         setDossierSearchResults([]);
       }
-    } catch {
+    } catch (err) {
+      console.error('[Dossier Search] Fetch error:', err);
       setDossierSearchResults([]);
     } finally {
       setDossierSearchLoading(false);
