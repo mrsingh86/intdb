@@ -139,6 +139,19 @@ interface FeedItem {
   severity?: string;
 }
 
+interface DossierSearchResult {
+  id: string;
+  type: 'email' | 'document';
+  subject: string;
+  sender: string;
+  date: string;
+  snippet: string;
+  matchedText: string;
+  gmailLink?: string;
+  emailViewUrl?: string;
+  documentType?: string;
+}
+
 // =============================================================================
 // MAIN COMPONENT
 // =============================================================================
@@ -173,6 +186,11 @@ function PulseContent() {
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [initialSearchDone, setInitialSearchDone] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+
+  // Dossier search state
+  const [dossierKeyword, setDossierKeyword] = useState('');
+  const [dossierSearchResults, setDossierSearchResults] = useState<DossierSearchResult[] | null>(null);
+  const [dossierSearchLoading, setDossierSearchLoading] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('pulse_recent');
@@ -286,6 +304,38 @@ function PulseContent() {
     setShipmentList(null);
     setListQuery('');
     setError(null);
+    setDossierKeyword('');
+    setDossierSearchResults(null);
+  };
+
+  // Search within current shipment
+  const searchDossier = async (keyword: string) => {
+    if (!dossier || !keyword.trim() || keyword.trim().length < 2) return;
+
+    setDossierSearchLoading(true);
+    try {
+      const res = await fetch('/api/pulse/dossier-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingNumber: dossier.bookingNumber, keyword: keyword.trim() }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setDossierSearchResults(data.results);
+      } else {
+        setDossierSearchResults([]);
+      }
+    } catch {
+      setDossierSearchResults([]);
+    } finally {
+      setDossierSearchLoading(false);
+    }
+  };
+
+  const clearDossierSearch = () => {
+    setDossierKeyword('');
+    setDossierSearchResults(null);
   };
 
   // Build unified chronological feed
@@ -481,6 +531,85 @@ function PulseContent() {
                 </button>
               </div>
             </div>
+
+            {/* === DOSSIER SEARCH === */}
+            <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={dossierKeyword}
+                    onChange={(e) => setDossierKeyword(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && searchDossier(dossierKeyword)}
+                    placeholder="Search emails &amp; documents..."
+                    className="w-full bg-gray-800 text-white px-4 py-2.5 pr-10 rounded-lg border border-gray-700 focus:border-pink-500 focus:outline-none text-sm"
+                  />
+                  {dossierKeyword && (
+                    <button
+                      onClick={clearDossierSearch}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-white"
+                    >
+                      <CloseIcon />
+                    </button>
+                  )}
+                </div>
+                <button
+                  onClick={() => searchDossier(dossierKeyword)}
+                  disabled={dossierSearchLoading || !dossierKeyword.trim() || dossierKeyword.trim().length < 2}
+                  className="px-4 py-2.5 rounded-lg bg-pink-900/30 text-pink-400 border border-pink-800/50 hover:bg-pink-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {dossierSearchLoading ? <Spinner /> : <SearchIcon />}
+                </button>
+              </div>
+              <p className="text-xs text-gray-600 mt-2">Search full email content and documents within this shipment</p>
+            </div>
+
+            {/* === DOSSIER SEARCH RESULTS === */}
+            {dossierSearchResults !== null && (
+              <div className="bg-gray-900 rounded-xl border border-pink-800/50 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium text-pink-400">
+                    {dossierSearchResults.length} result{dossierSearchResults.length !== 1 ? 's' : ''} for "{dossierKeyword}"
+                  </h3>
+                  <button
+                    onClick={clearDossierSearch}
+                    className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded hover:bg-gray-800"
+                  >
+                    Clear
+                  </button>
+                </div>
+                {dossierSearchResults.length === 0 ? (
+                  <p className="text-sm text-gray-500 py-4 text-center">No matches found in emails or documents</p>
+                ) : (
+                  <div className="space-y-2">
+                    {dossierSearchResults.map((result) => (
+                      <a
+                        key={result.id}
+                        href={result.emailViewUrl || result.gmailLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block p-3 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="text-lg shrink-0">{result.type === 'document' ? '📎' : '📧'}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-white truncate">{result.subject}</p>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {formatDate(result.date)} • {result.sender}
+                              {result.documentType && <span className="ml-2 text-blue-400">{result.documentType}</span>}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-2 line-clamp-2 bg-gray-900/50 p-2 rounded">
+                              <span className="text-gray-600">Match in {result.matchedText}:</span>{' '}
+                              <HighlightedSnippet text={result.snippet} keyword={dossierKeyword} />
+                            </p>
+                          </div>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* === PARTIES === */}
             <Section title="Parties">
@@ -1235,6 +1364,28 @@ function ViewIcon() {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
     </svg>
+  );
+}
+
+function HighlightedSnippet({ text, keyword }: { text: string; keyword: string }) {
+  if (!keyword) return <>{text}</>;
+
+  const lowerText = text.toLowerCase();
+  const lowerKeyword = keyword.toLowerCase();
+  const idx = lowerText.indexOf(lowerKeyword);
+
+  if (idx === -1) return <>{text}</>;
+
+  const before = text.slice(0, idx);
+  const match = text.slice(idx, idx + keyword.length);
+  const after = text.slice(idx + keyword.length);
+
+  return (
+    <>
+      {before}
+      <span className="bg-yellow-500/30 text-yellow-300 font-medium px-0.5 rounded">{match}</span>
+      {after}
+    </>
   );
 }
 
