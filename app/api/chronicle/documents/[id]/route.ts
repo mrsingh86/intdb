@@ -1,3 +1,7 @@
+/**
+ * @deprecated This API route is deprecated. Use /api/chronicle-v2/documents/[id] instead.
+ * This V1 route will be removed in a future release.
+ */
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 

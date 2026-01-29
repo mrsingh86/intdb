@@ -1,8 +1,18 @@
 /**
- * Utils Index
+ * Business Utilities Module
  *
  * Central export point for shared utility functions.
- * These are stateless helpers used across multiple modules.
+ * These are STATELESS helpers used across multiple modules.
+ *
+ * IMPORTANT: This is different from /utils/ which contains stateful
+ * infrastructure clients (Supabase, Gmail, Logger).
+ *
+ * @example
+ * // Business utilities (this folder)
+ * import { parseEntityDate, isValidContainerNumber } from '@/lib/utils';
+ *
+ * // Infrastructure clients (/utils/)
+ * import { createServerClient, logger } from '@/utils';
  */
 
 // ============================================================================

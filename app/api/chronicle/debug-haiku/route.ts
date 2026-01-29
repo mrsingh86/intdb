@@ -1,5 +1,7 @@
 /**
  * Debug HaikuSummaryService & RPC Functions
+ *
+ * @deprecated This is a debug endpoint and should be moved to /api/debug/.
  */
 
 import { NextResponse } from 'next/server';

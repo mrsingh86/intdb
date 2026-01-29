@@ -4,13 +4,13 @@
  * UI components for the attention-first shipment dashboard.
  */
 
-export { FilterBar } from './FilterBar';
-export { ShipmentRow } from './ShipmentRow';
-export { DocumentTimeline } from './DocumentTimeline';
+export { FilterBar } from './filter-bar';
+export { ShipmentRow } from './shipment-row';
+export { DocumentTimeline } from './document-timeline';
 
 // Chain of Thought components
-export { NarrativeChainCard } from './NarrativeChainCard';
-export { StakeholderCard } from './StakeholderCard';
-export { ChainOfThoughtPanel } from './ChainOfThoughtPanel';
-export { ShipmentStoryPanel } from './ShipmentStoryPanel';
-export { DraftEmailModal } from './DraftEmailModal';
+export { NarrativeChainCard } from './narrative-chain-card';
+export { StakeholderCard } from './stakeholder-card';
+export { ChainOfThoughtPanel } from './chain-of-thought-panel';
+export { ShipmentStoryPanel } from './shipment-story-panel';
+export { DraftEmailModal } from './draft-email-modal';

@@ -9,7 +9,7 @@ import {
   type Phase,
   type TimeWindow,
 } from '@/lib/chronicle-v2';
-import { FilterBar } from '@/components/chronicle-v2/FilterBar';
+import { FilterBar } from '@/components/chronicle-v2/filter-bar';
 
 type RiskFilter = 'all' | 'critical' | 'warning' | 'on_track';
 

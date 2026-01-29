@@ -1,3 +1,10 @@
+/**
+ * @deprecated This API route is deprecated. Use /api/chronicle-v2/shipments instead.
+ * This V1 route will be removed in a future release.
+ *
+ * Migration guide:
+ * - GET /api/chronicle/shipments → GET /api/chronicle-v2/shipments
+ */
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 

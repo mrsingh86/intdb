@@ -3,6 +3,8 @@
  *
  * Uses the existing infrastructure that works (shipment_ai_summaries table access)
  * to regenerate summaries with improved thread context.
+ *
+ * @deprecated This is a V1 endpoint. Consider using V2 endpoints for new integrations.
  */
 
 import { NextResponse } from 'next/server';

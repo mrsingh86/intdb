@@ -13,10 +13,10 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import type { ShipmentStory, StakeholderSummary, NarrativeChain, ChainOfThoughtRecommendation } from '@/lib/chronicle-v2';
-import { NarrativeChainCard } from './NarrativeChainCard';
-import { StakeholderCard } from './StakeholderCard';
-import { ChainOfThoughtPanel } from './ChainOfThoughtPanel';
-import { DraftEmailModal } from './DraftEmailModal';
+import { NarrativeChainCard } from './narrative-chain-card';
+import { StakeholderCard } from './stakeholder-card';
+import { ChainOfThoughtPanel } from './chain-of-thought-panel';
+import { DraftEmailModal } from './draft-email-modal';
 
 interface ShipmentStoryPanelProps {
   shipmentId: string;

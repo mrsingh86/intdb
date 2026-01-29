@@ -7,6 +7,8 @@
  * Usage:
  *   GET /api/chronicle/pipeline             - Full X-Ray (JSON)
  *   GET /api/chronicle/pipeline?format=text - Terminal-friendly output
+ *
+ * @deprecated This is a V1 endpoint. Consider using V2 endpoints for new integrations.
  */
 
 import { NextResponse } from 'next/server';

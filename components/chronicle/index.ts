@@ -6,16 +6,16 @@
  */
 
 // Routing & Location
-export { RoutingVisualization } from './RoutingVisualization';
+export { RoutingVisualization } from './routing-visualization';
 
 // Cutoffs & Deadlines
-export { CutoffDashboard } from './CutoffDashboard';
+export { CutoffDashboard } from './cutoff-dashboard';
 
 // AI Extraction Display
-export { ChronicleExtraction } from './ChronicleExtraction';
+export { ChronicleExtraction } from './chronicle-extraction';
 
 // Amendment/Change Tracking
-export { AmendmentComparison } from './AmendmentComparison';
+export { AmendmentComparison } from './amendment-comparison';
 
 // Journey Storytelling
-export { JourneyChapter, JourneyStory } from './JourneyChapter';
+export { JourneyChapter, JourneyStory } from './journey-chapter';

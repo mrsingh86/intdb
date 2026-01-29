@@ -7,6 +7,8 @@
  *   GET /api/chronicle/health         - Quick health check (JSON)
  *   GET /api/chronicle/health?full=1  - Full system scan (JSON)
  *   GET /api/chronicle/health?format=text - Terminal-friendly output
+ *
+ * @deprecated This is a V1 endpoint. Consider using V2 endpoints for new integrations.
  */
 
 import { NextResponse } from 'next/server';

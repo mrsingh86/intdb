@@ -2,6 +2,8 @@
  * Sample AI Summaries API
  *
  * Get sample AI summaries to evaluate quality.
+ *
+ * @deprecated This is a V1 endpoint. Consider using V2 endpoints for new integrations.
  */
 
 import { NextResponse } from 'next/server';
