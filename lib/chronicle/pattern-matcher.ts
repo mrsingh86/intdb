@@ -10,10 +10,15 @@
  * - Interface-Based Design (Principle #6)
  * - Small Functions < 20 lines (Principle #17)
  * - Never Return Null (Principle #20) - use empty arrays
+ *
+ * Phase 2 Enhancement: Consensus boost
+ * After pattern match, queries similar emails via embeddings.
+ * Boosts confidence when similar emails have the same classification.
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ProcessedEmail } from './types';
+import { IEmbeddingService } from './embedding-service';
 
 // ============================================================================
 // TYPES
@@ -69,6 +74,9 @@ export interface PatternMatcherConfig {
   minConfidenceThreshold: number; // Below this, use AI
   cacheExpiryMs: number;          // How long to cache patterns
   enableHitTracking: boolean;     // Track pattern hits
+  enableConsensusBoost: boolean;  // Boost confidence using similar emails
+  consensusBoostAmount: number;   // How much to boost (default: 5)
+  consensusMinSimilar: number;    // Min similar emails needed (default: 2)
 }
 
 // ============================================================================
@@ -79,6 +87,9 @@ const DEFAULT_CONFIG: PatternMatcherConfig = {
   minConfidenceThreshold: 85,
   cacheExpiryMs: 5 * 60 * 1000, // 5 minutes
   enableHitTracking: true,
+  enableConsensusBoost: true,
+  consensusBoostAmount: 5,
+  consensusMinSimilar: 2,
 };
 
 // ============================================================================
@@ -122,12 +133,32 @@ export class PatternMatcherService implements IPatternMatcherService {
   private patternsLoadedAt: Date | null = null;
   private compiledPatterns: Map<string, RegExp> = new Map();
   private config: PatternMatcherConfig;
+  private embeddingService: IEmbeddingService | null = null;
+  private consensusStats = { checked: 0, boosted: 0 };
 
   constructor(
     private supabase: SupabaseClient,
     config: Partial<PatternMatcherConfig> = {}
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+  }
+
+  /**
+   * Enable consensus boost with embedding service
+   */
+  setEmbeddingService(embeddingService: IEmbeddingService): void {
+    this.embeddingService = embeddingService;
+    console.log('[PatternMatcher] Consensus boost enabled');
+  }
+
+  /**
+   * Get consensus boost statistics
+   */
+  getConsensusStats(): { checked: number; boosted: number; boostRate: string } {
+    const rate = this.consensusStats.checked > 0
+      ? `${Math.round((this.consensusStats.boosted / this.consensusStats.checked) * 100)}%`
+      : '0%';
+    return { ...this.consensusStats, boostRate: rate };
   }
 
   // ==========================================================================
@@ -142,7 +173,13 @@ export class PatternMatcherService implements IPatternMatcherService {
       return this.createNoMatchResult();
     }
 
-    const best = this.selectBestMatch(candidates, input);
+    let best = this.selectBestMatch(candidates, input);
+
+    // Apply consensus boost if enabled and we have embedding service
+    if (this.config.enableConsensusBoost && this.embeddingService && best.matched) {
+      best = await this.applyConsensusBoost(best, input);
+    }
+
     if (this.config.enableHitTracking && best.patternId) {
       this.recordHitAsync(best.patternId);
     }
@@ -352,6 +389,68 @@ export class PatternMatcherService implements IPatternMatcherService {
       matchSource: null,
       requiresAiFallback: true,
     };
+  }
+
+  // ==========================================================================
+  // CONSENSUS BOOST (Phase 2 Enhancement)
+  // ==========================================================================
+
+  /**
+   * Boost confidence when similar emails have the same classification
+   * Queries embeddings to find similar emails and checks for consensus
+   */
+  private async applyConsensusBoost(
+    result: PatternMatchResult,
+    input: PatternMatchInput
+  ): Promise<PatternMatchResult> {
+    if (!this.embeddingService || !result.documentType) {
+      return result;
+    }
+
+    this.consensusStats.checked++;
+
+    try {
+      // Build search text from email content
+      const searchText = `${input.subject} ${input.bodyText.substring(0, 500)}`;
+
+      // Query similar emails using embedding service
+      const similarEmails = await this.embeddingService.searchGlobal(searchText, {
+        limit: 5,
+        minSimilarity: 0.75,
+      });
+
+      if (similarEmails.length < this.config.consensusMinSimilar) {
+        return result; // Not enough similar emails for consensus
+      }
+
+      // Count how many have the same document type
+      const sameTypeCount = similarEmails.filter(
+        email => email.documentType === result.documentType
+      ).length;
+
+      // Check if we have consensus
+      if (sameTypeCount >= this.config.consensusMinSimilar) {
+        this.consensusStats.boosted++;
+        const boostedConfidence = Math.min(100, result.confidence + this.config.consensusBoostAmount);
+
+        console.log(
+          `[PatternMatcher] Consensus boost: ${result.documentType} ` +
+          `(${sameTypeCount}/${similarEmails.length} similar emails agree) ` +
+          `${result.confidence}% → ${boostedConfidence}%`
+        );
+
+        return {
+          ...result,
+          confidence: boostedConfidence,
+        };
+      }
+
+      return result;
+    } catch (error) {
+      // Log but don't fail - consensus boost is optional enhancement
+      console.error('[PatternMatcher] Consensus boost failed:', error);
+      return result;
+    }
   }
 
   // ==========================================================================

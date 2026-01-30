@@ -92,13 +92,15 @@ export interface IAiAnalyzer {
    * @param threadPosition - Position in thread (1 = first, 2+ = reply/forward)
    *                         Position 2+ ignores subject (stale from forwarding)
    * @param modelOverride - Optional model override for confidence-based escalation
+   * @param semanticContextSection - Optional pre-built semantic context section for prompt
    */
   analyze(
     email: ProcessedEmail,
     attachmentText: string,
     threadContext?: ThreadContext,
     threadPosition?: number,
-    modelOverride?: string
+    modelOverride?: string,
+    semanticContextSection?: string
   ): Promise<ShippingAnalysis>;
 }
 

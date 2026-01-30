@@ -28,6 +28,12 @@ import {
   validateAgainstPreComputed,
   ENHANCED_SYSTEM_PROMPT_ADDITIONS,
 } from './enhanced-prompt-builder';
+import {
+  ISemanticGroupingService,
+  createSemanticGroupingService,
+  SemanticGroupingResult,
+  CommunicationItem,
+} from './semantic-grouping-service';
 
 // =============================================================================
 // TYPES
@@ -477,12 +483,14 @@ export class HaikuSummaryService {
   private supabase: SupabaseClient;
   private actionRulesEngine: ActionRulesEngine;
   private intelligenceService: ShipmentIntelligenceService;
+  private semanticGroupingService: ISemanticGroupingService;
 
   constructor(supabase: SupabaseClient) {
     this.anthropic = new Anthropic();
     this.supabase = supabase;
     this.actionRulesEngine = new ActionRulesEngine(supabase);
     this.intelligenceService = createShipmentIntelligenceService(supabase);
+    this.semanticGroupingService = createSemanticGroupingService(supabase);
   }
 
   // ===========================================================================
@@ -1223,6 +1231,25 @@ export class HaikuSummaryService {
     return `${formatted} (${days}d)`;
   }
 
+  /**
+   * Convert RecentChronicle to CommunicationItem for semantic grouping
+   */
+  private convertToCommunicationItems(recent: RecentChronicle[]): CommunicationItem[] {
+    return recent.map((r, index) => ({
+      id: `recent-${index}`, // No actual ID in RecentChronicle, use index
+      occurredAt: r.occurred_at,
+      direction: r.direction,
+      fromParty: r.from_party,
+      documentType: r.document_type,
+      summary: r.summary,
+      hasIssue: r.has_issue,
+      issueType: r.issue_type,
+      hasAction: r.has_action,
+      actionDescription: r.action_description,
+      threadId: r.thread_id,
+    }));
+  }
+
   private buildPrompt(
     shipment: ShipmentContext,
     milestones: MilestoneEvent[],
@@ -1244,7 +1271,8 @@ export class HaikuSummaryService {
       daysSinceActivity: number | null;
     },
     ruleBasedActions?: RuleBasedActionsContext,
-    intelligence?: ShipmentIntelligence | null // P0-P3: Pre-computed intelligence
+    intelligence?: ShipmentIntelligence | null, // P0-P3: Pre-computed intelligence
+    semanticGrouping?: SemanticGroupingResult | null // Semantic grouping of communications
   ): string {
     const today = new Date().toLocaleDateString('en-US', {
       weekday: 'short', month: 'short', day: 'numeric', year: 'numeric'
@@ -1772,7 +1800,13 @@ Active triggers (NOW) should be your PRIORITY nextAction.`;
       preComputedSection = buildPreComputedSection(intelligence);
     }
 
-    return `${header}${schedule}${alertSection}${completionStatusSection}${chronicleIntelSection}${daysOverdueSection}${financialSection}${warningsSection}${intelligenceSection}${ruleBasedActionsSection}${preComputedSection}${milestoneSection}${recentSection}${actionsSection}
+    // Semantic grouping section (Phase 3: groups communications by topic)
+    let semanticGroupingSection = '';
+    if (semanticGrouping && (semanticGrouping.groups.length > 0 || semanticGrouping.historicalContext.length > 0)) {
+      semanticGroupingSection = '\n' + this.semanticGroupingService.buildPromptSection(semanticGrouping);
+    }
+
+    return `${header}${schedule}${alertSection}${completionStatusSection}${chronicleIntelSection}${daysOverdueSection}${financialSection}${warningsSection}${intelligenceSection}${ruleBasedActionsSection}${preComputedSection}${semanticGroupingSection}${milestoneSection}${recentSection}${actionsSection}
 
 Analyze this shipment and return the JSON summary. Remember:
 1. Use ACTUAL documented charges from FINANCIAL CHARGES section
@@ -1812,9 +1846,10 @@ Analyze this shipment and return the JSON summary. Remember:
       daysSinceActivity: number | null;
     },
     ruleBasedActions?: RuleBasedActionsContext,
-    intelligence?: ShipmentIntelligence | null // P0-P3: Pre-computed intelligence
+    intelligence?: ShipmentIntelligence | null, // P0-P3: Pre-computed intelligence
+    semanticGrouping?: SemanticGroupingResult | null // Semantic grouping of communications
   ): Promise<GenerationResult> {
-    const userPrompt = this.buildPrompt(shipment, milestones, recent, urgencies, profiles, financial, warnings, signals, ruleBasedActions, intelligence);
+    const userPrompt = this.buildPrompt(shipment, milestones, recent, urgencies, profiles, financial, warnings, signals, ruleBasedActions, intelligence, semanticGrouping);
 
     // Use enhanced system prompt with anti-hallucination rules
     const enhancedSystemPrompt = intelligence
@@ -2415,6 +2450,18 @@ Analyze this shipment and return the JSON summary. Remember:
       this.getRouteProfile(shipment.port_of_loading_code, shipment.port_of_discharge_code),
     ]);
 
+    // Layer 9: Semantic grouping of communications (Phase 3)
+    let semanticGrouping: SemanticGroupingResult | null = null;
+    try {
+      const communicationItems = this.convertToCommunicationItems(recent);
+      semanticGrouping = await this.semanticGroupingService.groupCommunications(shipmentId, communicationItems);
+      if (semanticGrouping.groups.length > 0) {
+        console.log(`[HaikuSummary] Semantic grouping: ${semanticGrouping.groups.length} groups, ${semanticGrouping.historicalContext.length} historical items`);
+      }
+    } catch (error) {
+      console.warn('[HaikuSummary] Semantic grouping failed, continuing without:', error);
+    }
+
     // Generate AI summary with financial data, warnings, intelligence signals, rule-based actions, AND pre-computed intelligence
     const rawResult = await this.generateSummary(
       shipment,
@@ -2431,7 +2478,8 @@ Analyze this shipment and return the JSON summary. Remember:
       warnings,
       signals,
       ruleBasedActions,
-      intelligence // P0-P3: Pre-computed intelligence for anti-hallucination
+      intelligence, // P0-P3: Pre-computed intelligence for anti-hallucination
+      semanticGrouping // Phase 3: Semantic grouping
     );
 
     // CRITICAL: Validate and enrich AI output with business rules

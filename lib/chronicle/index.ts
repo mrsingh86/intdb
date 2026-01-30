@@ -186,6 +186,8 @@ export {
 export type {
   ActionRule,
   ActionDetermination,
+  SimilarActionPattern,
+  VectorIntentResult,
 } from './action-rules-service';
 
 export {
@@ -256,3 +258,82 @@ export type {
   ConfidenceResult,
   ConfidenceInput,
 } from './objective-confidence-service';
+
+// ============================================================================
+// EMBEDDING & SEMANTIC SEARCH
+// ============================================================================
+
+export {
+  EmbeddingService,
+  createEmbeddingService,
+} from './embedding-service';
+
+export type {
+  IEmbeddingService,
+  EmbeddingResult,
+  SemanticSearchResult,
+  EmbeddingConfig,
+  GlobalSearchOptions,
+} from './embedding-service';
+
+// ============================================================================
+// SEMANTIC CONTEXT (AI PROMPT ENRICHMENT)
+// ============================================================================
+
+export {
+  SemanticContextService,
+  createSemanticContextService,
+} from './semantic-context-service';
+
+export type {
+  ISemanticContextService,
+  SimilarEmail,
+  SenderPatternHistory,
+  DocumentTypeCount,
+  RelatedDocument,
+  SemanticContext,
+} from './semantic-context-service';
+
+// ============================================================================
+// HYBRID SEARCH (Phase 2: Keyword + Semantic)
+// ============================================================================
+
+export {
+  HybridSearchService,
+  createHybridSearchService,
+} from './hybrid-search-service';
+
+export type {
+  IHybridSearchService,
+  HybridSearchResult,
+  HybridSearchConfig,
+} from './hybrid-search-service';
+
+// ============================================================================
+// UNIFIED SEARCH (Query Classification + RRF Merge)
+// ============================================================================
+
+export {
+  classifyQuery,
+  isIdentifierQuery,
+  shouldUseSemanticSearch,
+  getSearchFields,
+} from './query-classifier';
+
+export type {
+  QueryType,
+  SearchStrategy,
+  ClassifiedQuery,
+} from './query-classifier';
+
+export {
+  UnifiedSearchService,
+  createUnifiedSearchService,
+} from './unified-search-service';
+
+export type {
+  IUnifiedSearchService,
+  SearchResult,
+  SearchOptions,
+  SearchResponse,
+} from './unified-search-service';

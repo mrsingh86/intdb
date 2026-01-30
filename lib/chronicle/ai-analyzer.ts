@@ -150,16 +150,18 @@ export class AiAnalyzer implements IAiAnalyzer {
    * @param threadPosition - Position in thread (1 = first, 2+ = reply/forward)
    *                         Position 2+ ignores subject (stale from forwarding)
    * @param modelOverride - Optional model override for escalation (e.g., 'claude-sonnet-4-20250514')
+   * @param semanticContextSection - Optional pre-built semantic context section for prompt
    */
   async analyze(
     email: ProcessedEmail,
     attachmentText: string,
     threadContext?: ThreadContext,
     threadPosition: number = 1,
-    modelOverride?: string
+    modelOverride?: string,
+    semanticContextSection?: string
   ): Promise<ShippingAnalysis> {
     const includeSubject = threadPosition === 1;
-    const prompt = this.buildPrompt(email, attachmentText, threadContext, includeSubject);
+    const prompt = this.buildPrompt(email, attachmentText, threadContext, includeSubject, semanticContextSection);
     const response = await this.callAnthropic(prompt, modelOverride);
     return this.parseResponse(response, email.receivedAt);
   }
@@ -172,10 +174,11 @@ export class AiAnalyzer implements IAiAnalyzer {
     email: ProcessedEmail,
     attachmentText: string,
     threadContext?: ThreadContext,
-    includeSubject: boolean = true
+    includeSubject: boolean = true,
+    semanticContextSection?: string
   ): string {
     const bodyPreview = email.bodyText.substring(0, AI_CONFIG.maxBodyChars);
-    return buildAnalysisPrompt(
+    let prompt = buildAnalysisPrompt(
       email.subject,
       bodyPreview,
       attachmentText,
@@ -183,6 +186,13 @@ export class AiAnalyzer implements IAiAnalyzer {
       threadContext,
       includeSubject
     );
+
+    // Append semantic context if provided (similar emails, sender patterns, related docs)
+    if (semanticContextSection) {
+      prompt = prompt + '\n' + semanticContextSection;
+    }
+
+    return prompt;
   }
 
   private async callAnthropic(prompt: string, modelOverride?: string): Promise<Anthropic.Message> {

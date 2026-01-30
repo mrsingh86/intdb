@@ -21,10 +21,11 @@ export { createClient as createServerClient } from './supabase/server';
 export { createClient as createBrowserClient } from './supabase/client';
 
 // Legacy Supabase client (for scripts)
-export { SupabaseService, supabase } from './supabase-client';
+export { supabase } from './supabase-client';
+export { default as SupabaseService } from './supabase-client';
 
 // Gmail client
-export { GmailClient, gmailClient } from './gmail-client';
+export { GmailClient } from './gmail-client';
 
 // Logging
-export { logger, LogLevel } from './logger';
+export { default as Logger } from './logger';

@@ -61,6 +61,16 @@ import {
   ConfidenceResult,
   ConfidenceInput,
 } from './objective-confidence-service';
+import {
+  SemanticContextService,
+  createSemanticContextService,
+  ISemanticContextService,
+} from './semantic-context-service';
+import {
+  EmbeddingService,
+  createEmbeddingService,
+  IEmbeddingService,
+} from './embedding-service';
 
 // ============================================================================
 // SERVICE IMPLEMENTATION
@@ -75,6 +85,8 @@ export class ChronicleService implements IChronicleService {
   private unifiedActionService: UnifiedActionService;
   private actionAutoResolveService: ActionAutoResolveService;
   private confidenceService: ObjectiveConfidenceService;
+  private semanticContextService: ISemanticContextService | null = null;
+  private embeddingService: IEmbeddingService | null = null;
   private repository: IChronicleRepository;
   private logger: ChronicleLogger | null = null;
 
@@ -84,6 +96,8 @@ export class ChronicleService implements IChronicleService {
   private actionStats = { ruleDefault: 0, ruleFlipped: 0, aiFallback: 0 };
   // Metrics for confidence-based escalation
   private confidenceStats = { accepted: 0, flagged: 0, escalatedSonnet: 0, escalatedOpus: 0 };
+  // Metrics for semantic context usage
+  private semanticContextStats = { used: 0, skipped: 0, errors: 0 };
 
   constructor(
     supabase: SupabaseClient,
@@ -100,6 +114,25 @@ export class ChronicleService implements IChronicleService {
     this.confidenceService = createObjectiveConfidenceService(supabase);
     this.repository = new ChronicleRepository(supabase);
     this.logger = logger || null;
+
+    // Initialize semantic context service (uses embeddings for AI context enrichment)
+    this.initializeSemanticContext(supabase);
+  }
+
+  /**
+   * Initialize semantic context service
+   * Gracefully handles missing config - feature will be disabled if unavailable
+   */
+  private initializeSemanticContext(supabase: SupabaseClient): void {
+    try {
+      this.embeddingService = createEmbeddingService(supabase);
+      this.semanticContextService = createSemanticContextService(supabase, this.embeddingService);
+      console.log('[Chronicle] Semantic context + embedding services initialized');
+    } catch (error) {
+      console.warn('[Chronicle] Semantic context service unavailable:', error);
+      this.semanticContextService = null;
+      this.embeddingService = null;
+    }
   }
 
   /**
@@ -474,9 +507,10 @@ export class ChronicleService implements IChronicleService {
   }
 
   /**
-   * Run AI analysis with thread position awareness
+   * Run AI analysis with thread position awareness and semantic context
    * Position 1: AI uses subject + body + attachments
    * Position 2+: AI ignores subject (stale from forwarding)
+   * Semantic context: Similar emails, sender patterns, related shipment docs
    */
   private async runAiAnalysis(
     email: ProcessedEmail,
@@ -486,11 +520,16 @@ export class ChronicleService implements IChronicleService {
   ): Promise<ShippingAnalysis> {
     const aiStart = this.logger?.logStageStart('ai_analysis') || 0;
     try {
+      // Fetch semantic context for AI prompt enrichment (if available)
+      const semanticContextSection = await this.getSemanticContextSection(email);
+
       const analysis = await this.aiAnalyzer.analyze(
         email,
         attachmentText,
         threadContext || undefined,
-        threadPosition
+        threadPosition,
+        undefined, // modelOverride
+        semanticContextSection
       );
       this.logger?.logStageSuccess('ai_analysis', aiStart);
       return analysis;
@@ -502,6 +541,63 @@ export class ChronicleService implements IChronicleService {
       this.logger?.logEmailProcessed(false);
       throw error;
     }
+  }
+
+  /**
+   * Get semantic context section for AI prompt
+   * Returns empty string if semantic context service is unavailable or fails
+   */
+  private async getSemanticContextSection(email: ProcessedEmail): Promise<string> {
+    if (!this.semanticContextService) {
+      this.semanticContextStats.skipped++;
+      return '';
+    }
+
+    try {
+      // Extract booking/MBL from subject for related docs lookup
+      const { bookingNumber, mblNumber } = this.extractIdentifiersFromSubject(email.subject);
+
+      const context = await this.semanticContextService.getContextForNewEmail(
+        email.subject,
+        email.bodyText.substring(0, 500),
+        email.senderEmail,
+        bookingNumber,
+        mblNumber
+      );
+
+      // Only include if we found meaningful context
+      const hasContext = context.similarEmails.length > 0 ||
+        context.senderHistory !== null ||
+        context.relatedDocs.length > 0;
+
+      if (hasContext) {
+        this.semanticContextStats.used++;
+        return this.semanticContextService.buildPromptSection(context);
+      }
+
+      this.semanticContextStats.skipped++;
+      return '';
+    } catch (error) {
+      console.warn('[Chronicle] Semantic context fetch failed:', error);
+      this.semanticContextStats.errors++;
+      return ''; // Graceful degradation - continue without semantic context
+    }
+  }
+
+  /**
+   * Extract booking number and MBL from subject line for context lookup
+   * Quick regex extraction - not full parsing
+   */
+  private extractIdentifiersFromSubject(subject: string): { bookingNumber: string | null; mblNumber: string | null } {
+    // Common booking number patterns (pure numeric 9-10 digits)
+    const bookingMatch = subject.match(/\b(\d{9,10})\b/);
+    // MBL patterns (carrier prefix + digits)
+    const mblMatch = subject.match(/\b(MAEU|HLCU|COSU|OOLU|CMDU|MEDU|ONEY|ZIMU|MSCU|EGLV)\d{6,12}\b/i);
+
+    return {
+      bookingNumber: bookingMatch ? bookingMatch[1] : null,
+      mblNumber: mblMatch ? mblMatch[0].toUpperCase() : null,
+    };
   }
 
   /**
@@ -529,6 +625,9 @@ export class ChronicleService implements IChronicleService {
 
     const confidence = await this.confidenceService.calculateConfidence(confidenceInput);
 
+    // Get semantic context for escalation (reuse the same context for stronger model)
+    const semanticContextSection = await this.getSemanticContextSection(email);
+
     // Escalate if confidence is too low
     if (confidence.recommendation === 'escalate_sonnet') {
       console.log(`[Chronicle] Escalating to Sonnet (confidence: ${confidence.overallScore}%)`);
@@ -537,7 +636,8 @@ export class ChronicleService implements IChronicleService {
         attachmentText,
         threadContext || undefined,
         threadPosition,
-        'claude-sonnet-4-20250514' // Sonnet model
+        'claude-sonnet-4-20250514', // Sonnet model
+        semanticContextSection
       );
       Object.assign(analysis, reanalysis);
     } else if (confidence.recommendation === 'escalate_opus') {
@@ -547,7 +647,8 @@ export class ChronicleService implements IChronicleService {
         attachmentText,
         threadContext || undefined,
         threadPosition,
-        'claude-opus-4-20250514' // Opus model
+        'claude-opus-4-20250514', // Opus model
+        semanticContextSection
       );
       Object.assign(analysis, reanalysis);
     }
@@ -932,6 +1033,14 @@ export class ChronicleService implements IChronicleService {
     const fromParty = analysis.from_party || detectPartyType(trueSender);
     const insertData = this.buildInsertData(email, analysis, fromParty, attachmentsWithText, actionRecommendation, confidenceData);
     const { id } = await this.repository.insert(insertData);
+
+    // Generate embedding for semantic search (non-blocking)
+    if (this.embeddingService) {
+      this.embeddingService.generateEmbedding(id).catch(err => {
+        console.warn(`[Chronicle] Failed to generate embedding for ${id}:`, err.message);
+      });
+    }
+
     return id;
   }
 
