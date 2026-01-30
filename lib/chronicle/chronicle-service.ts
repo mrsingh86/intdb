@@ -71,6 +71,13 @@ import {
   createEmbeddingService,
   IEmbeddingService,
 } from './embedding-service';
+import {
+  createMemoryService,
+  IMemoryService,
+  buildMemoryContextForAI,
+  updateMemoryAfterProcessing,
+  AiContextOptions,
+} from '../memory';
 
 // ============================================================================
 // SERVICE IMPLEMENTATION
@@ -87,6 +94,7 @@ export class ChronicleService implements IChronicleService {
   private confidenceService: ObjectiveConfidenceService;
   private semanticContextService: ISemanticContextService | null = null;
   private embeddingService: IEmbeddingService | null = null;
+  private memoryService: IMemoryService | null = null;
   private repository: IChronicleRepository;
   private logger: ChronicleLogger | null = null;
 
@@ -98,6 +106,8 @@ export class ChronicleService implements IChronicleService {
   private confidenceStats = { accepted: 0, flagged: 0, escalatedSonnet: 0, escalatedOpus: 0 };
   // Metrics for semantic context usage
   private semanticContextStats = { used: 0, skipped: 0, errors: 0 };
+  // Metrics for memory context usage
+  private memoryContextStats = { used: 0, skipped: 0, errors: 0, tokensSaved: 0 };
 
   constructor(
     supabase: SupabaseClient,
@@ -117,6 +127,9 @@ export class ChronicleService implements IChronicleService {
 
     // Initialize semantic context service (uses embeddings for AI context enrichment)
     this.initializeSemanticContext(supabase);
+
+    // Initialize memory service (DIY memory layer - replaces Mem0)
+    this.initializeMemoryService(supabase);
   }
 
   /**
@@ -132,6 +145,20 @@ export class ChronicleService implements IChronicleService {
       console.warn('[Chronicle] Semantic context service unavailable:', error);
       this.semanticContextService = null;
       this.embeddingService = null;
+    }
+  }
+
+  /**
+   * Initialize memory service (DIY memory layer)
+   * Replaces Mem0 Cloud with self-hosted solution ($0/month vs $249/month)
+   */
+  private initializeMemoryService(supabase: SupabaseClient): void {
+    try {
+      this.memoryService = createMemoryService(supabase);
+      console.log('[Chronicle] Memory service initialized (DIY layer)');
+    } catch (error) {
+      console.warn('[Chronicle] Memory service unavailable:', error);
+      this.memoryService = null;
     }
   }
 
@@ -458,8 +485,55 @@ export class ChronicleService implements IChronicleService {
       flowValidationWarning,
     });
 
+    // Step 10: Update memory layer (for continuous learning)
+    await this.updateMemoryAfterSuccess(email, analysis, predictionConfidence, usePatternMatch);
+
     this.logger?.logEmailProcessed(true);
     return this.createSuccessResult(email.gmailMessageId, chronicleId, shipmentId, linkedBy);
+  }
+
+  /**
+   * Update memory layer after successful processing
+   * Learns sender profiles, shipment context, and new patterns
+   */
+  private async updateMemoryAfterSuccess(
+    email: ProcessedEmail,
+    analysis: ShippingAnalysis,
+    confidence: number,
+    patternMatched: boolean
+  ): Promise<void> {
+    if (!this.memoryService) return;
+
+    try {
+      const result = await updateMemoryAfterProcessing(this.memoryService, {
+        email: {
+          subject: email.subject,
+          senderEmail: email.senderEmail,
+          senderDomain: this.extractDomain(email.senderEmail),
+          bodyPreview: email.bodyText.substring(0, 500),
+        },
+        analysis: {
+          document_type: analysis.document_type,
+          booking_number: analysis.booking_number || undefined,
+          mbl_number: analysis.mbl_number || undefined,
+          etd: analysis.etd || undefined,
+          eta: analysis.eta || undefined,
+          vessel_name: analysis.vessel_name || undefined,
+          summary: analysis.summary || undefined,
+          from_party: analysis.from_party || undefined,
+        },
+        confidence,
+        processingTime: 0, // Not tracked at this level
+        patternMatched,
+      });
+
+      if (result.updated.length > 0) {
+        console.log(`[Chronicle] Memory updated: ${result.updated.join(', ')}`);
+      }
+    } catch (error) {
+      // Non-critical - don't fail the main flow
+      console.warn('[Chronicle] Memory update failed:', error);
+    }
   }
 
   // ==========================================================================
@@ -507,10 +581,10 @@ export class ChronicleService implements IChronicleService {
   }
 
   /**
-   * Run AI analysis with thread position awareness and semantic context
+   * Run AI analysis with thread position awareness and memory context
    * Position 1: AI uses subject + body + attachments
    * Position 2+: AI ignores subject (stale from forwarding)
-   * Semantic context: Similar emails, sender patterns, related shipment docs
+   * Memory context: Sender profiles, shipment context, error patterns (77% fewer tokens)
    */
   private async runAiAnalysis(
     email: ProcessedEmail,
@@ -520,8 +594,14 @@ export class ChronicleService implements IChronicleService {
   ): Promise<ShippingAnalysis> {
     const aiStart = this.logger?.logStageStart('ai_analysis') || 0;
     try {
-      // Fetch semantic context for AI prompt enrichment (if available)
-      const semanticContextSection = await this.getSemanticContextSection(email);
+      // Prefer memory context (77% token savings) over semantic context
+      // Memory context: ~1.8K tokens vs Semantic context: ~8K tokens
+      let contextSection = await this.getMemoryContextSection(email);
+
+      // Fallback to semantic context if memory context unavailable
+      if (!contextSection && this.semanticContextService) {
+        contextSection = await this.getSemanticContextSection(email);
+      }
 
       const analysis = await this.aiAnalyzer.analyze(
         email,
@@ -529,7 +609,7 @@ export class ChronicleService implements IChronicleService {
         threadContext || undefined,
         threadPosition,
         undefined, // modelOverride
-        semanticContextSection
+        contextSection
       );
       this.logger?.logStageSuccess('ai_analysis', aiStart);
       return analysis;
@@ -582,6 +662,80 @@ export class ChronicleService implements IChronicleService {
       this.semanticContextStats.errors++;
       return ''; // Graceful degradation - continue without semantic context
     }
+  }
+
+  /**
+   * Get memory context section for AI prompt
+   * Uses DIY memory layer instead of semantic context
+   * Token savings: ~8K → ~1.8K (77% reduction)
+   */
+  private async getMemoryContextSection(email: ProcessedEmail): Promise<string> {
+    if (!this.memoryService) {
+      this.memoryContextStats.skipped++;
+      return '';
+    }
+
+    try {
+      const senderDomain = this.extractDomain(email.senderEmail);
+      const { bookingNumber } = this.extractIdentifiersFromSubject(email.subject);
+
+      const options: AiContextOptions = {
+        email: {
+          subject: email.subject,
+          bodyPreview: email.bodyText.substring(0, 500),
+          senderEmail: email.senderEmail,
+          senderDomain,
+        },
+        bookingNumber: bookingNumber || undefined,
+        carrier: this.detectCarrierFromDomain(senderDomain),
+      };
+
+      const result = await buildMemoryContextForAI(this.memoryService, options);
+
+      if (result.memories.length > 0) {
+        this.memoryContextStats.used++;
+        // Track estimated token savings (semantic ~8K vs memory ~1.8K)
+        this.memoryContextStats.tokensSaved += Math.max(0, 8000 - result.tokenEstimate);
+        console.log(`[Chronicle] Memory context: ${result.memories.length} memories, ~${result.tokenEstimate} tokens`);
+        return result.context;
+      }
+
+      this.memoryContextStats.skipped++;
+      return '';
+    } catch (error) {
+      console.warn('[Chronicle] Memory context fetch failed:', error);
+      this.memoryContextStats.errors++;
+      return '';
+    }
+  }
+
+  /**
+   * Detect carrier from sender domain
+   */
+  private detectCarrierFromDomain(domain: string): string | undefined {
+    const carrierDomains: Record<string, string> = {
+      'maersk.com': 'maersk',
+      'hapag-lloyd.com': 'hapag',
+      'hlag.com': 'hapag',
+      'cma-cgm.com': 'cma',
+      'msc.com': 'msc',
+      'one-line.com': 'one',
+      'evergreen-marine.com': 'evergreen',
+      'cosco.com': 'cosco',
+      'oocl.com': 'oocl',
+    };
+
+    for (const [d, carrier] of Object.entries(carrierDomains)) {
+      if (domain.includes(d)) return carrier;
+    }
+    return undefined;
+  }
+
+  /**
+   * Get memory context stats for monitoring
+   */
+  getMemoryContextStats(): { used: number; skipped: number; errors: number; tokensSaved: number } {
+    return { ...this.memoryContextStats };
   }
 
   /**
