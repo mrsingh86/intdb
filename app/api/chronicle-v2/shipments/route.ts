@@ -14,11 +14,162 @@ import {
   PAGINATION,
   detectDirection,
 } from '@/lib/chronicle-v2';
+import {
+  createEmbeddingService,
+  createUnifiedSearchService,
+  classifyQuery,
+} from '@/lib/chronicle';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+// Initialize search services for deep search
+const embeddingService = createEmbeddingService(supabase);
+const unifiedSearchService = createUnifiedSearchService(supabase, embeddingService);
+
+/**
+ * Deep search across chronicle records to find matching shipment IDs.
+ * Searches 30+ fields including containers, parties, routes, content, and attachments.
+ */
+async function deepSearchShipmentIds(searchQuery: string): Promise<Set<string>> {
+  const matchingShipmentIds = new Set<string>();
+  const searchLower = searchQuery.toLowerCase();
+
+  // Classify the query to determine search strategy
+  const classification = classifyQuery(searchQuery);
+
+  console.log(`[Chronicle V2 Search] Query "${searchQuery}" → ${classification.queryType}/${classification.searchStrategy}`);
+
+  // Build deep search fields based on query type
+  const deepFields = [
+    // Identifiers
+    'booking_number',
+    'mbl_number',
+    'hbl_number',
+    // Parties
+    'shipper_name',
+    'consignee_name',
+    'carrier_name',
+    'notify_party_name',
+    // Routes
+    'vessel_name',
+    'voyage_number',
+    'pol_location',
+    'pod_location',
+    'origin_location',
+    'destination_location',
+    // Content
+    'subject',
+    'summary',
+    'body_preview',
+    'document_type',
+    // Other
+    'commodity',
+    'from_address',
+    'issue_description',
+    'action_description',
+  ];
+
+  // 1. Keyword search across deep fields
+  const pattern = `%${searchQuery}%`;
+  const orConditions = deepFields.map(field => `${field}.ilike.${pattern}`).join(',');
+
+  const { data: keywordResults } = await supabase
+    .from('chronicle')
+    .select('shipment_id')
+    .or(orConditions)
+    .not('shipment_id', 'is', null)
+    .limit(200);
+
+  if (keywordResults) {
+    for (const row of keywordResults) {
+      if (row.shipment_id) matchingShipmentIds.add(row.shipment_id);
+    }
+  }
+
+  // 2. Container number search (array field)
+  const { data: containerResults } = await supabase
+    .from('chronicle')
+    .select('shipment_id')
+    .contains('container_numbers', [searchQuery.toUpperCase()])
+    .not('shipment_id', 'is', null)
+    .limit(50);
+
+  if (containerResults) {
+    for (const row of containerResults) {
+      if (row.shipment_id) matchingShipmentIds.add(row.shipment_id);
+    }
+  }
+
+  // 3. Partial container match (e.g., "MRKU" matches any container starting with MRKU)
+  if (/^[A-Z]{3,4}$/i.test(searchQuery)) {
+    const { data: partialContainerResults } = await supabase
+      .from('chronicle')
+      .select('shipment_id, container_numbers')
+      .not('container_numbers', 'is', null)
+      .not('shipment_id', 'is', null)
+      .limit(200);
+
+    if (partialContainerResults) {
+      for (const row of partialContainerResults) {
+        if (row.container_numbers && Array.isArray(row.container_numbers)) {
+          const hasMatch = row.container_numbers.some((c: string) =>
+            c.toUpperCase().startsWith(searchQuery.toUpperCase())
+          );
+          if (hasMatch && row.shipment_id) {
+            matchingShipmentIds.add(row.shipment_id);
+          }
+        }
+      }
+    }
+  }
+
+  // 4. Semantic search for conceptual queries
+  if (classification.searchStrategy === 'semantic' || classification.searchStrategy === 'hybrid') {
+    try {
+      const searchResponse = await unifiedSearchService.search(searchQuery, { limit: 100 });
+
+      // Get shipment_ids from semantic results
+      const chronicleIds = searchResponse.results.map(r => r.chronicleId).filter(Boolean);
+
+      if (chronicleIds.length > 0) {
+        const { data: semanticShipments } = await supabase
+          .from('chronicle')
+          .select('shipment_id')
+          .in('id', chronicleIds)
+          .not('shipment_id', 'is', null);
+
+        if (semanticShipments) {
+          for (const row of semanticShipments) {
+            if (row.shipment_id) matchingShipmentIds.add(row.shipment_id);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[Chronicle V2 Search] Semantic search failed:', err);
+    }
+  }
+
+  // 5. Attachment text search
+  const { data: attachmentResults } = await supabase
+    .from('chronicle')
+    .select('shipment_id')
+    .ilike('attachments', `%${searchQuery}%`)
+    .not('shipment_id', 'is', null)
+    .limit(50);
+
+  if (attachmentResults) {
+    for (const row of attachmentResults) {
+      if (row.shipment_id) matchingShipmentIds.add(row.shipment_id);
+    }
+  }
+
+  console.log(`[Chronicle V2 Search] Found ${matchingShipmentIds.size} matching shipments`);
+
+  return matchingShipmentIds;
+}
 
 /**
  * GET /api/chronicle-v2/shipments
@@ -86,17 +237,17 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Apply search filter (in-memory)
+    // Apply DEEP search filter (searches 30+ fields including containers, content, attachments)
     if (search) {
-      const searchLower = search.toLowerCase();
-      shipments = shipments.filter((s: any) =>
-        (s.booking_number && s.booking_number.toLowerCase().includes(searchLower)) ||
-        (s.mbl_number && s.mbl_number.toLowerCase().includes(searchLower)) ||
-        (s.hbl_number && s.hbl_number.toLowerCase().includes(searchLower)) ||
-        (s.vessel_name && s.vessel_name.toLowerCase().includes(searchLower)) ||
-        (s.shipper_name && s.shipper_name.toLowerCase().includes(searchLower)) ||
-        (s.consignee_name && s.consignee_name.toLowerCase().includes(searchLower))
-      );
+      const matchingShipmentIds = await deepSearchShipmentIds(search);
+
+      if (matchingShipmentIds.size > 0) {
+        // Filter to only shipments that matched the deep search
+        shipments = shipments.filter((s: any) => matchingShipmentIds.has(s.id));
+      } else {
+        // No matches found - return empty
+        shipments = [];
+      }
     }
 
     // Apply time window filter (in-memory) - respects phase selection
