@@ -398,7 +398,9 @@ export class ObjectiveConfidenceService {
   }
 
   // Document types that should NEVER escalate (no shipping data to improve)
+  // These are communication types - Sonnet adds zero value but 4x the cost
   private static readonly SKIP_ESCALATION_TYPES = new Set([
+    // Original list
     'general_correspondence',
     'rate_request',
     'request',
@@ -408,7 +410,30 @@ export class ObjectiveConfidenceService {
     'statement',
     'marketing',
     'newsletter',
+    // Added: Communication types with no shipping data to extract
+    // These escalate 60-100% but Sonnet provides no quality improvement
+    'approval',           // Simple acknowledgement, no shipping data
+    'acknowledgement',    // Just "received/noted", no data
+    'quotation',          // Pricing only, no vessel/booking/dates
+    'escalation',         // Meta-communication about other docs
+    'notification',       // Status FYI, no critical data
+    'payment_receipt',    // Financial data only, not shipping-critical
+    'rate_confirmation',  // Rate confirmed, no shipping details
+    'checklist',          // Internal process tracking
+    'system_notification', // Automated system messages
   ]);
+
+  // Critical shipping documents that SHOULD escalate to Sonnet when confidence < 85%
+  // These have high business value - extraction errors cost $2,000-$5,000+
+  private static readonly PRIORITY_ESCALATION_TYPES = new Set([
+    'final_bl',        // Legal binding document - vessel +85% improvement with Sonnet
+    'house_bl',        // Financial liability doc - parties +10% improvement
+    'si_confirmation', // Confirms cargo for vessel - critical operational impact
+    'draft_bl',        // Pre-release verification - BL amendments = delays
+  ]);
+
+  // Threshold for priority escalation (lower than normal to ensure quality)
+  private static readonly PRIORITY_ESCALATION_THRESHOLD = 85;
 
   private determineRecommendation(
     score: number,
@@ -422,6 +447,22 @@ export class ObjectiveConfidenceService {
       return 'flag_review';
     }
 
+    // Priority escalation for critical shipping documents
+    // These have high business value - escalate to Sonnet if confidence < 85%
+    if (documentType && ObjectiveConfidenceService.PRIORITY_ESCALATION_TYPES.has(documentType)) {
+      if (score >= ObjectiveConfidenceService.PRIORITY_ESCALATION_THRESHOLD) {
+        return 'accept';
+      }
+      // For critical docs, escalate to Sonnet even at higher confidence levels
+      // The cost of extraction error ($2,000-$5,000) far exceeds Sonnet cost ($0.03)
+      if (score >= 50) {
+        return 'escalate_sonnet';
+      }
+      // Very low confidence on critical docs - use Opus
+      return 'escalate_opus';
+    }
+
+    // Standard threshold-based escalation for other shipping documents
     for (const threshold of this.thresholdsCache) {
       if (score >= threshold.min_score && score <= threshold.max_score) {
         return threshold.action as ConfidenceResult['recommendation'];
