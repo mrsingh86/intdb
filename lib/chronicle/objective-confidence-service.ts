@@ -131,6 +131,24 @@ export class ObjectiveConfidenceService {
   // ----------------------------------------
   // Signal 1: Completeness
   // ----------------------------------------
+
+  // Expected fields per document type category (hardcoded fallback)
+  // The RPC function requires an expected_fields table that doesn't exist,
+  // so we calculate completeness locally using domain knowledge
+  private static readonly EXPECTED_FIELDS: Record<string, { required: string[]; optional: string[] }> = {
+    // Shipping documents - need identifiers + logistics details
+    booking_confirmation: { required: ['booking_number', 'carrier_name', 'document_type'], optional: ['vessel_name', 'etd', 'eta', 'pol', 'pod', 'container_numbers'] },
+    booking_amendment: { required: ['booking_number', 'document_type'], optional: ['carrier_name', 'vessel_name', 'etd', 'eta'] },
+    shipping_instructions: { required: ['booking_number', 'document_type'], optional: ['carrier_name', 'shipper_name', 'consignee_name'] },
+    draft_bl: { required: ['mbl_number', 'document_type'], optional: ['booking_number', 'carrier_name', 'vessel_name', 'shipper_name', 'consignee_name'] },
+    final_bl: { required: ['mbl_number', 'document_type'], optional: ['booking_number', 'carrier_name', 'vessel_name', 'shipper_name', 'consignee_name'] },
+    house_bl: { required: ['mbl_number', 'document_type'], optional: ['booking_number', 'carrier_name', 'shipper_name', 'consignee_name'] },
+    arrival_notice: { required: ['document_type'], optional: ['mbl_number', 'booking_number', 'vessel_name', 'eta', 'pod'] },
+    invoice: { required: ['document_type'], optional: ['booking_number', 'mbl_number', 'carrier_name'] },
+    // Communication types - just need classification
+    _default: { required: ['document_type'], optional: ['booking_number', 'from_party', 'summary'] },
+  };
+
   private async calculateCompleteness(
     documentType: string,
     fields: Record<string, unknown>
@@ -138,26 +156,36 @@ export class ObjectiveConfidenceService {
     const rule = this.rulesCache.get('completeness');
     const weight = rule?.enabled ? rule.weight : 0;
 
-    // Use database function for calculation
-    const { data, error } = await this.supabase.rpc('calculate_completeness_score', {
-      p_document_type: documentType,
-      p_fields: fields,
-    });
+    const expectedConfig = ObjectiveConfidenceService.EXPECTED_FIELDS[documentType]
+      || ObjectiveConfidenceService.EXPECTED_FIELDS['_default'];
 
-    if (error || !data || data.length === 0) {
-      return {
-        name: 'completeness',
-        score: 50,
-        weight,
-        details: { reason: 'Completeness calculation failed', error: error?.message },
-      };
+    const fieldDetails: Array<{ field: string; present: boolean; required: boolean }> = [];
+    let totalWeight = 0;
+    let earnedWeight = 0;
+
+    // Required fields worth 2 points each
+    for (const field of expectedConfig.required) {
+      const present = fields[field] != null && fields[field] !== '';
+      fieldDetails.push({ field, present, required: true });
+      totalWeight += 2;
+      if (present) earnedWeight += 2;
     }
+
+    // Optional fields worth 1 point each
+    for (const field of expectedConfig.optional) {
+      const present = fields[field] != null && fields[field] !== '';
+      fieldDetails.push({ field, present, required: false });
+      totalWeight += 1;
+      if (present) earnedWeight += 1;
+    }
+
+    const score = totalWeight > 0 ? Math.round((earnedWeight / totalWeight) * 100) : 50;
 
     return {
       name: 'completeness',
-      score: data[0].score,
+      score,
       weight,
-      details: data[0].details,
+      details: { fields: fieldDetails, earnedWeight, totalWeight },
     };
   }
 
@@ -413,14 +441,13 @@ export class ObjectiveConfidenceService {
     // Added: Communication types with no shipping data to extract
     // These escalate 60-100% but Sonnet provides no quality improvement
     'approval',           // Simple acknowledgement, no shipping data
-    'acknowledgement',    // Just "received/noted", no data
     'quotation',          // Pricing only, no vessel/booking/dates
     'escalation',         // Meta-communication about other docs
     'notification',       // Status FYI, no critical data
     'payment_receipt',    // Financial data only, not shipping-critical
     'rate_confirmation',  // Rate confirmed, no shipping details
     'checklist',          // Internal process tracking
-    'system_notification', // Automated system messages
+    'internal_notification', // Internal/system auto-emails
   ]);
 
   // Critical shipping documents that SHOULD escalate to Sonnet when confidence < 85%
@@ -533,6 +560,9 @@ export class ObjectiveConfidenceService {
     overallScore: number,
     recommendation: string
   ): Promise<string | undefined> {
+    // Skip audit recording if no valid chronicle ID (calculated before save)
+    if (!input.chronicleId) return undefined;
+
     const { data, error } = await this.supabase
       .from('confidence_calculations')
       .insert({

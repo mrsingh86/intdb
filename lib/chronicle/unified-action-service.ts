@@ -465,8 +465,8 @@ export class UnifiedActionService {
   private defaultHasAction(documentType: string): boolean {
     // Document types that typically don't need action
     const noActionTypes = [
-      'tracking_update', 'schedule_update', 'acknowledgement',
-      'notification', 'system_notification', 'booking_confirmation',
+      'tracking_update', 'schedule_update', 'approval',
+      'notification', 'internal_notification', 'booking_confirmation',
       'vgm_confirmation', 'si_confirmation', 'sob_confirmation',
     ];
     return !noActionTypes.some(t => documentType.includes(t));

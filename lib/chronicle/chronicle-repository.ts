@@ -117,11 +117,11 @@ export class ChronicleRepository implements IChronicleRepository {
       return 0; // No actions to resolve for this document type
     }
 
-    // Build the keyword match condition
-    // Match any pending action whose description contains these keywords
+    // Build the keyword match condition using Supabase's .ilike() filter syntax
+    // Each condition uses PostgREST's .ilike operator for safe parameterized matching
     const keywordConditions = keywords
-      .map(kw => `action_description ILIKE '%${kw}%'`)
-      .join(' OR ');
+      .map(kw => `action_description.ilike.%${kw}%`)
+      .join(',');
 
     // Update all pending actions that match
     const { data, error } = await this.supabase

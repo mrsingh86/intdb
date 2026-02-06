@@ -93,11 +93,11 @@ export class ChronicleGmailService {
     let processed = 0;
     let oldestDate: Date | null = null;
     let newestDate: Date | null = null;
-    const CONCURRENCY = 10; // Fetch 10 emails in parallel
+    const GMAIL_CONCURRENCY = parseInt(process.env.CHRONICLE_GMAIL_CONCURRENCY || '10', 10);
 
     // Process in batches for parallelization
-    for (let i = 0; i < messageIds.length; i += CONCURRENCY) {
-      const batch = messageIds.slice(i, i + CONCURRENCY);
+    for (let i = 0; i < messageIds.length; i += GMAIL_CONCURRENCY) {
+      const batch = messageIds.slice(i, i + GMAIL_CONCURRENCY);
 
       const results = await Promise.allSettled(
         batch.map(messageId => this.fetchFullMessage(messageId))
@@ -139,10 +139,10 @@ export class ChronicleGmailService {
     const emails: ProcessedEmail[] = [];
     const total = messageIds.length;
     let processed = 0;
-    const CONCURRENCY = 10;
+    const GMAIL_CONCURRENCY = parseInt(process.env.CHRONICLE_GMAIL_CONCURRENCY || '10', 10);
 
-    for (let i = 0; i < messageIds.length; i += CONCURRENCY) {
-      const batch = messageIds.slice(i, i + CONCURRENCY);
+    for (let i = 0; i < messageIds.length; i += GMAIL_CONCURRENCY) {
+      const batch = messageIds.slice(i, i + GMAIL_CONCURRENCY);
 
       const results = await Promise.allSettled(
         batch.map(messageId => this.fetchFullMessage(messageId))

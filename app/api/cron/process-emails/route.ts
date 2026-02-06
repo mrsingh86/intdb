@@ -27,11 +27,11 @@ import {
   createChronicleGmailService,
 } from '@/lib/chronicle';
 
-// Configuration
-const HOURS_TO_FETCH = 6;           // Lookback for timestamp fallback
-const MAX_EMAILS_PER_RUN = 200;     // Max emails per run
-const CONCURRENCY = 5;              // Process 5 emails in parallel
-const USE_HYBRID_SYNC = true;       // Enable hybrid historyId + timestamp sync
+// Configuration (env vars with sensible defaults)
+const HOURS_TO_FETCH = parseInt(process.env.CHRONICLE_HOURS_TO_FETCH || '6', 10);
+const MAX_EMAILS_PER_RUN = parseInt(process.env.CHRONICLE_MAX_EMAILS_PER_RUN || '200', 10);
+const CONCURRENCY = parseInt(process.env.CHRONICLE_CONCURRENCY || '5', 10);
+const USE_HYBRID_SYNC = true;
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get('authorization');

@@ -838,12 +838,9 @@ export class ChronicleLogger {
       approval: 'PENDING',
       request: 'PENDING',
       escalation: 'PENDING',
-      acknowledgement: 'PENDING',
       notification: 'PENDING',
       internal_notification: 'PENDING',
-      system_notification: 'PENDING',
       general_correspondence: 'PENDING',
-      internal_communication: 'PENDING',
       unknown: 'PENDING',
     };
 

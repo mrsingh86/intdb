@@ -209,17 +209,45 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
       // Record pattern false positive if pattern was used
       if (episode.pattern_id && corrected_document_type) {
-        // Increment false_positive_count directly
-        await supabase.rpc('increment_pattern_false_positive', {
-          p_pattern_id: episode.pattern_id,
-        }).then(null, async () => {
-          // RPC may not exist, use direct SQL
-          await supabase
+        try {
+          await supabase.rpc('increment_pattern_false_positive', {
+            p_pattern_id: episode.pattern_id,
+          });
+        } catch {
+          console.warn('[Learning] increment_pattern_false_positive RPC not available');
+        }
+      }
+
+      // Check if same sender_domain has been corrected to same type 3+ times
+      // If so, suggest auto-creating a detection pattern
+      let patternSuggestion = null;
+      if (corrected_document_type && episode.sender_domain) {
+        const { count } = await supabase
+          .from('learning_episodes')
+          .select('*', { count: 'exact', head: true })
+          .eq('sender_domain', episode.sender_domain)
+          .eq('corrected_document_type', corrected_document_type)
+          .eq('was_correct', false);
+
+        if (count && count >= 3) {
+          // Check if pattern already exists for this domain+type
+          const { data: existingPattern } = await supabase
             .from('detection_patterns')
-            .update({ false_positive_count: 1 }) // Will be overwritten by raw SQL below
-            .eq('id', episode.pattern_id);
-          // Note: Proper increment would need raw SQL or RPC function
-        });
+            .select('id')
+            .eq('document_type', corrected_document_type)
+            .ilike('pattern', `%${episode.sender_domain}%`)
+            .limit(1)
+            .single();
+
+          if (!existingPattern) {
+            patternSuggestion = {
+              senderDomain: episode.sender_domain,
+              documentType: corrected_document_type,
+              correctionCount: count,
+              suggestedPattern: `@${episode.sender_domain.replace(/\./g, '\\.')}$`,
+            };
+          }
+        }
       }
 
       return NextResponse.json({
@@ -227,6 +255,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         action: 'corrected',
         correctedDocumentType: corrected_document_type,
         correctedHasAction: corrected_has_action,
+        patternSuggestion,
       });
     }
   } catch (error) {

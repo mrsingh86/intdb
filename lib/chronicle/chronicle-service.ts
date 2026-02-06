@@ -31,14 +31,16 @@ import {
   IPdfExtractor,
   IAiAnalyzer,
   IChronicleRepository,
-  ChronicleInsertData,
 } from './interfaces';
 import { ChronicleGmailService } from './gmail-service';
 import { PdfExtractor } from './pdf-extractor';
 import { AiAnalyzer } from './ai-analyzer';
 import { ChronicleRepository } from './chronicle-repository';
 import { AI_CONFIG } from './prompts/freight-forwarder.prompt';
-import { ChronicleLogger, ShipmentStage } from './chronicle-logger';
+import { ChronicleLogger } from './chronicle-logger';
+import { ChronicleDataMapper, ConfidenceData } from './chronicle-data-mapper';
+import { ShipmentLinker } from './shipment-linker';
+import { AttachmentExtractor } from './attachment-extractor';
 import {
   PatternMatcherService,
   IPatternMatcherService,
@@ -49,7 +51,6 @@ import {
   UnifiedActionService,
   createUnifiedActionService,
   ActionRecommendation,
-  ShipmentContext,
 } from './unified-action-service';
 import {
   ActionAutoResolveService,
@@ -98,6 +99,10 @@ export class ChronicleService implements IChronicleService {
   private repository: IChronicleRepository;
   private logger: ChronicleLogger | null = null;
 
+  // Extracted services (P2-15 God class decomposition)
+  private shipmentLinker: ShipmentLinker;
+  private attachmentExtractor: AttachmentExtractor;
+
   // Metrics for pattern matching performance
   private patternMatchStats = { matched: 0, aiNeeded: 0 };
   // Metrics for action determination
@@ -124,6 +129,10 @@ export class ChronicleService implements IChronicleService {
     this.confidenceService = createObjectiveConfidenceService(supabase);
     this.repository = new ChronicleRepository(supabase);
     this.logger = logger || null;
+
+    // Extracted services (P2-15 decomposition)
+    this.shipmentLinker = new ShipmentLinker(supabase, this.repository, this.actionAutoResolveService, this.logger);
+    this.attachmentExtractor = new AttachmentExtractor(this.gmailService, this.pdfExtractor, this.logger);
 
     // Initialize semantic context service (uses embeddings for AI context enrichment)
     this.initializeSemanticContext(supabase);
@@ -167,6 +176,8 @@ export class ChronicleService implements IChronicleService {
    */
   setLogger(logger: ChronicleLogger): void {
     this.logger = logger;
+    this.shipmentLinker.setLogger(logger);
+    this.attachmentExtractor.setLogger(logger);
   }
 
   /**
@@ -268,6 +279,19 @@ export class ChronicleService implements IChronicleService {
    * Uses hybrid classification: pattern matching first, AI fallback when needed
    */
   async processEmail(email: ProcessedEmail): Promise<ChronicleProcessResult> {
+    // Step 0: Check retry cap - skip emails that have failed 3+ times
+    const MAX_RETRIES = 3;
+    const retryCount = await this.getErrorCount(email.gmailMessageId);
+    if (retryCount >= MAX_RETRIES) {
+      console.log(`[Chronicle] Skipping ${email.gmailMessageId}: ${retryCount} prior failures (max ${MAX_RETRIES})`);
+      this.logger?.logEmailProcessed(true, true); // skipped
+      return {
+        success: false,
+        gmailMessageId: email.gmailMessageId,
+        error: `Skipped: exceeded max retries (${retryCount}/${MAX_RETRIES})`,
+      };
+    }
+
     // Step 1: Check idempotency
     const existing = await this.checkIfAlreadyProcessed(email.gmailMessageId);
     if (existing) {
@@ -276,7 +300,7 @@ export class ChronicleService implements IChronicleService {
     }
 
     // Step 2: Extract attachments (with logging)
-    const { attachmentText, attachmentsWithText } = await this.extractAttachments(email);
+    const { attachmentText, attachmentsWithText } = await this.attachmentExtractor.extractAttachments(email);
 
     // Step 3: Fetch thread context (for AI enrichment and thread position)
     const threadContext = await this.fetchThreadContext(email);
@@ -346,7 +370,7 @@ export class ChronicleService implements IChronicleService {
     // Step 5b: Get action recommendation from UnifiedActionService
     // Uses action_rules table for all action determination (replaces ActionRulesService + PreciseActionService)
     const isReply = threadPosition > 1;
-    const shipmentContext = await this.getShipmentContextByIdentifiers(analysis);
+    const shipmentContext = await this.shipmentLinker.getShipmentContextByIdentifiers(analysis);
     const actionRecommendation = await this.unifiedActionService.getRecommendation(
       analysis.document_type,
       analysis.from_party || 'unknown',
@@ -455,7 +479,7 @@ export class ChronicleService implements IChronicleService {
     }
 
     // Step 7: Link to shipment and track stage (with logging)
-    const { shipmentId, linkedBy, shipmentStage } = await this.linkAndTrackShipment(
+    const { shipmentId, linkedBy, shipmentStage } = await this.shipmentLinker.linkAndTrackShipment(
       chronicleId,
       analysis,
       email
@@ -758,6 +782,14 @@ export class ChronicleService implements IChronicleService {
    * Calculate objective confidence and escalate to stronger model if needed
    * Returns confidence result (analysis may be updated in place if escalated)
    */
+  // Document types where escalation to Sonnet/Opus would NOT improve extraction
+  // These are communication types with no structured shipping data to extract
+  private static readonly NON_SHIPPING_DOC_TYPES = new Set([
+    'general_correspondence', 'notification',
+    'internal_notification', 'approval',
+    'approval', 'request', 'escalation', 'unknown',
+  ]);
+
   private async calculateConfidenceAndEscalate(
     email: ProcessedEmail,
     analysis: ShippingAnalysis,
@@ -778,6 +810,15 @@ export class ChronicleService implements IChronicleService {
     };
 
     const confidence = await this.confidenceService.calculateConfidence(confidenceInput);
+
+    // Skip escalation for non-shipping document types (saves ~50% of wasted escalations)
+    // Sonnet/Opus won't extract better data from "OK, noted" or "Please see attached" emails
+    if (ChronicleService.NON_SHIPPING_DOC_TYPES.has(analysis.document_type)) {
+      if (confidence.recommendation === 'escalate_sonnet' || confidence.recommendation === 'escalate_opus') {
+        console.log(`[Chronicle] Skipping escalation for non-shipping type: ${analysis.document_type}`);
+        confidence.recommendation = 'accept';
+      }
+    }
 
     // Get semantic context for escalation (reuse the same context for stronger model)
     const semanticContextSection = await this.getSemanticContextSection(email);
@@ -1066,126 +1107,16 @@ export class ChronicleService implements IChronicleService {
     }
   }
 
-  /**
-   * Get shipment context by identifiers for precise action deadline calculations
-   * Looks up existing shipment by booking/BL/container and fetches cutoff dates
-   */
-  private async getShipmentContextByIdentifiers(
-    analysis: ShippingAnalysis
-  ): Promise<ShipmentContext | null> {
-    try {
-      // Build identifier-based query
-      const conditions = [];
-      if (analysis.booking_number) conditions.push(`booking_number = '${analysis.booking_number}'`);
-      if (analysis.mbl_number) conditions.push(`mbl_number = '${analysis.mbl_number}'`);
-      if (analysis.container_numbers?.length) {
-        conditions.push(`container_number_primary = '${analysis.container_numbers[0]}'`);
-      }
-
-      if (conditions.length === 0) return null;
-
-      const { data: shipment } = await this.supabase
-        .from('shipments')
-        .select('id, stage, customer_name, booking_number, si_cutoff, vgm_cutoff, cargo_cutoff, eta')
-        .or(conditions.join(','))
-        .limit(1)
-        .single();
-
-      if (!shipment) return null;
-
-      return {
-        shipmentId: shipment.id,
-        stage: shipment.stage,
-        customerName: shipment.customer_name,
-        bookingNumber: shipment.booking_number,
-        siCutoff: shipment.si_cutoff ? new Date(shipment.si_cutoff) : null,
-        vgmCutoff: shipment.vgm_cutoff ? new Date(shipment.vgm_cutoff) : null,
-        cargoCutoff: shipment.cargo_cutoff ? new Date(shipment.cargo_cutoff) : null,
-        eta: shipment.eta ? new Date(shipment.eta) : null,
-      };
-    } catch (error) {
-      // Non-critical - return null if lookup fails
-      return null;
-    }
-  }
-
-  private async extractAttachments(email: ProcessedEmail): Promise<{
-    attachmentText: string;
-    attachmentsWithText: ProcessedAttachment[];
-  }> {
-    let attachmentText = '';
-    const attachmentsWithText: ProcessedAttachment[] = [];
-
-    for (const attachment of email.attachments) {
-      const result = await this.extractSingleAttachment(email.gmailMessageId, attachment);
-      if (result) {
-        attachmentText += result.text;
-        attachmentsWithText.push(result.attachment);
-      }
-    }
-
-    return { attachmentText, attachmentsWithText };
-  }
-
-  private async extractSingleAttachment(
-    messageId: string,
-    attachment: ProcessedAttachment
-  ): Promise<{ text: string; attachment: ProcessedAttachment } | null> {
-    if (attachment.mimeType !== 'application/pdf' || !attachment.attachmentId) {
-      return null;
-    }
-
-    const pdfStart = this.logger?.logStageStart('pdf_extract') || 0;
-
-    try {
-      const content = await this.gmailService.fetchAttachmentContent(messageId, attachment.attachmentId);
-      if (!content) {
-        this.logger?.logStageSkip('pdf_extract', 'No content');
-        return null;
-      }
-
-      const text = await this.pdfExtractor.extractText(content, attachment.filename);
-      if (!text) {
-        this.logger?.logStageSkip('pdf_extract', 'No text extracted');
-        return null;
-      }
-
-      const truncatedText = text.substring(0, AI_CONFIG.maxAttachmentChars);
-      const formattedText = `\n=== ${attachment.filename} ===\n${truncatedText}\n`;
-
-      // Detect if OCR was used (PdfExtractor sets this internally)
-      const usedOcr = text.length > 0 && truncatedText.length < 500;
-      this.logger?.logStageSuccess('pdf_extract', pdfStart, usedOcr ? { ocr_count: 1 } : { text_extract: 1 });
-
-      return {
-        text: formattedText,
-        attachment: { ...attachment, extractedText: truncatedText },
-      };
-    } catch (error) {
-      this.logger?.logStageFailure('pdf_extract', pdfStart, error as Error, {
-        gmailMessageId: messageId,
-        attachmentName: attachment.filename,
-      }, true);
-      console.error(`[Chronicle] PDF error ${attachment.filename}:`, error);
-      return null;
-    }
-  }
-
   private async saveToDatabase(
     email: ProcessedEmail,
     analysis: ShippingAnalysis,
     attachmentsWithText: ProcessedAttachment[],
     actionRecommendation?: ActionRecommendation,
-    confidenceData?: {
-      confidenceSource: string;
-      confidenceSignals: ConfidenceResult['signals'] | null;
-      escalatedTo: string | null;
-      escalationReason: string | null;
-    }
+    confidenceData?: ConfidenceData
   ): Promise<string> {
-    const trueSender = extractTrueSender(email);
-    const fromParty = analysis.from_party || detectPartyType(trueSender);
-    const insertData = this.buildInsertData(email, analysis, fromParty, attachmentsWithText, actionRecommendation, confidenceData);
+    const insertData = ChronicleDataMapper.buildInsertData(
+      email, analysis, attachmentsWithText, actionRecommendation, confidenceData
+    );
     const { id } = await this.repository.insert(insertData);
 
     // Generate embedding for semantic search (non-blocking)
@@ -1196,329 +1127,6 @@ export class ChronicleService implements IChronicleService {
     }
 
     return id;
-  }
-
-  /**
-   * Link chronicle to shipment and track stage progression
-   * Returns shipmentStage for flow validation
-   */
-  private async linkAndTrackShipment(
-    chronicleId: string,
-    analysis: ShippingAnalysis,
-    email: ProcessedEmail
-  ): Promise<{ shipmentId?: string; linkedBy?: string; shipmentStage?: string }> {
-    const linkStart = this.logger?.logStageStart('linking') || 0;
-
-    try {
-      // Try to link to existing shipment
-      const { shipmentId, linkedBy } = await this.repository.linkToShipment(chronicleId);
-
-      let finalShipmentId = shipmentId;
-      let finalLinkedBy = linkedBy;
-      let shipmentStage: string | undefined;
-
-      if (shipmentId) {
-        this.logger?.logEmailLinked(shipmentId);
-
-        // Fetch current stage for flow validation and check for progression
-        shipmentStage = await this.checkAndUpdateShipmentStage(shipmentId, chronicleId, analysis, email);
-      } else if (this.hasIdentifiers(analysis)) {
-        // Create new shipment if we have identifiers
-        const newShipment = await this.createShipmentFromAnalysis(analysis, email);
-        if (newShipment) {
-          await this.linkChronicleToShipment(chronicleId, newShipment.id);
-          this.logger?.logEmailLinked(newShipment.id);
-          this.logger?.logShipmentCreated(
-            newShipment.id,
-            chronicleId,
-            analysis.document_type,
-            email.receivedAt
-          );
-          finalShipmentId = newShipment.id;
-          finalLinkedBy = 'created';
-          // For new shipments, stage is derived from document type
-          shipmentStage = ChronicleLogger.detectShipmentStage(analysis.document_type);
-        }
-      }
-
-      // Auto-resolve pending actions when trigger documents arrive
-      // Uses action_auto_resolve_on field from chronicle records
-      if (finalShipmentId) {
-        const autoResolveResult = await this.actionAutoResolveService.resolveActionsForDocument(
-          finalShipmentId,
-          analysis.document_type
-        );
-        if (autoResolveResult.resolvedCount > 0) {
-          console.log(`[Chronicle] Auto-resolved ${autoResolveResult.resolvedCount} action(s) for ${analysis.document_type}`);
-        }
-      }
-
-      // Log actions and issues
-      if (finalShipmentId) {
-        await this.logActionsAndIssues(finalShipmentId, chronicleId, analysis, email);
-      }
-
-      this.logger?.logStageSuccess('linking', linkStart);
-      return { shipmentId: finalShipmentId, linkedBy: finalLinkedBy, shipmentStage };
-    } catch (error) {
-      this.logger?.logStageFailure('linking', linkStart, error as Error, {
-        gmailMessageId: email.gmailMessageId,
-      }, true);
-      return {};
-    }
-  }
-
-  private hasIdentifiers(analysis: ShippingAnalysis): boolean {
-    return !!(analysis.booking_number || analysis.mbl_number || analysis.work_order_number);
-  }
-
-  /**
-   * Check and update shipment stage, returns current stage for flow validation
-   */
-  private async checkAndUpdateShipmentStage(
-    shipmentId: string,
-    chronicleId: string,
-    analysis: ShippingAnalysis,
-    email: ProcessedEmail
-  ): Promise<string | undefined> {
-    const { data: shipment } = await this.supabase
-      .from('shipments')
-      .select('stage')
-      .eq('id', shipmentId)
-      .single();
-
-    if (!shipment) return undefined;
-
-    const currentStage = (shipment.stage as ShipmentStage) || 'PENDING';
-    const newStage = ChronicleLogger.detectShipmentStage(analysis.document_type);
-
-    if (ChronicleLogger.isStageProgression(currentStage, newStage)) {
-      await this.supabase
-        .from('shipments')
-        .update({ stage: newStage, stage_updated_at: new Date().toISOString() })
-        .eq('id', shipmentId);
-
-      this.logger?.logStageChange(
-        shipmentId,
-        chronicleId,
-        currentStage,
-        newStage,
-        analysis.document_type,
-        email.receivedAt
-      );
-    }
-
-    return currentStage;
-  }
-
-  private async createShipmentFromAnalysis(
-    analysis: ShippingAnalysis,
-    email: ProcessedEmail
-  ): Promise<{ id: string } | null> {
-    const stage = ChronicleLogger.detectShipmentStage(analysis.document_type);
-
-    const { data, error } = await this.supabase
-      .from('shipments')
-      .insert({
-        booking_number: analysis.booking_number || null,
-        mbl_number: analysis.mbl_number || null,
-        bl_number: analysis.mbl_number || null,
-        intoglo_reference: analysis.work_order_number || null,
-        container_number_primary: analysis.container_numbers?.[0] || null,
-        vessel_name: analysis.vessel_name || null,
-        voyage_number: analysis.voyage_number || null,
-        carrier_name: analysis.carrier_name || null,
-        etd: analysis.etd || null,
-        eta: analysis.eta || null,
-        stage,
-        stage_updated_at: new Date().toISOString(),
-        status: 'draft',
-      })
-      .select('id')
-      .single();
-
-    if (error) {
-      console.error('[Chronicle] Shipment create error:', error.message);
-      return null;
-    }
-    return data;
-  }
-
-  private async linkChronicleToShipment(chronicleId: string, shipmentId: string): Promise<void> {
-    await this.supabase
-      .from('chronicle')
-      .update({
-        shipment_id: shipmentId,
-        linked_by: 'created',
-        linked_at: new Date().toISOString(),
-      })
-      .eq('id', chronicleId);
-  }
-
-  private async logActionsAndIssues(
-    shipmentId: string,
-    chronicleId: string,
-    analysis: ShippingAnalysis,
-    email: ProcessedEmail
-  ): Promise<void> {
-    if (analysis.has_action && analysis.action_description) {
-      this.logger?.logActionDetected(
-        shipmentId,
-        chronicleId,
-        analysis.action_owner || null,
-        analysis.action_deadline || null,
-        analysis.action_priority || null,
-        analysis.action_description,
-        analysis.document_type,
-        email.receivedAt
-      );
-    }
-
-    if (analysis.has_issue && analysis.issue_type) {
-      this.logger?.logIssueDetected(
-        shipmentId,
-        chronicleId,
-        analysis.issue_type,
-        analysis.issue_description || '',
-        analysis.document_type,
-        email.receivedAt
-      );
-    }
-  }
-
-  private buildInsertData(
-    email: ProcessedEmail,
-    analysis: ShippingAnalysis,
-    fromParty: string,
-    attachmentsWithText: ProcessedAttachment[],
-    actionRecommendation?: ActionRecommendation,
-    confidenceData?: {
-      confidenceSource: string;
-      confidenceSignals: ConfidenceResult['signals'] | null;
-      escalatedTo: string | null;
-      escalationReason: string | null;
-    }
-  ): ChronicleInsertData {
-    return {
-      gmail_message_id: email.gmailMessageId,
-      thread_id: email.threadId,
-      direction: email.direction,
-      from_party: fromParty,
-      from_address: email.senderEmail,
-      transport_mode: analysis.transport_mode,
-
-      // Identifiers
-      booking_number: analysis.booking_number || null,
-      mbl_number: analysis.mbl_number || null,
-      hbl_number: analysis.hbl_number || null,
-      container_numbers: analysis.container_numbers || [],
-      mawb_number: analysis.mawb_number || null,
-      hawb_number: analysis.hawb_number || null,
-      work_order_number: analysis.work_order_number || null,
-      pro_number: analysis.pro_number || null,
-      reference_numbers: analysis.reference_numbers || [],
-      identifier_source: analysis.identifier_source,
-      document_type: analysis.document_type,
-
-      // 4-Point Routing
-      por_location: analysis.por_location || null,
-      por_type: analysis.por_type || null,
-      pol_location: analysis.pol_location || null,
-      pol_type: analysis.pol_type || null,
-      pod_location: analysis.pod_location || null,
-      pod_type: analysis.pod_type || null,
-      pofd_location: analysis.pofd_location || null,
-      pofd_type: analysis.pofd_type || null,
-
-      // Vessel/Carrier
-      vessel_name: analysis.vessel_name || null,
-      voyage_number: analysis.voyage_number || null,
-      flight_number: analysis.flight_number || null,
-      carrier_name: analysis.carrier_name || null,
-
-      // Dates
-      etd: analysis.etd || null,
-      atd: analysis.atd || null,
-      eta: analysis.eta || null,
-      ata: analysis.ata || null,
-      pickup_date: analysis.pickup_date || null,
-      delivery_date: analysis.delivery_date || null,
-
-      // Cutoffs
-      si_cutoff: analysis.si_cutoff || null,
-      vgm_cutoff: analysis.vgm_cutoff || null,
-      cargo_cutoff: analysis.cargo_cutoff || null,
-      doc_cutoff: analysis.doc_cutoff || null,
-
-      // Demurrage/Detention
-      last_free_day: analysis.last_free_day || null,
-      empty_return_date: analysis.empty_return_date || null,
-
-      // POD
-      pod_delivery_date: analysis.pod_delivery_date || null,
-      pod_signed_by: analysis.pod_signed_by || null,
-
-      // Cargo
-      container_type: analysis.container_type || null,
-      weight: analysis.weight || null,
-      pieces: analysis.pieces || null,
-      commodity: analysis.commodity || null,
-
-      // Stakeholders
-      shipper_name: analysis.shipper_name || null,
-      shipper_address: analysis.shipper_address || null,
-      shipper_contact: analysis.shipper_contact || null,
-      consignee_name: analysis.consignee_name || null,
-      consignee_address: analysis.consignee_address || null,
-      consignee_contact: analysis.consignee_contact || null,
-      notify_party_name: analysis.notify_party_name || null,
-      notify_party_address: analysis.notify_party_address || null,
-      notify_party_contact: analysis.notify_party_contact || null,
-
-      // Financial
-      invoice_number: analysis.invoice_number || null,
-      amount: analysis.amount || null,
-      currency: analysis.currency || null,
-
-      // Intelligence
-      message_type: analysis.message_type,
-      sentiment: analysis.sentiment,
-      summary: analysis.summary,
-      has_action: analysis.has_action,
-      action_description: analysis.action_description || null,
-      action_owner: analysis.action_owner || null,
-      action_deadline: analysis.action_deadline || null,
-      action_priority: analysis.action_priority || null,
-
-      // Action fields (from UnifiedActionService)
-      action_type: actionRecommendation?.actionType || null,
-      action_verb: actionRecommendation?.actionVerb || null,
-      action_priority_score: actionRecommendation?.priority || null,
-      action_deadline_source: actionRecommendation?.deadlineSource || null,
-      action_auto_resolve_on: actionRecommendation?.autoResolveOn || [],
-      action_auto_resolve_keywords: actionRecommendation?.autoResolveKeywords || [],
-      action_confidence: actionRecommendation?.confidence || null,
-      action_source: actionRecommendation?.source || null,
-
-      has_issue: analysis.has_issue || false,
-      issue_type: analysis.issue_type || null,
-      issue_description: analysis.issue_description || null,
-
-      // Raw content
-      subject: email.subject,
-      snippet: email.snippet,
-      body_preview: email.bodyText.substring(0, 1000),
-      attachments: attachmentsWithText,
-      ai_response: analysis,
-      ai_model: AI_CONFIG.model,
-      occurred_at: email.receivedAt.toISOString(),
-
-      // Confidence tracking (from ObjectiveConfidenceService)
-      confidence_source: confidenceData?.confidenceSource || null,
-      confidence_signals: confidenceData?.confidenceSignals || null,
-      escalated_to: confidenceData?.escalatedTo || null,
-      escalation_reason: confidenceData?.escalationReason || null,
-    };
   }
 
   // ==========================================================================
@@ -1624,6 +1232,26 @@ export class ChronicleService implements IChronicleService {
       totalTimeMs: Date.now() - startTime,
       results,
     };
+  }
+
+  // ==========================================================================
+  // PRIVATE - RETRY CAP
+  // ==========================================================================
+
+  /**
+   * Count how many times this email has failed (in chronicle_errors table)
+   * Used to enforce max-retry cap and avoid infinite reprocessing
+   */
+  private async getErrorCount(gmailMessageId: string): Promise<number> {
+    try {
+      const { count } = await this.supabase
+        .from('chronicle_errors')
+        .select('*', { count: 'exact', head: true })
+        .eq('gmail_message_id', gmailMessageId);
+      return count ?? 0;
+    } catch {
+      return 0; // If error check fails, allow processing
+    }
   }
 
   // ==========================================================================

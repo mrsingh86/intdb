@@ -205,7 +205,7 @@ export class ActionRulesEngine {
     // Confirmations from carriers → no action
     const confirmationTypes = [
       'booking_confirmation', 'vgm_confirmation', 'si_confirmation',
-      'sob_confirmation', 'rate_confirmation', 'acknowledgement',
+      'sob_confirmation', 'rate_confirmation', 'approval',
     ];
     if (confirmationTypes.includes(documentType) && fromParty !== 'customer') {
       return {
@@ -228,7 +228,7 @@ export class ActionRulesEngine {
     // Notifications → no action
     const notificationTypes = [
       'tracking_update', 'schedule_update', 'notification',
-      'system_notification', 'internal_notification',
+      'internal_notification',
     ];
     if (notificationTypes.includes(documentType)) {
       return {

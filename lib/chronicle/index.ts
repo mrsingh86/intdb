@@ -26,6 +26,32 @@ export {
 } from './gmail-service';
 
 // ============================================================================
+// EXTRACTED SERVICES (P2-15 Decomposition)
+// ============================================================================
+
+export {
+  ChronicleDataMapper,
+} from './chronicle-data-mapper';
+
+export type {
+  ConfidenceData,
+} from './chronicle-data-mapper';
+
+export {
+  ShipmentLinker,
+  createShipmentLinker,
+} from './shipment-linker';
+
+export {
+  AttachmentExtractor,
+  createAttachmentExtractor,
+} from './attachment-extractor';
+
+export type {
+  AttachmentExtractionResult,
+} from './attachment-extractor';
+
+// ============================================================================
 // SUPPORTING SERVICES
 // ============================================================================
 
@@ -180,17 +206,6 @@ export type {
 // - document_type_action_rules: Determines has_action based on document type + context
 
 export {
-  ActionRulesService,
-} from './action-rules-service';
-
-export type {
-  ActionRule,
-  ActionDetermination,
-  SimilarActionPattern,
-  VectorIntentResult,
-} from './action-rules-service';
-
-export {
   ActionRulesEngine,
   createActionRulesEngine,
 } from './action-rules-engine';
@@ -204,17 +219,6 @@ export type {
   TimeBasedAction,
   FlowPosition,
 } from './action-rules-engine';
-
-export {
-  PreciseActionService,
-  createPreciseActionService,
-} from './precise-action-service';
-
-export type {
-  ActionTemplate,
-  ShipmentContext,
-  PreciseActionRecommendation,
-} from './precise-action-service';
 
 // ============================================================================
 // RECLASSIFICATION SYSTEM

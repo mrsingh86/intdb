@@ -17,11 +17,11 @@ import { ThreadContext, FlowContext } from '../types';
 // ============================================================================
 
 export const AI_CONFIG = {
-  model: 'claude-3-5-haiku-latest',
-  maxTokens: 2048,
-  maxBodyChars: 4000,
-  maxAttachmentChars: 8000,
-} as const;
+  model: process.env.CHRONICLE_AI_MODEL || 'claude-3-5-haiku-latest',
+  maxTokens: parseInt(process.env.CHRONICLE_AI_MAX_TOKENS || '2048', 10),
+  maxBodyChars: parseInt(process.env.CHRONICLE_AI_MAX_BODY_CHARS || '4000', 10),
+  maxAttachmentChars: parseInt(process.env.CHRONICLE_AI_MAX_ATTACHMENT_CHARS || '8000', 10),
+};
 
 // ============================================================================
 // FREIGHT FORWARDER SYSTEM PROMPT
@@ -48,10 +48,9 @@ If email has NO PDF/document attachment, it CANNOT be classified as:
 - vgm_confirmation (requires VGM PDF)
 
 If NO attachment, classify as one of these COMMUNICATION types instead:
-- approval: "OK", "Approved", "Confirmed", "Go ahead", "Proceed"
+- approval: "OK", "Approved", "Confirmed", "Go ahead", "Proceed", "Received", "Noted", "Thanks"
 - request: "Please send", "Kindly share", "Request to", "Need"
 - escalation: "Urgent", "ASAP", "Escalate", "Immediately"
-- acknowledgement: "Received", "Noted", "Thanks", "Got it"
 - notification: "FYI", "Please note", "For your information"
 - general_correspondence: General discussion, status updates
 
@@ -75,9 +74,9 @@ INTERNAL NOTIFICATIONS (from @intoglo.com):
 - These are internal deal approvals, not carrier documents
 
 SYSTEM NOTIFICATIONS:
-- From notification@*.com or noreply@*.com = system_notification
-- From ODeX (notification@odexservices.com) = system_notification (NOT final_bl!)
-- Empty body with automated subject = system_notification
+- From notification@*.com or noreply@*.com = internal_notification
+- From ODeX (notification@odexservices.com) = internal_notification (NOT final_bl!)
+- Empty body with automated subject = internal_notification
 
 FRAUD RISK:
 - From gmail.com/yahoo.com claiming to be carrier = flag for review
@@ -150,10 +149,86 @@ CRITICAL RULES FOR IDENTIFICATION:
    - NOT SEINUS IDs (those are work orders)!
    - NOT container numbers!
 
+   ┌────────────────────────────────────────────────────────────────────────┐
+   │ CARRIER-SPECIFIC BOOKING/MBL FORMATS (from production data analysis)  │
+   └────────────────────────────────────────────────────────────────────────┘
+
+   MAERSK (Most common in our system):
+   - Booking: Pure numeric 9 digits → 263216729, 262444238, 262187584
+   - MBL: MAEU + 9 digits (no space!) → MAEU263216729, MAEU262444238
+   - Container prefixes: MRKU, MAEU, MSCU, MSKU
+   - Subject pattern: "MAERSK-- 263216729" → booking_number: 263216729
+
+   HAPAG-LLOYD:
+   - Booking: Pure numeric 8 digits → 34577398, 34568890, 34823478
+   - MBL: HLCU + region/sequence → HLCUBO12601BGUW1, HLCUDE1251233607
+   - Container prefixes: HLBU, HLXU, HAMU
+   - Subject pattern: "Hapag-Lloyd // BKG 34577398" → booking_number: 34577398
+
+   CMA CGM:
+   - Booking: Prefix + 7 digits → CAD0854982, AMC2494097, EID0927398
+   - MBL: CMDU + booking → CMDUEID0927398, CMAUEIC2493881
+   - Container prefixes: CMAU, CGMU
+   - Subject pattern: "CMA CGM - CAD0854982" → booking_number: CAD0854982
+
+   MSC:
+   - Booking: Various formats → MSCUW7831234, MSC1234567
+   - MBL: MEDU + digits → MEDU1234567890
+   - Container prefixes: MSCU, MEDU
+
+   COSCO:
+   - Booking: Numeric or prefixed → 1234567890, COSCO1234567
+   - MBL: COSU + digits → COSU6433188
+
    MBL NUMBER (mbl_number):
    - CARRIER PREFIX + DIGITS: MAEU261683714, HLCUCM2251119160, COSU6433188, MAEU261308924
    - Prefixes: MAEU (Maersk), HLCU/HLCUCM (Hapag), COSU (COSCO), OOLU (OOCL), etc.
    - This is Master Bill of Lading from ocean carrier
+
+   ⚠️ MBL COMMON MISTAKES (DO NOT DO THESE):
+   ✗ "MAERSK 263216729" ← WRONG! Don't include carrier NAME with space
+   ✗ "263216729" ← WRONG! Pure numeric is booking_number, not MBL
+   ✗ "UETU6544615" ← WRONG! This is container number (4 letters + 7 digits)
+   ✗ Using booking number in MBL field ← WRONG!
+
+   ✓ "MAEU263216729" ← CORRECT! Carrier PREFIX + digits (no space)
+   ✓ If you only see "263216729" in subject → that's booking_number, NOT mbl_number
+   ✓ MBL usually appears in BL documents, not booking confirmations
+
+   CARRIER NAME (carrier_name):
+   - Extract the OCEAN CARRIER, not the forwarder
+   - Subject "MAERSK-- 263216729" → carrier_name: "Maersk" (NOT "Hapag-Lloyd"!)
+   - Look for: vessel name (MAERSK DENVER → Maersk), MBL prefix (MAEU → Maersk)
+   - NEVER output multiple carriers like "Hapag, Maersk" - pick ONE based on evidence
+   - If email discusses quotes from multiple carriers, pick the one being BOOKED
+
+   ┌────────────────────────────────────────────────────────────────────────┐
+   │ CARRIER SUBJECT LINE PATTERNS (for identifying carrier + booking)     │
+   └────────────────────────────────────────────────────────────────────────┘
+
+   MAERSK:
+   - "MAERSK-- 263216729 // KOHL's // INDC 2nd FEB'26"
+     → carrier_name: "Maersk", booking_number: 263216729
+     → cargo_cutoff: 2026-02-02 (INDC date)
+   - "MAERSK BOOKING CONFIRMATION - 262444238"
+     → carrier_name: "Maersk", booking_number: 262444238
+
+   HAPAG-LLOYD:
+   - "Hapag-Lloyd // BKG 34577398 // ETD 15-JAN-26"
+     → carrier_name: "Hapag-Lloyd", booking_number: 34577398
+   - "HL Booking Amendment - 34568890"
+     → carrier_name: "Hapag-Lloyd", booking_number: 34568890
+
+   CMA CGM:
+   - "CMA CGM - CAD0854982 - BOOKING CONFIRMATION"
+     → carrier_name: "CMA CGM", booking_number: CAD0854982
+   - "CMACGM/EID0927398/SI CUTOFF REMINDER"
+     → carrier_name: "CMA CGM", booking_number: EID0927398
+
+   COMMON PATTERNS:
+   - Customer name often after "//" → "// KOHL's //" = consignee hint
+   - Date after "INDC" or "CUTOFF" → cargo_cutoff, NOT ETD
+   - Date after "ETD" or "SAILING" → actual ETD
 
    CONTAINER NUMBERS (container_numbers):
    - EXACTLY 4 LETTERS + 7 DIGITS: MRKU1234567, BMOU5630848, CSNU8995220
@@ -169,34 +244,74 @@ CRITICAL RULES FOR IDENTIFICATION:
 
    - invoice_number: Commercial invoice number
    - reference_numbers: Customer PO numbers, other references
+     IMPORTANT: If email contains MULTIPLE booking numbers, put the PRIMARY one in booking_number
+     and put ALL OTHERS in reference_numbers array. Example:
+     Email mentions bookings 263216729, 263216730, 263216731 →
+       booking_number: "263216729", reference_numbers: ["263216730", "263216731"]
 
 3. 4-POINT ROUTING (CRITICAL - Use correct fields):
 
    POR (Place of Receipt) → POL (Port of Loading) → POD (Port of Discharge) → POFD (Place of Final Delivery)
 
+   ┌────────────────────────────────────────────────────────────────────────┐
+   │ POL/POD FORMAT - USE UN/LOCODE (5 LETTERS) ONLY!                       │
+   └────────────────────────────────────────────────────────────────────────┘
+
+   For pol_location and pod_location, ALWAYS use 5-letter UN/LOCODE:
+
+   CORRECT FORMAT:
+   ✓ pol_location: "INNSA"    (Nhava Sheva, India)
+   ✓ pod_location: "USNYC"    (New York, USA)
+   ✓ pol_location: "CNSHA"    (Shanghai, China)
+   ✓ pod_location: "USLAX"    (Los Angeles, USA)
+
+   WRONG FORMAT (DO NOT OUTPUT):
+   ✗ pol_location: "Nhava Sheva"           → use "INNSA"
+   ✗ pod_location: "New York"              → use "USNYC"
+   ✗ pol_location: "Jawaharlal Nehru, IN"  → use "INNSA"
+   ✗ pol_location: ["INNSA", "INMUN"]      → NO ARRAYS! Pick one port
+   ✗ pol_location: "<UNKNOWN>"             → use null instead
+   ✗ pod_location: "4601"                  → meaningless, use null
+
+   COMMON UN/LOCODES (MEMORIZE THESE):
+   ══════════════════════════════════
+   INDIA:   INNSA (Nhava Sheva/Mumbai), INMUN (Mundra), INMAA (Chennai)
+   USA:     USNYC (New York), USLAX (Los Angeles), USHOU (Houston)
+            USSAV (Savannah), USCHI (Chicago), USBAL (Baltimore)
+            USSEA (Seattle), USOAK (Oakland), USCHS (Charleston)
+   CANADA:  CAVAN (Vancouver), CAMTR (Montreal), CAHAL (Halifax)
+   CHINA:   CNSHA (Shanghai), CNSZX (Shenzhen), CNNGB (Ningbo)
+   OTHER:   SGSIN (Singapore), AEJEA (Jebel Ali/Dubai), NLRTM (Rotterdam)
+
+   If you don't know the UN/LOCODE for a port, output null (NOT city name!)
+
    por_location: Shipper's warehouse/factory (inland origin)
    - Examples: "Mumbai Factory", "Patli", "Supplier Warehouse"
    - por_type: warehouse, factory, cfs, icd, address
+   - Can use city names since these are inland locations
 
    pol_location: Port/Airport where cargo LOADS onto vessel/aircraft
-   - Ocean: UN/LOCODE like INNSA (Nhava Sheva), USHOU (Houston), CNSHA (Shanghai)
+   - Ocean: UN/LOCODE ONLY - INNSA, USHOU, CNSHA (5 uppercase letters)
    - Air: Airport codes like BOM, JFK, LAX
    - pol_type: port, airport, rail_terminal
 
    pod_location: Port/Airport where cargo UNLOADS from vessel/aircraft
-   - Ocean: UN/LOCODE like USNYC (New York), USLAX (Los Angeles)
+   - Ocean: UN/LOCODE ONLY - USNYC, USLAX, DEHAM (5 uppercase letters)
    - Air: Airport codes like JFK, ORD
    - pod_type: port, airport, rail_terminal
 
    pofd_location: Consignee's warehouse/final destination (inland destination)
    - Examples: "Detroit, MI", "Oak Creek, WI", "Consignee Warehouse"
    - pofd_type: warehouse, factory, cfs, icd, address
+   - Can use city names since these are inland locations
 
    RULES:
    - "Nhava Sheva", "INNSA", "Mundra" = pol_location (port), NOT por
    - "Houston", "USHOU" = pod_location (port) if ocean, OR pofd_location if final destination
    - City addresses like "Detroit, MI" = pofd_location (address), NOT pod
    - For trucking-only (road mode): use por_location and pofd_location only
+   - NEVER output arrays for location fields - pick ONE location
+   - NEVER output "<UNKNOWN>" - use null instead
 
 4. DOCUMENT TYPE CLUES:
    - "Forwarding Note" / "Forwarding Instructions" = forwarding_note (pre-departure origin document)
@@ -279,6 +394,68 @@ CRITICAL RULES FOR IDENTIFICATION:
    - For "tomorrow", "today", "within 48 hours" → calculate from EMAIL DATE
 
    ┌────────────────────────────────────────────────────────────────────────┐
+   │ CRITICAL: "Xth MMM'YY" DATE FORMAT - DO NOT SWAP DAY AND MONTH!       │
+   └────────────────────────────────────────────────────────────────────────┘
+
+   The format "Xth MMM'YY" means: DAY-MONTH-YEAR (NOT month-day-year!)
+
+   STEP-BY-STEP PARSING (FOLLOW EXACTLY):
+   ═══════════════════════════════════════
+   Input: "2nd FEB'26"
+   Step 1: "2nd" → Extract number → DAY = 2
+   Step 2: "FEB" → Look up month → MONTH = February = 02
+   Step 3: "'26" → Add 2000 → YEAR = 2026
+   Step 4: Combine as YYYY-MM-DD → 2026-02-02
+
+   Output: 2026-02-02 (February 2nd, 2026)
+
+   MORE EXAMPLES:
+   ═══════════════
+   "15th JAN'26" → DAY=15, MONTH=01, YEAR=2026 → 2026-01-15
+   "28th MAR'26" → DAY=28, MONTH=03, YEAR=2026 → 2026-03-28
+   "3rd DEC'25"  → DAY=03, MONTH=12, YEAR=2025 → 2025-12-03
+   "10th SEP'26" → DAY=10, MONTH=09, YEAR=2026 → 2026-09-10
+
+   COMMON MISTAKE (DO NOT DO THIS):
+   ════════════════════════════════
+   ✗ "2nd FEB'26" → 2026-01-02 (WRONG!)
+     You put DAY (2) as MONTH (01) and MONTH (FEB=02) as DAY (02)
+     This is BACKWARDS!
+
+   ✓ "2nd FEB'26" → 2026-02-02 (CORRECT!)
+     DAY=2 goes in DAY position (last), MONTH=FEB=02 goes in MONTH position (middle)
+
+   MEMORY AID:
+   ═══════════
+   "2nd FEB" = "February 2nd" = 02-02 (month-day in result)
+   The NUMBER (2nd) is the DAY → goes LAST in YYYY-MM-DD
+   The WORD (FEB) is the MONTH → goes MIDDLE in YYYY-MM-DD
+
+   ┌────────────────────────────────────────────────────────────────────────┐
+   │ SUBJECT LINE DATES - WARNING! (Most common extraction error!)         │
+   └────────────────────────────────────────────────────────────────────────┘
+
+   Dates in email SUBJECT are usually CARGO CUTOFF dates, NOT ETD/ETA!
+
+   SUBJECT PATTERN: "MAERSK-- 262444238 // KOHL's // INDC 2nd FEB'26"
+   - "INDC 2nd FEB'26" = Inland Container Depot Cutoff = cargo_cutoff
+   - This is NOT the ETD (sailing date)!
+   - This is NOT the ETA (arrival date)!
+
+   DOMAIN TERMS (know what these mean!):
+   - INDC = Inland Container Depot Cutoff (cargo_cutoff)
+   - ICD = Inland Container Depot (a location, not a date)
+   - C/O or CUTOFF = cutoff date (si_cutoff, vgm_cutoff, cargo_cutoff)
+   - SAILING = ETD (departure from port)
+   - ETA/ARRIVAL = eta (arrival at destination)
+
+   RULE: Do NOT extract subject line dates as ETD or ETA unless:
+   - Subject explicitly says "ETD", "SAILING DATE", or "DEPARTURE"
+   - Subject explicitly says "ETA", "ARRIVAL", or "POD ETA"
+
+   For ETD/ETA, look INSIDE the email body or attachments, not subject!
+
+   ┌────────────────────────────────────────────────────────────────────────┐
    │ DATE SOURCE HIERARCHY (Extract dates based on document type!)         │
    └────────────────────────────────────────────────────────────────────────┘
 
@@ -347,13 +524,49 @@ CRITICAL RULES FOR IDENTIFICATION:
    These relationships MUST hold true. If your dates violate these, RE-CHECK:
 
    1. Cutoffs < ETD     (submit documents BEFORE vessel departs)
-   2. ETD < ETA         (depart BEFORE arrive - typically 14-45 days for ocean)
+   2. ETD < ETA         (depart BEFORE arrive)
    3. ETA < LFD         (arrive first, THEN free time period starts)
-   4. ETA ≈ ETD + 14-45 days for international ocean freight
+
+   ┌────────────────────────────────────────────────────────────────────────┐
+   │ MINIMUM TRANSIT TIMES (Ocean freight is SLOW - not 1 day!)            │
+   └────────────────────────────────────────────────────────────────────────┘
+
+   Ocean freight takes WEEKS, not days. Transit times from production data:
+
+   ╔════════════════════════════════════════════════════════════════════════╗
+   ║  VERIFIED TRANSIT TIMES (from actual shipment data)                    ║
+   ╠════════════════════════════════════════════════════════════════════════╣
+   ║  India → US East Coast:  28-42 days (typical: 32 days)                 ║
+   ║  India → US West Coast:  25-35 days (typical: 28 days)                 ║
+   ║  India → Canada:         27-46 days (typical: 35 days)                 ║
+   ║  India → Europe:         18-28 days (typical: 21 days)                 ║
+   ║  China → US West Coast:  14-21 days (typical: 16 days)                 ║
+   ║  China → US East Coast:  28-35 days (typical: 30 days)                 ║
+   ║  Intra-Asia:             3-10 days  (typical: 7 days)                  ║
+   ╠════════════════════════════════════════════════════════════════════════╣
+   ║  ABSOLUTE MINIMUM for international ocean: 7 days                      ║
+   ║  Any transit < 7 days = EXTRACTION ERROR (not possible for ocean)      ║
+   ╚════════════════════════════════════════════════════════════════════════╝
+
+   IF YOUR ETD AND ETA ARE LESS THAN 7 DAYS APART:
+   → You extracted the WRONG DATE
+   → One of them is probably a transshipment date or cutoff date
+   → Re-check and find the CORRECT eta from body/attachment
+
+   EXAMPLE OF WRONG EXTRACTION:
+   ✗ ETD: 2026-02-02, ETA: 2026-02-03 (1 day = IMPOSSIBLE for ocean)
+     This means you extracted cargo cutoff or INDC date as ETD
+     The REAL ETA should be ~March 2026 (30+ days later)
+
+   COMMON MISTAKE:
+   ✗ Subject says "INDC 2nd FEB'26" → AI puts 2026-02-02 as ETD
+     WRONG! INDC is cargo cutoff date, NOT sailing date!
+     Look in email body for actual ETD/sailing date
 
    INVALID EXAMPLES (AI should NOT output these):
    ✗ ETD: 2026-02-21, LFD: 2025-01-15 (LFD before departure = IMPOSSIBLE)
    ✗ ETD: 2026-01-15, ETA: 2026-01-10 (arrival before departure = IMPOSSIBLE)
+   ✗ ETD: 2026-02-02, ETA: 2026-02-03 (1 day transit = IMPOSSIBLE for ocean)
    ✗ SI Cutoff: 2026-01-20, ETD: 2026-01-15 (cutoff after departure = IMPOSSIBLE)
 
    If document shows impossible dates, likely:
@@ -419,8 +632,7 @@ CRITICAL RULES FOR IDENTIFICATION:
    - si_confirmation = SI was SUBMITTED → has_action: FALSE
    - sob_confirmation = Cargo is shipped → has_action: FALSE
    - booking_confirmation = Booking is CONFIRMED → has_action: FALSE (unless genuinely requesting docs)
-   - approval = Something was APPROVED → has_action: FALSE
-   - acknowledgement = Receipt acknowledged → has_action: FALSE
+   - approval = Something was APPROVED or acknowledged → has_action: FALSE
 
    Even if confirmation email says "submit VGM on portal within 48 hours" - this is
    STANDARD PORT LANGUAGE appearing in ALL VGM confirmations. It does NOT mean
@@ -505,14 +717,12 @@ export const ANALYZE_TOOL_SCHEMA: Anthropic.Tool = {
           // Updates & Notifications (NO ATTACHMENT OK)
           'schedule_update', 'tracking_update', 'exception_notice',
           // Communication Types (NO ATTACHMENT - text only emails)
-          'approval',              // "OK", "Approved", "Confirmed", "Proceed"
+          'approval',              // "OK", "Approved", "Confirmed", "Proceed", "Noted", "Thanks"
           'request',               // "Please send", "Kindly share", "Need"
           'escalation',            // "Urgent", "ASAP", "Escalate"
-          'acknowledgement',       // "Received", "Noted", "Thanks", "Got it"
           'notification',          // "FYI", "Please note", "For your info"
-          'internal_notification', // Intoglo "Go Green" deal approvals
-          'system_notification',   // ODeX, carrier system auto-emails
-          'general_correspondence', 'internal_communication', 'unknown',
+          'internal_notification', // Intoglo internal + ODeX/carrier system auto-emails
+          'general_correspondence', 'unknown',
         ],
       },
 
@@ -538,7 +748,6 @@ export const ANALYZE_TOOL_SCHEMA: Anthropic.Tool = {
       voyage_number: { type: 'string', nullable: true },
       flight_number: { type: 'string', nullable: true },
       carrier_name: { type: 'string', nullable: true },
-      carrier_scac: { type: 'string', nullable: true },
 
       // Dates - Estimated vs Actual
       etd: { type: 'string', nullable: true, description: 'Estimated Time of Departure YYYY-MM-DD. MANDATORY for booking_confirmation! Look for: ETD, DEPARTURE, SAILING DATE' },
@@ -808,10 +1017,23 @@ ${subject}
 `;
   }
 
+  // When body is empty/minimal but attachments have data, signal the AI to focus on attachments
+  // This is common for booking confirmations where carriers send empty body + PDF
+  const bodyLength = bodyPreview?.trim().length || 0;
+  const attachmentLength = attachmentText?.trim().length || 0;
+  const pdfPrimarySection = (bodyLength < 100 && attachmentLength > 200)
+    ? `
+⚠️ IMPORTANT: Email body is empty/minimal (${bodyLength} chars). ALL shipping data is in the PDF attachment (${attachmentLength} chars).
+Extract ALL fields (booking_number, vessel, ETD, ETA, POL, POD, carrier, containers, cutoffs, parties) from the ATTACHMENT text below.
+Do NOT return empty fields just because the body is empty.
+
+`
+    : '';
+
   return `${FREIGHT_FORWARDER_PROMPT}
 ${dateContext}${threadSection}${flowSection}${deepThreadSection}
 === CURRENT EMAIL (analyze this one) ===
-
+${pdfPrimarySection}
 ${subjectSection}=== EMAIL BODY ===
 ${bodyPreview}
 
@@ -930,6 +1152,23 @@ export function validateExtractedDates(extracted: {
     const etaDate = new Date(result.eta);
     if (etaDate < etdDate) {
       console.warn(`[DateValidation] ETA ${result.eta} before ETD ${result.etd} - nullifying ETA`);
+      result.eta = null;
+    }
+  }
+
+  // 3b2. MINIMUM TRANSIT TIME - Ocean freight takes weeks, not days!
+  // If ETD and ETA are less than 7 days apart, the ETA is wrong
+  // (likely extracted cargo cutoff or transshipment date as ETA)
+  const MINIMUM_OCEAN_TRANSIT_DAYS = 7;
+  if (result.etd && result.eta) {
+    const etdDate = new Date(result.etd);
+    const etaDate = new Date(result.eta);
+    const transitDays = Math.round((etaDate.getTime() - etdDate.getTime()) / (1000 * 60 * 60 * 24));
+    if (transitDays < MINIMUM_OCEAN_TRANSIT_DAYS) {
+      console.warn(
+        `[DateValidation] Impossible transit: ${transitDays} days (ETD: ${result.etd}, ETA: ${result.eta}). ` +
+        `Ocean freight minimum is ${MINIMUM_OCEAN_TRANSIT_DAYS} days. Nullifying ETA.`
+      );
       result.eta = null;
     }
   }

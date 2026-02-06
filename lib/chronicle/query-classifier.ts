@@ -103,7 +103,7 @@ const DOCUMENT_TYPES = new Set([
   'customs_entry', 'isf_filing',
   'invoice', 'commercial_invoice', 'freight_invoice',
   'packing_list', 'certificate_of_origin',
-  'general_correspondence', 'internal_communication',
+  'general_correspondence', 'internal_notification',
 ]);
 
 /**

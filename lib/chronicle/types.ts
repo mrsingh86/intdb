@@ -23,6 +23,14 @@ const dateTransform = z.string().nullish().transform(v => {
   }
   // Must be valid date format
   if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  // Validate calendar date (rejects Feb 29 on non-leap years, Feb 30, etc.)
+  const parsed = new Date(v + 'T00:00:00Z');
+  if (isNaN(parsed.getTime())) return null;
+  // Verify the date components match (catches invalid dates like 2026-02-29)
+  const [year, month, day] = v.split('-').map(Number);
+  if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() + 1 !== month || parsed.getUTCDate() !== day) {
+    return null;
+  }
   return v;
 });
 
@@ -96,14 +104,12 @@ export const analyzeShippingCommunicationSchema = z.object({
     // Updates & Notifications (NO ATTACHMENT OK)
     'schedule_update', 'tracking_update', 'exception_notice',
     // Communication Types (NO ATTACHMENT - text only emails)
-    'approval',              // "OK", "Approved", "Confirmed", "Proceed"
+    'approval',              // "OK", "Approved", "Confirmed", "Proceed", "Noted", "Thanks"
     'request',               // "Please send", "Kindly share", "Need"
     'escalation',            // "Urgent", "ASAP", "Escalate"
-    'acknowledgement',       // "Received", "Noted", "Thanks"
     'notification',          // "FYI", "Please note"
-    'internal_notification', // Intoglo internal deal approvals
-    'system_notification',   // ODeX, carrier system auto-emails
-    'general_correspondence', 'internal_communication', 'unknown',
+    'internal_notification', // Intoglo internal + ODeX/carrier system auto-emails
+    'general_correspondence', 'unknown',
   ]),
 
   // =========================================================================
@@ -175,7 +181,7 @@ export const analyzeShippingCommunicationSchema = z.object({
   voyage_number: z.string().nullish(),
   flight_number: z.string().nullish().describe('Flight number for air freight'),
   carrier_name: z.string().nullish().describe('Operating carrier name'),
-  carrier_scac: z.string().nullish().describe('Standard Carrier Alpha Code'),
+  // carrier_scac removed: 100% null across all records, never populated by AI
 
   // =========================================================================
   // DATES - Estimated vs Actual
