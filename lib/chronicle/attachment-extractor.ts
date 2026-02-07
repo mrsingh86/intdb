@@ -61,7 +61,11 @@ export class AttachmentExtractor {
     messageId: string,
     attachment: ProcessedAttachment
   ): Promise<{ text: string; attachment: ProcessedAttachment } | null> {
-    if (attachment.mimeType !== 'application/pdf' || !attachment.attachmentId) {
+    // Accept application/pdf or octet-stream with .pdf extension (COSCO sends PDFs as octet-stream)
+    const isPdf = attachment.mimeType === 'application/pdf' ||
+      (attachment.mimeType === 'application/octet-stream' && attachment.filename?.toLowerCase().endsWith('.pdf'));
+
+    if (!isPdf || !attachment.attachmentId) {
       return null;
     }
 

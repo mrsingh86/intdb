@@ -325,15 +325,29 @@ export class ChronicleService implements IChronicleService {
       patternResult.confidence >= confidenceThreshold;
 
     if (usePatternMatch) {
-      // High-confidence pattern match - skip AI
-      analysis = await this.createAnalysisFromPattern(
-        email,
-        attachmentText,
-        patternResult,
-        threadContext
-      );
-      this.patternMatchStats.matched++;
-      console.log(`[Chronicle] Pattern match (pos ${threadPosition}): ${patternResult.documentType} (${patternResult.confidence}% confidence)`);
+      // Check if AI needed for date extraction from PDF attachments
+      const knownValues = threadContext?.knownValues || {};
+      const hasThreadDates = knownValues.etd || knownValues.eta;
+      const needsAiForDates = !hasThreadDates && attachmentText &&
+        ChronicleService.DATE_EXTRACTION_DOC_TYPES.has(patternResult.documentType!);
+
+      if (needsAiForDates) {
+        // Pattern identified doc type, but dates need AI extraction from PDF
+        console.log(`[Chronicle] Pattern match + AI date extraction: ${patternResult.documentType}`);
+        analysis = await this.runAiAnalysis(email, attachmentText, threadContext, threadPosition);
+        // Trust pattern's document_type (96% confidence) over AI
+        analysis.document_type = patternResult.documentType as ShippingAnalysis['document_type'];
+        this.patternMatchStats.matched++;
+      } else {
+        analysis = await this.createAnalysisFromPattern(
+          email,
+          attachmentText,
+          patternResult,
+          threadContext
+        );
+        this.patternMatchStats.matched++;
+        console.log(`[Chronicle] Pattern match (pos ${threadPosition}): ${patternResult.documentType} (${patternResult.confidence}% confidence)`);
+      }
     } else if (threadPosition === 1) {
       // Position 1: AI with subject included
       analysis = await this.runAiAnalysis(email, attachmentText, threadContext, threadPosition);
@@ -788,6 +802,16 @@ export class ChronicleService implements IChronicleService {
     'general_correspondence', 'notification',
     'internal_notification', 'approval',
     'approval', 'request', 'escalation', 'unknown',
+  ]);
+
+  // Doc types where ETD/ETA extraction from PDF attachments justifies AI cost
+  private static readonly DATE_EXTRACTION_DOC_TYPES = new Set([
+    'booking_confirmation',
+    'booking_amendment',
+    'schedule_update',
+    'arrival_notice',
+    'draft_bl',
+    'shipping_instructions',
   ]);
 
   private async calculateConfidenceAndEscalate(
