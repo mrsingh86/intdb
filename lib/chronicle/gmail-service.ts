@@ -390,7 +390,8 @@ export class ChronicleGmailService {
       threadId: message.threadId!,
       subject: headers['subject'] || '(no subject)',
       snippet: message.snippet || '',
-      bodyText: bodyText || '',
+      // Fall back to HTML-to-text when text/plain is empty (e.g., COSCO HTML-only emails)
+      bodyText: bodyText || (bodyHtml ? this.stripHtmlTags(bodyHtml) : ''),
       bodyHtml,
       senderEmail,
       senderName,
@@ -527,6 +528,33 @@ export class ChronicleGmailService {
     }
 
     return false;
+  }
+
+  /**
+   * Convert HTML to plain text for emails that lack text/plain part.
+   * Strips tags, converts block elements to newlines, decodes entities.
+   */
+  private stripHtmlTags(html: string): string {
+    let text = html;
+    // Remove style and script blocks entirely
+    text = text.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+    text = text.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+    // Convert block elements to newlines
+    text = text.replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n');
+    text = text.replace(/<br\s*\/?>/gi, '\n');
+    // Strip remaining HTML tags
+    text = text.replace(/<[^>]+>/g, '');
+    // Decode common HTML entities
+    text = text.replace(/&amp;/g, '&');
+    text = text.replace(/&lt;/g, '<');
+    text = text.replace(/&gt;/g, '>');
+    text = text.replace(/&quot;/g, '"');
+    text = text.replace(/&#39;/g, "'");
+    text = text.replace(/&nbsp;/g, ' ');
+    // Collapse whitespace: multiple spaces to one, preserve newlines
+    text = text.replace(/[ \t]+/g, ' ');
+    text = text.replace(/\n\s*\n/g, '\n');
+    return text.trim();
   }
 
   /**
