@@ -942,8 +942,10 @@ export class ChronicleService implements IChronicleService {
     const analysis: ShippingAnalysis = {
       transport_mode: 'ocean',
       document_type: documentType,
-      booking_number: knownValues.bookingNumber || this.extractBookingNumber(email.subject, email.bodyText) || null,
-      mbl_number: knownValues.mblNumber || this.extractMblNumber(email.subject, email.bodyText) || null,
+      // Prefer identifiers extracted from THIS email over thread-inherited values
+      // Prevents mega-shipment contamination when threads contain multiple sub-shipments
+      booking_number: this.extractBookingNumber(email.subject, email.bodyText) || knownValues.bookingNumber || null,
+      mbl_number: this.extractMblNumber(email.subject, email.bodyText) || knownValues.mblNumber || null,
       hbl_number: null,
       container_numbers: knownValues.containerNumbers || this.extractContainerNumbers(email.bodyText) || [],
       mawb_number: null,
@@ -1040,9 +1042,18 @@ export class ChronicleService implements IChronicleService {
       /BOOKING[#:\s]*([A-Z0-9]{8,20})/i,
       /\b(\d{9,10})\b/, // Maersk booking number format
     ];
+    // Phone patterns in email signatures that produce false booking matches
+    const PHONE_PATTERN = /(?:Ph|Mobile|Tel|Phone|Call|Fax|Mob)[^a-zA-Z]{0,5}\+?\d{0,3}\s*/i;
+    const text = subject + ' ' + body;
     for (const pattern of patterns) {
-      const match = (subject + ' ' + body).match(pattern);
-      if (match) return match[1];
+      const match = text.match(pattern);
+      if (!match) continue;
+      // For bare digit patterns, verify match isn't a phone number in signature
+      if (pattern.source === '\\b(\\d{9,10})\\b' && match.index !== undefined) {
+        const precedingText = text.substring(Math.max(0, match.index - 30), match.index);
+        if (PHONE_PATTERN.test(precedingText)) continue;
+      }
+      return match[1];
     }
     return null;
   }
